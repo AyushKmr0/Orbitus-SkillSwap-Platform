@@ -96,7 +96,8 @@ GOOGLE_CLIENT_SECRET=your_google_secret
 GITHUB_CLIENT_ID=your_github_id
 GITHUB_CLIENT_SECRET=your_github_secret
 
-FRONTEND_URL=http://localhost:5173
+FRONTEND_URL=your_deployed_frontend_url
+BACKEND_URL=https://orbitus-skillswap-platform.onrender.com
 ```
 
 ### Running the App
@@ -112,4 +113,3 @@ npm start (ya npm run dev)
 cd frontend
 npm run dev
 ```
-
