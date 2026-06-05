@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
-import { authStart, authSuccess, authFailure, clearAuthError } from '../../features/authSlice';
+import { authStart, authSuccess, authFailure } from '../../features/authSlice';
 import apiClient, { API_BASE_URL } from '../../services/apiClient';
-import { LogIn, Mail, Lock, Github, Chrome, AlertCircle, Globe, Terminal } from 'lucide-react';
+import { LogIn, Mail, Lock, AlertCircle, Globe, Terminal } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -25,7 +25,6 @@ const Login = () => {
   };
 
   const handleOAuth = (provider) => {
-    // Redirect directly to backend for OAuth flow
     window.location.href = `${API_BASE_URL}/api/auth/oauth/${provider}`;
   };
 
@@ -68,7 +67,7 @@ const Login = () => {
                 type="password"
                 required
                 className="field-input pl-12 w-full"
-                placeholder="••••••••"
+                placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />

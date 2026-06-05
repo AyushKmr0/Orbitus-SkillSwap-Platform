@@ -1,8 +1,13 @@
 import axios from 'axios';
 import { store } from '../store/index.js';
 import { logout, updateAccessToken } from '../features/authSlice.js';
+import { backendUrl } from '../config/env.js';
 
-export const API_BASE_URL = 'https://orbitus-skillswap-platform.onrender.com';
+if (backendUrl) {
+  axios.defaults.baseURL = backendUrl;
+}
+
+export const API_BASE_URL = backendUrl || 'https://orbitus-skillswap-platform.onrender.com';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

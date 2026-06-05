@@ -30,11 +30,12 @@ socketHandler(io);
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
+  const serviceUrl = process.env.BACKEND_URL || `http://0.0.0.0:${PORT}`;
   console.log(`==================================================`);
   console.log(`  ORBITUS BACKEND SERVICES INITIALIZED!`);
   console.log(`  Running in mode:  ${process.env.NODE_ENV || 'development'}`);
-  console.log(`  Port:             ${PORT}`);
-  console.log(`  Frontend URL:     ${process.env.FRONTEND_URL || 'Not Set'}`);
+  console.log(`  HTTP Listener:    ${serviceUrl}`);
+  console.log(`  Socket Service:   ${serviceUrl.replace(/^http/, 'ws')}`);
   console.log(`==================================================`);
 });
 

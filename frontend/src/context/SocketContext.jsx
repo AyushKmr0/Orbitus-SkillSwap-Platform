@@ -4,6 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { addMessage, updateMessage, removeMessageForMe, setActiveChats } from '../features/chatSlice.js';
 import { updateProfileSuccess } from '../features/authSlice.js';
 import apiClient from '../services/apiClient.js';
+import { socketUrl } from '../config/env.js';
 
 const SocketContext = createContext(null);
 
@@ -33,7 +34,7 @@ export const SocketProvider = ({ children }) => {
   useEffect(() => {
     if (isAuthenticated && user) {
       // Connect to Socket Server
-      const socketConn = io('https://orbitus-skillswap-platform.onrender.com', {
+      const socketConn = io(socketUrl, {
         transports: ['polling', 'websocket'],
         reconnectionAttempts: 5,
         timeout: 10000

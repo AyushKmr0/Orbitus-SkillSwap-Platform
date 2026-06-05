@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -16,6 +17,10 @@ import postRoutes from './routes/postRoutes.js';
 import certificateRoutes from './routes/certificateRoutes.js';
 
 const app = express();
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://orbitus-skill-swap-platform.vercel.app'
+].filter(Boolean);
 
 // ES module path support
 const __filename = fileURLToPath(import.meta.url);
@@ -23,9 +28,16 @@ const __dirname = path.dirname(__filename);
 
 // Standard Middlewares
 app.use(cors({
-  origin: [process.env.FRONTEND_URL, 'https://orbitus-skill-swap-platform.vercel.app', 'http://localhost:3000'].filter(Boolean),
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true
 }));
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
-import { authStart, authFailure, clearAuthError } from '../../features/authSlice';
+import { authStart, authFailure } from '../../features/authSlice';
 import apiClient from '../../services/apiClient';
-import { UserPlus, Mail, Lock, User, AlertCircle, CheckCircle } from 'lucide-react';
+import { UserPlus, Mail, Lock, User, AlertCircle } from 'lucide-react';
 
 const Register = () => {
   const [formData, setFormData] = useState({ name: '', email: '', password: '', username: '' });
@@ -16,7 +16,6 @@ const Register = () => {
     dispatch(authStart());
     try {
       await apiClient.post('/api/auth/register', formData);
-      // Redirect to OTP verification after successful registration
       navigate('/verify-otp', { state: { email: formData.email } });
     } catch (err) {
       dispatch(authFailure(err.response?.data?.message || 'Registration failed'));

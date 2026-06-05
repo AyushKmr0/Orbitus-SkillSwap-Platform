@@ -50,6 +50,12 @@ const isProfileComplete = (user) => Boolean(
   user?.interests?.length
 );
 
+const refreshCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+};
+
 const publicUserPayload = (user, viewerId = null, options = {}) => {
   const followerIds = (user.followers || []).map(id => id.toString());
   const followingIds = (user.following || []).map(id => id.toString());
@@ -90,9 +96,7 @@ const issueSession = async (res, user) => {
   await user.save();
 
   res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    ...refreshCookieOptions,
     maxAge: 7 * 24 * 60 * 60 * 1000
   });
 
@@ -291,9 +295,7 @@ export const refreshTokens = async (req, res) => {
     await user.save();
 
     res.cookie('refreshToken', newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      ...refreshCookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
@@ -318,7 +320,7 @@ export const logoutUser = async (req, res) => {
       await User.findOneAndUpdate({ refreshToken: token }, { refreshToken: '' });
     }
 
-    res.clearCookie('refreshToken');
+    res.clearCookie('refreshToken', refreshCookieOptions);
     res.status(200).json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
     console.error('Logout Error:', error.message);
@@ -799,7 +801,7 @@ export const deleteAccount = async (req, res) => {
     ]);
 
     await User.deleteOne({ _id: user._id });
-    res.clearCookie('refreshToken');
+    res.clearCookie('refreshToken', refreshCookieOptions);
 
     res.status(200).json({ success: true, message: 'Account deleted successfully' });
   } catch (error) {
