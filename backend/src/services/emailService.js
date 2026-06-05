@@ -5,6 +5,10 @@ const DEFAULT_CONNECTION_TIMEOUT_MS = 10000;
 const DEFAULT_GREETING_TIMEOUT_MS = 10000;
 const DEFAULT_SOCKET_TIMEOUT_MS = 20000;
 
+const isEmailFlagEnabled = (key) => String(process.env[key] || '').toLowerCase() === 'true';
+
+const elapsedMs = (startedAt) => Date.now() - startedAt;
+
 const emailLog = (message, meta = {}) => {
   const safeMeta = Object.fromEntries(
     Object.entries(meta).filter(([, value]) => value !== undefined && value !== '')
@@ -25,11 +29,15 @@ const createTransporter = () => {
 
   const port = Number(process.env.EMAIL_PORT);
   const secure = String(process.env.EMAIL_SECURE || '').toLowerCase() === 'true' || port === 465;
+  const requireTLS = process.env.EMAIL_REQUIRE_TLS
+    ? isEmailFlagEnabled('EMAIL_REQUIRE_TLS')
+    : port === 587;
 
   return nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port,
     secure,
+    requireTLS,
     connectionTimeout: Number(process.env.EMAIL_CONNECTION_TIMEOUT_MS) || DEFAULT_CONNECTION_TIMEOUT_MS,
     greetingTimeout: Number(process.env.EMAIL_GREETING_TIMEOUT_MS) || DEFAULT_GREETING_TIMEOUT_MS,
     socketTimeout: Number(process.env.EMAIL_SOCKET_TIMEOUT_MS) || DEFAULT_SOCKET_TIMEOUT_MS,
@@ -40,7 +48,10 @@ const createTransporter = () => {
       pass: process.env.EMAIL_PASS
     },
     tls: {
-      servername: process.env.EMAIL_HOST
+      servername: process.env.EMAIL_HOST,
+      rejectUnauthorized: process.env.EMAIL_TLS_REJECT_UNAUTHORIZED
+        ? isEmailFlagEnabled('EMAIL_TLS_REJECT_UNAUTHORIZED')
+        : true
     }
   });
 };
@@ -62,6 +73,9 @@ export const logEmailConfigStatus = () => {
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
     secure: String(process.env.EMAIL_SECURE || '').toLowerCase() === 'true' || port === 465,
+    requireTLS: process.env.EMAIL_REQUIRE_TLS
+      ? isEmailFlagEnabled('EMAIL_REQUIRE_TLS')
+      : port === 587,
     userConfigured: Boolean(process.env.EMAIL_USER),
     from: process.env.EMAIL_FROM
   });
@@ -71,6 +85,8 @@ export const sendOtpEmail = async ({ to, name, code, purpose = 'verify your emai
   const transporter = createTransporter();
   const appName = process.env.APP_NAME || 'Orbitus';
   const from = process.env.EMAIL_FROM || `"${appName}" <${process.env.EMAIL_USER}>`;
+  const shouldVerifyBeforeSend =
+    isEmailFlagEnabled('EMAIL_VERIFY_BEFORE_SEND') || process.env.NODE_ENV !== 'production';
 
   emailLog('Preparing OTP email', {
     to,
@@ -81,29 +97,68 @@ export const sendOtpEmail = async ({ to, name, code, purpose = 'verify your emai
   });
 
   try {
-    emailLog('Opening SMTP connection and authenticating');
-    await transporter.verify();
-    emailLog('SMTP connection/authentication successful');
+    if (shouldVerifyBeforeSend) {
+      const verifyStartedAt = Date.now();
+      emailLog('SMTP verify started', {
+        environment: process.env.NODE_ENV || 'development'
+      });
 
-    const info = await transporter.sendMail({
-      from,
-      to,
-      subject: `${appName} OTP Code`,
-      text: `Hi ${name || 'there'},\n\nYour OTP code to ${purpose} is ${code}. It expires in 15 minutes.\n\nIf you did not request this, you can ignore this email.`,
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-          <h2>${appName}</h2>
-          <p>Hi ${name || 'there'},</p>
-          <p>Your OTP code to ${purpose} is:</p>
-          <p style="font-size: 28px; font-weight: 700; letter-spacing: 4px;">${code}</p>
-          <p>This code expires in 15 minutes.</p>
-          <p>If you did not request this, you can ignore this email.</p>
-        </div>
-      `
+      try {
+        await transporter.verify();
+      } catch (error) {
+        emailLog('SMTP verify failed', {
+          durationMs: elapsedMs(verifyStartedAt),
+          ...describeMailError(error)
+        });
+        throw error;
+      }
+
+      emailLog('SMTP verify successful', {
+        durationMs: elapsedMs(verifyStartedAt)
+      });
+    } else {
+      emailLog('SMTP verify skipped', {
+        environment: process.env.NODE_ENV,
+        reason: 'production sends directly with sendMail()'
+      });
+    }
+
+    const sendStartedAt = Date.now();
+    emailLog('SMTP sendMail started', {
+      to
     });
+
+    let info;
+
+    try {
+      info = await transporter.sendMail({
+        from,
+        to,
+        subject: `${appName} OTP Code`,
+        text: `Hi ${name || 'there'},\n\nYour OTP code to ${purpose} is ${code}. It expires in 15 minutes.\n\nIf you did not request this, you can ignore this email.`,
+        html: `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+            <h2>${appName}</h2>
+            <p>Hi ${name || 'there'},</p>
+            <p>Your OTP code to ${purpose} is:</p>
+            <p style="font-size: 28px; font-weight: 700; letter-spacing: 4px;">${code}</p>
+            <p>This code expires in 15 minutes.</p>
+            <p>If you did not request this, you can ignore this email.</p>
+          </div>
+        `
+      });
+    } catch (error) {
+      emailLog('SMTP sendMail failed', {
+        to,
+        durationMs: elapsedMs(sendStartedAt),
+        ...describeMailError(error)
+      });
+      throw error;
+    }
 
     emailLog('OTP email sent successfully', {
       to,
+      durationMs: elapsedMs(sendStartedAt),
       messageId: info.messageId,
       accepted: info.accepted?.join(', '),
       rejected: info.rejected?.join(', ')
