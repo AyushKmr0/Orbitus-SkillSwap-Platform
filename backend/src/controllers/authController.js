@@ -540,8 +540,11 @@ const oauthConfig = {
   }
 };
 
-const frontendUrl = () => process.env.FRONTEND_URL || 'https://orbitus-skill-swap-platform.vercel.app';
-const backendUrl = (req) => process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+const frontendUrl = () => (process.env.FRONTEND_URL || 'https://orbitus-skill-swap-platform.vercel.app').replace(/\/$/, '');
+const backendUrl = (req) => {
+  const base = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+  return base.replace(/\/$/, '');
+};
 
 // @desc    Start Google/GitHub OAuth
 // @route   GET /api/auth/oauth/:provider
@@ -592,7 +595,7 @@ const fetchOAuthProfile = async (provider, accessToken) => {
   return {
     providerId: String(profile.id),
     email: profile.email,
-    name: profile.name || profile.login || profile.email?.split('@')[0] || 'Orbitus User',
+    name: profile.name || profile.login || (profile.email ? profile.email.split('@')[0] : 'Orbitus User'),
     avatar: profile.picture || profile.avatar_url || ''
   };
 };
