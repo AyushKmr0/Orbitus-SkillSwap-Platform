@@ -842,7 +842,7 @@ const UserDashboard = () => {
 			{/* Edit Profile Modal */}
 			{showEditModal && (
 				<div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-					<div className="w-full max-w-2/3 glass-panel p-6 rounded-3xl space-y-4 max-h-[90vh] overflow-y-auto">
+					<div className="w-full max-w-full sm:max-w-2/3 glass-panel p-4 sm:p-6 rounded-2xl sm:rounded-3xl space-y-4 max-h-[90vh] overflow-y-auto">
 						<div className="flex justify-between items-center border-b border-slate-800 pb-3">
 							<h3 className="font-bold text-lg text-slate-200">
 								Modify Exchange Profile
@@ -874,7 +874,7 @@ const UserDashboard = () => {
 											setEditAvatar(e.target.value)
 										}
 										placeholder="Paste image URL or select below"
-										className="w-lg flex-1 px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 outline-none"
+										className="w-full sm:w-lg max-w-full flex-1 px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 outline-none"
 									/>
 								</div>
 								<div className="grid grid-cols-7 gap-2">
