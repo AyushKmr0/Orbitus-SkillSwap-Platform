@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import axios from 'axios';
 import { authSuccess } from '../../features/authSlice.js';
 import { GitBranch, UserPlus, User, Mail, Lock, ShieldAlert, CheckCircle2, Eye, EyeOff, AtSign } from 'lucide-react';
 import { apiPath } from '../../config/env.js';
+import apiClient from '../../services/apiClient.js';
 
 const Register = () => {
   const [name, setName] = useState('');
@@ -33,7 +33,7 @@ const Register = () => {
 
     setLoading(true);
     try {
-      const res = await axios.post('/api/auth/register', { name, username, email, password });
+      const res = await apiClient.post('/api/auth/register', { name, username, email, password });
       setSuccess(res.data.message);
       setIsRegistered(true);
     } catch (err) {
@@ -49,7 +49,7 @@ const Register = () => {
     setLoading(true);
 
     try {
-      const res = await axios.post('/api/auth/verify-otp', { email, code: otpCode });
+      const res = await apiClient.post('/api/auth/verify-otp', { email, code: otpCode });
       setSuccess(res.data.message);
       dispatch(authSuccess(res.data));
       setTimeout(() => {

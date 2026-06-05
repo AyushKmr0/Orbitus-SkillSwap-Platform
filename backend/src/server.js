@@ -1,12 +1,12 @@
 import http from 'http';
 import { Server } from 'socket.io';
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import connectDB from './config/db.js';
 import app from './app.js';
 import { socketHandler } from './socket/socketHandler.js';
+import { logEmailConfigStatus } from './services/emailService.js';
 
-// Setup environment configurations
-dotenv.config();
+logEmailConfigStatus();
 
 // Connect to MongoDB
 connectDB();

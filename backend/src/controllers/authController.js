@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import User from '../models/User.js';
 import Skill from '../models/Skill.js';
 import Leaderboard from '../models/Leaderboard.js';
@@ -30,6 +31,36 @@ const normalizeUsername = (value = '') => value
   .slice(0, 24);
 
 const USERNAME_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+const OTP_TTL_MS = 15 * 60 * 1000;
+
+const authLog = (message, meta = {}) => {
+  const safeMeta = Object.fromEntries(
+    Object.entries(meta).filter(([, value]) => value !== undefined && value !== '')
+  );
+  console.log('[AUTH]', message, safeMeta);
+};
+
+const generateOtpChallenge = () => {
+  const code = crypto.randomInt(100000, 1000000).toString();
+  return {
+    code,
+    expiresAt: new Date(Date.now() + OTP_TTL_MS)
+  };
+};
+
+const removeUnverifiedUser = async (userId, reason) => {
+  const cleanup = await Promise.allSettled([
+    Leaderboard.deleteOne({ user: userId }),
+    User.deleteOne({ _id: userId, isVerified: false })
+  ]);
+
+  authLog('Unverified registration cleanup completed', {
+    userId: userId.toString(),
+    reason,
+    leaderboardCleanup: cleanup[0].status,
+    userCleanup: cleanup[1].status
+  });
+};
 
 const buildUsernameFromName = async (name, email = '') => {
   const base = normalizeUsername(name) || normalizeUsername(email.split('@')[0]) || `user${Date.now()}`;
@@ -114,54 +145,78 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please provide all required fields' });
     }
 
-    const userExists = await User.findOne({ email });
-    if (userExists) {
+    const normalizedEmail = email.toLowerCase().trim();
+    const userExists = await User.findOne({ email: normalizedEmail });
+    if (userExists?.isVerified) {
       return res.status(400).json({ success: false, message: 'User already exists with this email' });
     }
 
-    const normalizedUsername = normalizeUsername(username) || await buildUsernameFromName(name, email);
+    if (userExists && userExists.authProvider !== 'local') {
+      return res.status(400).json({ success: false, message: `This email is already registered with ${userExists.authProvider}` });
+    }
+
+    const normalizedUsername = normalizeUsername(username) || await buildUsernameFromName(name, normalizedEmail);
     if (normalizedUsername.length < 3) {
       return res.status(400).json({ success: false, message: 'Username must be at least 3 characters' });
     }
 
-    const usernameExists = await User.findOne({ username: normalizedUsername });
+    const usernameExists = await User.findOne({
+      username: normalizedUsername,
+      _id: { $ne: userExists?._id }
+    });
     if (usernameExists) {
       return res.status(400).json({ success: false, message: 'Username is already taken' });
     }
 
-    // Generate numeric OTP (6-digits)
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins expiry
-
-    const user = await User.create({
-      name,
-      email,
-      username: normalizedUsername,
-      password, // hashed automatically via User schema pre-save hook
-      otp: {
-        code: otpCode,
-        expiresAt: otpExpires
-      },
-      profileImage: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name.replace(/ /g, '-')}`,
-      followersCount: 0,
-      followingCount: 0,
-      points: 10 // Starting bonus points!
+    const otp = generateOtpChallenge();
+    authLog('Registration OTP generated', {
+      email: normalizedEmail,
+      expiresAt: otp.expiresAt.toISOString(),
+      isResendForUnverifiedUser: Boolean(userExists)
     });
 
-    // Create a corresponding Leaderboard entry
-    await Leaderboard.create({ user: user._id, points: 10 });
+    let user;
+    if (userExists) {
+      userExists.name = name;
+      userExists.username = normalizedUsername;
+      userExists.password = password;
+      userExists.otp = otp;
+      userExists.profileImage = userExists.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`;
+      user = await userExists.save();
+      await Leaderboard.updateOne({ user: user._id }, { $setOnInsert: { points: user.points || 10 } }, { upsert: true });
+    } else {
+      user = await User.create({
+        name,
+        email: normalizedEmail,
+        username: normalizedUsername,
+        password, // hashed automatically via User schema pre-save hook
+        otp,
+        profileImage: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
+        followersCount: 0,
+        followingCount: 0,
+        points: 10 // Starting bonus points!
+      });
+
+      // Create a corresponding Leaderboard entry
+      await Leaderboard.create({ user: user._id, points: 10 });
+    }
 
     try {
+      authLog('Sending registration OTP email', { email: normalizedEmail, userId: user._id.toString() });
       await sendOtpEmail({
-        to: email,
+        to: normalizedEmail,
         name,
-        code: otpCode,
+        code: otp.code,
         purpose: 'verify your email'
       });
     } catch (mailError) {
-      await Leaderboard.deleteOne({ user: user._id });
-      await User.deleteOne({ _id: user._id });
-      console.error('Registration OTP Email Error:', mailError.message);
+      await removeUnverifiedUser(user._id, 'registration_email_failed');
+      console.error('Registration OTP Email Error:', {
+        message: mailError.message,
+        code: mailError.code,
+        command: mailError.command,
+        responseCode: mailError.responseCode
+      });
       return res.status(500).json({
         success: false,
         message: 'Registration failed because verification email could not be sent'
@@ -199,7 +254,12 @@ export const verifyOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email already verified' });
     }
 
-    if (user.otp.code !== code || new Date() > user.otp.expiresAt) {
+    if (!user.otp?.code || user.otp.code !== code || !user.otp.expiresAt || new Date() > user.otp.expiresAt) {
+      authLog('OTP verification rejected', {
+        email: email.toLowerCase().trim(),
+        hasOtp: Boolean(user.otp?.code),
+        expired: user.otp?.expiresAt ? new Date() > user.otp.expiresAt : true
+      });
       return res.status(400).json({ success: false, message: 'Invalid or expired OTP code' });
     }
 
@@ -208,6 +268,7 @@ export const verifyOtp = async (req, res) => {
     user.otp.code = '';
     user.otp.expiresAt = null;
     const { accessToken } = await issueSession(res, user);
+    authLog('OTP verification successful', { email: user.email, userId: user._id.toString() });
 
     res.status(200).json({
       success: true,
@@ -340,20 +401,36 @@ export const forgotPassword = async (req, res) => {
       return res.status(404).json({ success: false, message: 'No user registered with this email address' });
     }
 
-    // Set 6-digit code for reset verification
-    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-    user.otp = {
-      code: resetCode,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000)
-    };
+    const previousOtp = user.otp ? { code: user.otp.code, expiresAt: user.otp.expiresAt } : null;
+    const resetOtp = generateOtpChallenge();
+    user.otp = resetOtp;
     await user.save();
-
-    await sendOtpEmail({
-      to: email,
-      name: user.name,
-      code: resetCode,
-      purpose: 'reset your password'
+    authLog('Password reset OTP generated', {
+      email: user.email,
+      expiresAt: resetOtp.expiresAt.toISOString()
     });
+
+    try {
+      await sendOtpEmail({
+        to: user.email,
+        name: user.name,
+        code: resetOtp.code,
+        purpose: 'reset your password'
+      });
+    } catch (mailError) {
+      user.otp = previousOtp || { code: '', expiresAt: null };
+      await user.save();
+      console.error('Forgot Password OTP Email Error:', {
+        message: mailError.message,
+        code: mailError.code,
+        command: mailError.command,
+        responseCode: mailError.responseCode
+      });
+      return res.status(500).json({
+        success: false,
+        message: 'Password recovery email could not be sent. Please try again later.'
+      });
+    }
 
     res.status(200).json({ success: true, message: 'Password recovery OTP code dispatched to email.' });
   } catch (error) {
@@ -374,7 +451,7 @@ export const resetPassword = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    if (user.otp.code !== code || new Date() > user.otp.expiresAt) {
+    if (!user.otp?.code || user.otp.code !== code || !user.otp.expiresAt || new Date() > user.otp.expiresAt) {
       return res.status(400).json({ success: false, message: 'Invalid or expired reset code' });
     }
 
@@ -556,18 +633,26 @@ export const startOAuth = async (req, res) => {
   const config = oauthConfig[provider];
 
   if (!config || !config.clientId() || !config.clientSecret()) {
+    authLog('OAuth start rejected due to missing config', { provider });
     return res.redirect(`${frontendUrl()}/login?oauth=${provider}&error=missing_config`);
   }
 
   const redirectUri = `${backendUrl(req)}/api/auth/oauth/${provider}/callback`;
+  const state = jwt.sign(
+    { provider, purpose: 'oauth_state' },
+    process.env.JWT_SECRET || 'your_jwt_access_secret_key_change_me_in_production',
+    { expiresIn: '10m' }
+  );
   const params = new URLSearchParams({
     client_id: config.clientId(),
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: config.scope
+    scope: config.scope,
+    state
   });
   if (provider === 'google') params.set('prompt', 'select_account');
 
+  authLog('OAuth authorization redirect generated', { provider, redirectUri });
   res.redirect(`${config.authUrl}?${params.toString()}`);
 };
 
@@ -609,13 +694,25 @@ export const handleOAuthCallback = async (req, res) => {
   const provider = req.params.provider;
   const config = oauthConfig[provider];
   const code = req.query.code;
+  const state = req.query.state;
 
   try {
     if (!config || !code) {
       return res.redirect(`${frontendUrl()}/login?oauth=${provider}&error=oauth_failed`);
     }
 
+    try {
+      const decodedState = jwt.verify(state, process.env.JWT_SECRET || 'your_jwt_access_secret_key_change_me_in_production');
+      if (decodedState.provider !== provider || decodedState.purpose !== 'oauth_state') {
+        throw new Error('OAuth state provider mismatch');
+      }
+    } catch (stateError) {
+      authLog('OAuth callback rejected due to invalid state', { provider, reason: stateError.message });
+      return res.redirect(`${frontendUrl()}/login?oauth=${provider}&error=oauth_failed`);
+    }
+
     const redirectUri = `${backendUrl(req)}/api/auth/oauth/${provider}/callback`;
+    authLog('OAuth token exchange started', { provider, redirectUri });
     const tokenBody = new URLSearchParams({
       client_id: config.clientId(),
       client_secret: config.clientSecret(),
@@ -636,11 +733,13 @@ export const handleOAuthCallback = async (req, res) => {
     if (!tokenRes.ok || !tokenPayload.access_token) {
       throw new Error(`${provider} token exchange failed`);
     }
+    authLog('OAuth token exchange successful', { provider });
 
     const profile = await fetchOAuthProfile(provider, tokenPayload.access_token);
     if (!profile.email) {
       return res.redirect(`${frontendUrl()}/login?oauth=${provider}&error=email_unavailable`);
     }
+    authLog('OAuth profile loaded', { provider, email: profile.email });
 
     let user = await User.findOne({
       $or: [
@@ -676,6 +775,7 @@ export const handleOAuthCallback = async (req, res) => {
     }
 
     const { accessToken } = await issueSession(res, user);
+    authLog('OAuth session issued', { provider, userId: user._id.toString(), email: user.email });
     res.redirect(`${frontendUrl()}/auth/callback?accessToken=${encodeURIComponent(accessToken)}&user=${encodeURIComponent(JSON.stringify(publicUserPayload(user, user._id)))}`);
   } catch (error) {
     console.error('OAuth Callback Error:', error.message);

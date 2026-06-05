@@ -17,8 +17,15 @@ import postRoutes from './routes/postRoutes.js';
 import certificateRoutes from './routes/certificateRoutes.js';
 
 const app = express();
-const allowedOrigins = [
+app.set('trust proxy', 1);
+
+const configuredOrigins = [
   process.env.FRONTEND_URL,
+  ...(process.env.FRONTEND_URLS || '').split(',')
+].map(origin => origin?.trim().replace(/\/$/, '')).filter(Boolean);
+
+const allowedOrigins = [
+  ...configuredOrigins,
   'https://orbitus-skill-swap-platform.vercel.app'
 ].filter(Boolean);
 
@@ -29,7 +36,8 @@ const __dirname = path.dirname(__filename);
 // Standard Middlewares
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    const normalizedOrigin = origin?.replace(/\/$/, '');
+    if (!origin || allowedOrigins.includes(normalizedOrigin)) {
       return callback(null, true);
     }
 

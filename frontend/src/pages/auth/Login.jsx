@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { authStart, authSuccess, authFailure, clearAuthError } from '../../features/authSlice.js';
-import axios from 'axios';
 import { GitBranch, LogIn, Mail, Lock, ShieldAlert, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { apiPath } from '../../config/env.js';
+import apiClient from '../../services/apiClient.js';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -37,7 +37,7 @@ const Login = () => {
 
     dispatch(authStart());
     try {
-      const res = await axios.post('/api/auth/login', { email, password });
+      const res = await apiClient.post('/api/auth/login', { email, password });
       dispatch(authSuccess(res.data));
       navigate('/dashboard');
     } catch (err) {
@@ -50,7 +50,7 @@ const Login = () => {
     if (!resetEmail) return;
 
     try {
-      await axios.post('/api/auth/forgot-password', { email: resetEmail });
+      await apiClient.post('/api/auth/forgot-password', { email: resetEmail });
       setSuccessMsg('Recovery code sent to your email.');
       setForgotStep(2);
     } catch (err) {
@@ -63,7 +63,7 @@ const Login = () => {
     if (!resetEmail || !resetCode || !newPassword) return;
 
     try {
-      await axios.post('/api/auth/reset-password', { email: resetEmail, code: resetCode, newPassword });
+      await apiClient.post('/api/auth/reset-password', { email: resetEmail, code: resetCode, newPassword });
       setSuccessMsg('Password updated successfully! You can now log in.');
       setTimeout(() => {
         setShowForgotModal(false);
