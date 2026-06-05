@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { authStart, authSuccess, authFailure, clearAuthError } from '../../features/authSlice';
 import apiClient, { API_BASE_URL } from '../../services/apiClient';
-import { LogIn, Mail, Lock, Github, Chrome, AlertCircle } from 'lucide-react';
+import { LogIn, Mail, Lock, Github, Chrome, AlertCircle, Globe, Terminal } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -95,13 +95,13 @@ const Login = () => {
             onClick={() => handleOAuth('google')}
             className="flex items-center justify-center gap-2 py-3 border border-slate-800 rounded-2xl text-slate-300 hover:bg-white/5 transition-all text-sm font-semibold"
           >
-            <Chrome size={18} /> Google
+            <Globe size={18} /> Google
           </button>
           <button
             onClick={() => handleOAuth('github')}
             className="flex items-center justify-center gap-2 py-3 border border-slate-800 rounded-2xl text-slate-300 hover:bg-white/5 transition-all text-sm font-semibold"
           >
-            <Github size={18} /> GitHub
+            <Terminal size={18} /> GitHub
           </button>
         </div>
 
