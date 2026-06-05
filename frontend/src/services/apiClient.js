@@ -2,6 +2,7 @@ import axios from 'axios';
 import { store } from '../store/index.js';
 import { logout, updateAccessToken } from '../features/authSlice.js';
 
+axios.defaults.baseURL = 'https://orbitus-skillswap-platform.onrender.com';
 axios.defaults.withCredentials = true;
 
 let refreshPromise = null;
