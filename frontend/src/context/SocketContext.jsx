@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import { useSelector, useDispatch } from 'react-redux';
 import { addMessage, updateMessage, removeMessageForMe, setActiveChats } from '../features/chatSlice.js';
 import { updateProfileSuccess } from '../features/authSlice.js';
-import axios from 'axios';
+import apiClient from '../services/apiClient.js';
 
 const SocketContext = createContext(null);
 
@@ -137,8 +137,7 @@ export const SocketProvider = ({ children }) => {
     if (!token) return;
 
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const res = await axios.get('/api/notifications/summary', config);
+      const res = await apiClient.get('/api/notifications/summary');
       setNotificationSummary({
         totalUnread: res.data.totalUnread || 0,
         byLink: res.data.byLink || {}
@@ -152,8 +151,7 @@ export const SocketProvider = ({ children }) => {
     if (!token) return;
 
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const res = await axios.get('/api/messages/active', config);
+      const res = await apiClient.get('/api/messages/active');
       dispatch(setActiveChats(res.data.chats || []));
     } catch (err) {
       console.error('Error refreshing chat notifications:', err);
@@ -164,8 +162,7 @@ export const SocketProvider = ({ children }) => {
     if (!token) return;
 
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.put('/api/notifications/read', payload, config);
+      await apiClient.put('/api/notifications/read', payload);
       fetchNotificationSummary();
     } catch (err) {
       console.error('Error marking notifications read:', err);

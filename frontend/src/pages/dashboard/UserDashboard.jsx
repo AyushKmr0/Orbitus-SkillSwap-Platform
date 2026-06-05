@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Link } from "react-router-dom";
 import { updateProfileSuccess } from "../../features/authSlice.js";
-import axios from "axios";
+import apiClient from "../../services/apiClient.js";
 import {
 	Trophy,
 	BookOpen,
@@ -93,8 +93,7 @@ const UserDashboard = () => {
 
 	const fetchDashboardStats = async () => {
 		try {
-			const config = { headers: { Authorization: `Bearer ${token}` } };
-			const res = await axios.get("/api/dashboard/user", config);
+			const res = await apiClient.get("/api/dashboard/user");
 			setDashboardData(res.data);
 
 			// Initialize edit fields
@@ -151,8 +150,7 @@ const UserDashboard = () => {
 
 	const fetchAiSuggestions = async () => {
 		try {
-			const config = { headers: { Authorization: `Bearer ${token}` } };
-			const res = await axios.get("/api/ai/match", config);
+			const res = await apiClient.get("/api/ai/match");
 			setMatchingSuggestions(res.data);
 		} catch (err) {
 			console.error("Error fetching AI suggestions:", err);
@@ -163,8 +161,7 @@ const UserDashboard = () => {
 		e.preventDefault();
 		setProfileError("");
 		try {
-			const config = { headers: { Authorization: `Bearer ${token}` } };
-			const res = await axios.put(
+			const res = await apiClient.put(
 				"/api/users/profile",
 				{
 					name: editName,
@@ -194,8 +191,7 @@ const UserDashboard = () => {
 							(link) => link.label || link.url,
 						),
 					},
-				},
-				config,
+				}
 			);
 
 			dispatch(updateProfileSuccess(res.data.user));
@@ -217,16 +213,12 @@ const UserDashboard = () => {
 		try {
 			const formData = new window.FormData();
 			formData.append("resume", file);
-			const config = {
-				headers: {
-					Authorization: `Bearer ${token}`,
-					"Content-Type": "multipart/form-data",
-				},
-			};
-			const res = await axios.post(
+			const res = await apiClient.post(
 				"/api/users/profile/resume",
 				formData,
-				config,
+				{
+					headers: { "Content-Type": "multipart/form-data" }
+				}
 			);
 			setResumeFile(res.data.resumeFile);
 			dispatch(updateProfileSuccess(res.data.user));

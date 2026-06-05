@@ -4,14 +4,16 @@ import { logout, updateAccessToken } from '../features/authSlice.js';
 
 export const API_BASE_URL = 'https://orbitus-skillswap-platform.onrender.com';
 
-axios.defaults.baseURL = API_BASE_URL;
-axios.defaults.withCredentials = true;
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true
+});
 
 let refreshPromise = null;
 
 const getStoredToken = () => localStorage.getItem('accessToken') || '';
 
-axios.interceptors.request.use((config) => {
+apiClient.interceptors.request.use((config) => {
   const token = store.getState().auth.token || getStoredToken();
 
   if (token && !config.headers?.Authorization) {
@@ -24,7 +26,7 @@ axios.interceptors.request.use((config) => {
   return config;
 });
 
-axios.interceptors.response.use(
+apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
@@ -43,7 +45,7 @@ axios.interceptors.response.use(
     originalRequest._retry = true;
 
     try {
-      refreshPromise ||= axios
+      refreshPromise ||= apiClient
         .post('/api/auth/refresh', {}, { _skipAuthRefresh: true })
         .finally(() => {
           refreshPromise = null;
@@ -58,10 +60,12 @@ axios.interceptors.response.use(
         Authorization: `Bearer ${accessToken}`
       };
 
-      return axios(originalRequest);
+      return apiClient(originalRequest);
     } catch (refreshError) {
       store.dispatch(logout());
       return Promise.reject(refreshError);
     }
   }
 );
+
+export default apiClient;

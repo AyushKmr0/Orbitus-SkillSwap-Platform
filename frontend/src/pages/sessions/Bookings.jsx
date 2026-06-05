@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import axios from 'axios';
+import apiClient from '../../services/apiClient.js';
 import { useSocket } from '../../context/SocketContext.jsx';
 import {
   Calendar,
@@ -45,8 +45,7 @@ const Bookings = () => {
 
   const fetchSessionLogs = async () => {
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const res = await axios.get('/api/sessions/history', config);
+      const res = await apiClient.get('/api/sessions/history');
       setSessions(res.data.sessions);
     } catch (err) {
       console.error('Error loading session histories:', err);
@@ -57,11 +56,10 @@ const Bookings = () => {
 
   const handleSessionAction = async (sessionId, status, extraBody = {}) => {
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const res = await axios.put(`/api/sessions/${sessionId}/respond`, {
+      const res = await apiClient.put(`/api/sessions/${sessionId}/respond`, {
         status,
         ...extraBody
-      }, config);
+      });
       
       setMsg(`Session marked as ${status}!`);
       setTimeout(() => setMsg(''), 3000);
@@ -83,13 +81,11 @@ const Bookings = () => {
     if (!activeReviewSession || !feedbackVal) return;
 
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      
-      await axios.post('/api/reviews', {
+      await apiClient.post('/api/reviews', {
         sessionId: activeReviewSession._id,
         rating: ratingVal,
         feedback: feedbackVal
-      }, config);
+      });
 
       setReviewMsg('Review submitted successfully! Thank you for your feedback.');
       setFeedbackVal('');

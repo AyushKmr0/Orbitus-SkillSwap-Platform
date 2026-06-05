@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import axios from 'axios';
+import apiClient from '../../services/apiClient.js';
 import {
   Users,
   Compass,
@@ -39,8 +39,7 @@ const AdminDashboard = () => {
 
   const fetchAdminStats = async () => {
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const res = await axios.get('/api/dashboard/admin', config);
+      const res = await apiClient.get('/api/dashboard/admin');
       setAdminStats(res.data);
     } catch (err) {
       console.error('Error loading admin stats:', err);
@@ -56,13 +55,12 @@ const AdminDashboard = () => {
     if (!newSkillName || !newSkillCategory) return;
 
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.post('/api/skills', {
+      await apiClient.post('/api/skills', {
         name: newSkillName,
         category: newSkillCategory,
         description: newSkillDesc,
         tags: newSkillTags.split(',').map(t => t.trim()).filter(Boolean)
-      }, config);
+      });
 
       setSkillMsg('Skill created successfully in the master database!');
       setNewSkillName('');

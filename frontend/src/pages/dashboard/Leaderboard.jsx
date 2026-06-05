@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import axios from 'axios';
+import apiClient from '../../services/apiClient.js';
 import { Trophy, Award, TrendingUp, HelpCircle, Star } from 'lucide-react';
 
 const Leaderboard = () => {
@@ -16,8 +16,7 @@ const Leaderboard = () => {
 
   const fetchLeaderboardList = async () => {
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const res = await axios.get('/api/dashboard/leaderboard', config);
+      const res = await apiClient.get('/api/dashboard/leaderboard');
       setBoardList(res.data.leaderboard || []);
     } catch (err) {
       console.error('Error fetching leaderboard logs:', err);

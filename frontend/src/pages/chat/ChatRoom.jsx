@@ -3,7 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { setActiveChats, setCurrentRoom, setMessages, chatStart, chatFailure } from '../../features/chatSlice.js';
 import { useSocket } from '../../context/SocketContext.jsx';
-import axios from 'axios';
+import apiClient from '../../services/apiClient.js';
 import {
   Send,
   Image,
@@ -93,8 +93,7 @@ const ChatRoom = () => {
 
   const fetchActiveChats = async () => {
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const res = await axios.get('/api/messages/active', config);
+      const res = await apiClient.get('/api/messages/active');
       const serverChats = res.data.chats || [];
       const hasSelectedDraft = currentRoomId && chatPartner && !serverChats.some(chat => chat.chatRoomId === currentRoomId);
       dispatch(setActiveChats(hasSelectedDraft ? [
@@ -118,8 +117,7 @@ const ChatRoom = () => {
 
   const fetchBlockedUsers = async () => {
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const res = await axios.get('/api/messages/blocked', config);
+      const res = await apiClient.get('/api/messages/blocked');
       setBlockedUsers(res.data.blockedUsers || []);
     } catch (err) {
       console.error('Error loading blocked chat users:', err);
@@ -129,8 +127,7 @@ const ChatRoom = () => {
   const fetchMessageLogs = async (roomId) => {
     dispatch(chatStart());
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const res = await axios.get(`/api/messages/${roomId}`, config);
+      const res = await apiClient.get(`/api/messages/${roomId}`);
       dispatch(setMessages(res.data.messages));
     } catch (err) {
       dispatch(chatFailure(err.response?.data?.message || 'Error loading messages'));
@@ -139,8 +136,7 @@ const ChatRoom = () => {
 
   const markMessagesSeen = async (roomId) => {
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.put(`/api/messages/${roomId}/seen`, {}, config);
+      await apiClient.put(`/api/messages/${roomId}/seen`, {});
       if (socket) {
         socket.emit('mark_seen', { chatRoomId: roomId, userId: user._id });
       }
@@ -256,13 +252,11 @@ const ChatRoom = () => {
     try {
       const formData = new window.FormData();
       formData.append('file', file);
-      const config = {
+      const res = await apiClient.post('/api/messages/upload', formData, {
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
         }
-      };
-      const res = await axios.post('/api/messages/upload', formData, config);
+      });
       sendMessage(file.name, chatPartner._id, res.data.fileUrl, res.data.fileType, replyTarget?._id || null);
       setReplyTarget(null);
     } catch (err) {
@@ -281,8 +275,7 @@ const ChatRoom = () => {
     if (!currentRoomId) return;
 
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.delete(`/api/messages/${currentRoomId}`, config);
+      await apiClient.delete(`/api/messages/${currentRoomId}`);
       dispatch(setMessages([]));
       dispatch(setCurrentRoom({ partner: null, roomId: '' }));
       setMobileShowSidebar(true);
@@ -294,8 +287,7 @@ const ChatRoom = () => {
 
   const deleteConversationByRoom = async (roomId) => {
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.delete(`/api/messages/${roomId}`, config);
+      await apiClient.delete(`/api/messages/${roomId}`);
       if (roomId === currentRoomId) {
         dispatch(setMessages([]));
         dispatch(setCurrentRoom({ partner: null, roomId: '' }));
@@ -309,8 +301,7 @@ const ChatRoom = () => {
 
   const blockConversationPartner = async (partnerId, roomId) => {
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.put(`/api/messages/users/${partnerId}/block`, {}, config);
+      await apiClient.put(`/api/messages/users/${partnerId}/block`, {});
       if (roomId === currentRoomId) {
         dispatch(setMessages([]));
         dispatch(setCurrentRoom({ partner: null, roomId: '' }));
@@ -324,8 +315,7 @@ const ChatRoom = () => {
 
   const unblockConversationPartner = async (partnerId) => {
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.put(`/api/messages/users/${partnerId}/unblock`, {}, config);
+      await apiClient.put(`/api/messages/users/${partnerId}/unblock`, {});
       await Promise.all([fetchActiveChats(), fetchBlockedUsers()]);
     } catch (err) {
       console.error('Error unblocking chat partner:', err);
