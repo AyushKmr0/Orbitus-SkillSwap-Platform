@@ -540,7 +540,7 @@ const oauthConfig = {
   }
 };
 
-const frontendUrl = () => process.env.FRONTEND_URL || 'http://localhost:3000';
+const frontendUrl = () => process.env.FRONTEND_URL || 'https://orbitus-skill-swap-platform.vercel.app';
 const backendUrl = (req) => process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
 
 // @desc    Start Google/GitHub OAuth

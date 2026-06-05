@@ -17,7 +17,7 @@ const server = http.createServer(app);
 // Setup Socket.io Server instance
 const io = new Server(server, {
   cors: {
-    origin: true, // Auto-resolve client headers in development
+    origin: process.env.FRONTEND_URL || 'https://orbitus-skill-swap-platform.vercel.app',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE']
   }
@@ -33,8 +33,8 @@ server.listen(PORT, () => {
   console.log(`==================================================`);
   console.log(`  ORBITUS BACKEND SERVICES INITIALIZED!`);
   console.log(`  Running in mode:  ${process.env.NODE_ENV || 'development'}`);
-  console.log(`  HTTP Listener:    http://localhost:${PORT}`);
-  console.log(`  Socket Service:   ws://localhost:${PORT}`);
+  console.log(`  Port:             ${PORT}`);
+  console.log(`  Frontend URL:     ${process.env.FRONTEND_URL || 'Not Set'}`);
   console.log(`==================================================`);
 });
 

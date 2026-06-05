@@ -23,7 +23,7 @@ const __dirname = path.dirname(__filename);
 
 // Standard Middlewares
 app.use(cors({
-  origin: true, // Allow all origins in dev, or specify frontend domain in production
+  origin: process.env.FRONTEND_URL || 'https://orbitus-skill-swap-platform.vercel.app',
   credentials: true
 }));
 app.use(express.json());

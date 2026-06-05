@@ -33,7 +33,7 @@ export const SocketProvider = ({ children }) => {
   useEffect(() => {
     if (isAuthenticated && user) {
       // Connect to Socket Server
-      const socketConn = io('http://localhost:5001', {
+      const socketConn = io('https://orbitus-skillswap-platform.onrender.com', {
         transports: ['polling', 'websocket'],
         reconnectionAttempts: 5,
         timeout: 10000

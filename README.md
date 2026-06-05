@@ -96,7 +96,7 @@ GOOGLE_CLIENT_SECRET=your_google_secret
 GITHUB_CLIENT_ID=your_github_id
 GITHUB_CLIENT_SECRET=your_github_secret
 
-FRONTEND_URL=your_deployed_frontend_url
+FRONTEND_URL=https://orbitus-skill-swap-platform.vercel.app
 BACKEND_URL=https://orbitus-skillswap-platform.onrender.com
 ```
 

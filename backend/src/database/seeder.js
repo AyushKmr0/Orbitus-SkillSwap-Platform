@@ -20,7 +20,7 @@ dotenv.config();
 const seedDatabase = async () => {
   try {
     console.log('Connecting to MongoDB...');
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/orbitus');
+    await mongoose.connect(process.env.MONGODB_URI);
     console.log('MongoDB Connected successfully!');
 
     // Clean current databases
