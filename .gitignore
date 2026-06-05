@@ -1,0 +1,42 @@
+# Log files
+*.log
+*-dev.log
+*-dev.err.log
+vite-err.log
+vite-out.log
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment
+.env
+.env.local
+.env.*.local
+imp.*
+
+# Build outputs
+dist/
+build/
+.next/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cache
+.eslintcache
+.cache/
+
+# Misc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
