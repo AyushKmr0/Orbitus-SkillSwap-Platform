@@ -74,6 +74,10 @@ export const getUserDashboardStats = async (req, res) => {
     const acceptedSessions = sessions.filter(s => s.status === 'Accepted');
 
     const learningMinutes = completedSessions.reduce((total, session) => {
+      if (session.actualDurationMinutes) {
+        return total + session.actualDurationMinutes;
+      }
+
       const duration = Math.max(0, new Date(session.endTime) - new Date(session.startTime));
       return total + Math.round(duration / 60000);
     }, 0);
@@ -131,7 +135,9 @@ export const getUserDashboardStats = async (req, res) => {
     completedSessions.forEach(session => {
       const sessionMonth = new Date(session.startTime).getMonth();
       const monthIndexIndex = chartLabels.indexOf(monthNames[sessionMonth]);
-      const hours = Math.max(0, (new Date(session.endTime) - new Date(session.startTime)) / 3600000);
+      const hours = session.actualDurationMinutes
+        ? session.actualDurationMinutes / 60
+        : Math.max(0, (new Date(session.endTime) - new Date(session.startTime)) / 3600000);
       if (monthIndexIndex !== -1) {
         if (session.mentor.toString() === userId.toString()) {
           mentorSessionsData[monthIndexIndex] += Number(hours.toFixed(1));

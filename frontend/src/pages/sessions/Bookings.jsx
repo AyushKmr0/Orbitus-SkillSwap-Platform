@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import apiClient from '../../services/apiClient.js';
+import apiClient, { API_BASE_URL } from '../../services/apiClient.js';
 import { useSocket } from '../../context/SocketContext.jsx';
 import {
   Calendar,
@@ -22,9 +22,10 @@ const Bookings = () => {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
+  const [now, setNow] = useState(() => new Date());
   
   // Jitsi Call Modal State
-  const [activeCallRoom, setActiveCallRoom] = useState(null); // jitsiRoomId
+  const [activeCallSession, setActiveCallSession] = useState(null);
   
   // Rating/Review Modal State
   const [activeReviewSession, setActiveReviewSession] = useState(null); // sessionObj
@@ -42,6 +43,28 @@ const Bookings = () => {
     fetchSessionLogs();
     markNotificationsRead({ link: '/bookings' });
   }, [token]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNow(new Date()), 30000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    if (!activeCallSession?.sessionId || !token) return undefined;
+
+    const recordLeaveBeforeUnload = () => {
+      fetch(`${API_BASE_URL}/api/sessions/${activeCallSession.sessionId}/leave`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        keepalive: true
+      });
+    };
+
+    window.addEventListener('beforeunload', recordLeaveBeforeUnload);
+    return () => window.removeEventListener('beforeunload', recordLeaveBeforeUnload);
+  }, [activeCallSession?.sessionId, token]);
 
   const fetchSessionLogs = async () => {
     try {
@@ -71,6 +94,57 @@ const Bookings = () => {
       console.error('Error executing session action:', err);
       setMsg(err.response?.data?.message || 'Could not update session.');
       setTimeout(() => setMsg(''), 4000);
+    }
+  };
+
+  const getJoinState = (session) => {
+    if (!['Accepted', 'Rescheduled'].includes(session.status)) {
+      return { label: session.status, canJoin: false, state: session.status };
+    }
+
+    const startAt = new Date(session.startTime);
+    const endAt = new Date(session.endTime);
+    const opensAt = new Date(startAt.getTime() - 5 * 60 * 1000);
+
+    if (now < opensAt) {
+      return { label: 'Upcoming', canJoin: false, state: 'Upcoming', opensAt };
+    }
+
+    if (now > endAt) {
+      return { label: 'Session Ended', canJoin: false, state: 'Session Ended', opensAt };
+    }
+
+    return { label: 'Join Available', canJoin: true, state: 'Join Available', opensAt };
+  };
+
+  const handleJoinSession = async (session) => {
+    try {
+      const res = await apiClient.post(`/api/sessions/${session._id}/join`);
+      setActiveCallSession({
+        sessionId: session._id,
+        roomId: res.data.roomId,
+        jitsiUrl: res.data.jitsiUrl,
+        role: res.data.role
+      });
+      fetchSessionLogs();
+    } catch (err) {
+      console.error('Error joining session:', err);
+      setMsg(err.response?.data?.message || 'Could not join this session yet.');
+      setTimeout(() => setMsg(''), 4000);
+    }
+  };
+
+  const closeActiveCall = async () => {
+    const sessionId = activeCallSession?.sessionId;
+    setActiveCallSession(null);
+
+    if (!sessionId) return;
+
+    try {
+      await apiClient.post(`/api/sessions/${sessionId}/leave`);
+      fetchSessionLogs();
+    } catch (err) {
+      console.error('Error recording session leave:', err);
     }
   };
 
@@ -170,6 +244,8 @@ const Bookings = () => {
 
             const startObj = new Date(session.startTime);
             const canChangeTime = !['Completed', 'Rejected', 'Cancelled'].includes(status);
+            const joinState = getJoinState(session);
+            const actualMinutes = session.actualDurationMinutes || 0;
 
             return (
               <div key={session._id} className="glass-panel p-6 rounded-3xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-slate-850 hover:border-slate-800 transition-all">
@@ -233,11 +309,19 @@ const Bookings = () => {
                     <>
                       {/* Live Video camera triggers */}
                       <button
-                        onClick={() => setActiveCallRoom(session.jitsiRoomId)}
-                        className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold rounded-xl shadow transition-all animate-pulse"
+                        disabled={!joinState.canJoin}
+                        onClick={() => handleJoinSession(session)}
+                        className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl shadow transition-all ${
+                          joinState.canJoin
+                            ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white animate-pulse'
+                            : joinState.state === 'Upcoming'
+                              ? 'bg-slate-900 border border-slate-800 text-slate-500 cursor-not-allowed'
+                              : 'bg-slate-900 border border-slate-800 text-slate-600 cursor-not-allowed'
+                        }`}
+                        title={joinState.canJoin ? 'Join Call' : joinState.label}
                       >
                         <Video size={14} />
-                        <span>Join Call</span>
+                        <span>{joinState.canJoin ? 'Join Call' : joinState.label}</span>
                       </button>
 
                       {/* Complete buttons */}
@@ -270,6 +354,11 @@ const Bookings = () => {
                     </button>
                   )}
                 </div>
+                {actualMinutes > 0 && (
+                  <p className="w-full text-[10px] font-semibold text-slate-500 md:text-right">
+                    Actual attendance: {actualMinutes} min
+                  </p>
+                )}
               </div>
             );
           })}
@@ -277,7 +366,7 @@ const Bookings = () => {
       )}
 
       {/* Embedded Jitsi Meeting Frame Modal */}
-      {activeCallRoom && (
+      {activeCallSession && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="w-full max-w-5xl h-[80vh] glass-panel rounded-3xl overflow-hidden flex flex-col">
             <div className="p-4 border-b border-slate-850 flex justify-between items-center bg-slate-900">
@@ -286,7 +375,7 @@ const Bookings = () => {
                 <h3 className="font-bold text-slate-200 text-sm">Interactive Skill Exchange Room</h3>
               </div>
               <button
-                onClick={() => setActiveCallRoom(null)}
+                onClick={closeActiveCall}
                 className="px-4 py-1.5 bg-red-600 hover:bg-red-500 rounded-lg text-xs font-semibold text-white transition-colors"
               >
                 Close Meeting
@@ -296,7 +385,7 @@ const Bookings = () => {
             {/* Embed Jitsi API Client in standard frame */}
             <div className="flex-1 bg-slate-950 relative">
               <iframe
-                src={`https://meet.jit.si/${activeCallRoom}#config.prejoinPageEnabled=false&interfaceConfig.TOOLBAR_BUTTONS=["microphone","camera","closedcaptions","desktop","fullscreen","fodeviceselection","hangup","profile","chat","recording","livestreaming","etherpad","sharedvideo","settings","raisehand","videoquality","filmstrip","invite","feedback","stats","shortcuts","tileview","videobackgroundblur","download","help","mute-everyone","security"]`}
+                src={`${activeCallSession.jitsiUrl}&interfaceConfig.TOOLBAR_BUTTONS=["microphone","camera","closedcaptions","desktop","fullscreen","fodeviceselection","hangup","profile","chat","recording","livestreaming","etherpad","sharedvideo","settings","raisehand","videoquality","filmstrip","invite","feedback","stats","shortcuts","tileview","videobackgroundblur","download","help","mute-everyone","security"]`}
                 allow="camera; microphone; fullscreen; display-capture; autoplay"
                 className="w-full h-full border-0"
                 title="Jitsi Video Exchange Frame"

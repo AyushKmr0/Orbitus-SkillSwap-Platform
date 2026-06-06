@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Link } from "react-router-dom";
 import { updateProfileSuccess } from "../../features/authSlice.js";
-import apiClient from "../../services/apiClient.js";
+import apiClient, { API_BASE_URL } from "../../services/apiClient.js";
 import {
 	Trophy,
 	BookOpen,
@@ -290,6 +290,8 @@ const UserDashboard = () => {
 		: null;
 	const usernameLocked =
 		usernameAvailableAt && usernameAvailableAt.getTime() > Date.now();
+	const getCertificateVerifyUrl = (certificate) =>
+		`${API_BASE_URL}/api/certificates/verify/${certificate.uniqueId}`;
 
 	// Chart configuration
 	const chartData = {
@@ -700,23 +702,34 @@ const UserDashboard = () => {
 										className="rounded-2xl border border-slate-850 p-3">
 										<div className="flex items-start gap-3">
 											{certificate.verificationQrCode ? (
-												<img
-													src={
-														certificate.verificationQrCode
-													}
-													alt="Certificate QR"
-													className="h-12 w-12 rounded-lg bg-white p-1"
-												/>
+												<a
+													href={getCertificateVerifyUrl(certificate)}
+													target="_blank"
+													rel="noreferrer"
+													className="shrink-0"
+													title="Open certificate verification">
+													<img
+														src={
+															certificate.verificationQrCode
+														}
+														alt="Certificate QR"
+														className="h-12 w-12 rounded-lg bg-white p-1"
+													/>
+												</a>
 											) : (
 												<div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-800 text-slate-500">
 													<QrCode size={20} />
 												</div>
 											)}
 											<div className="min-w-0">
-												<p className="text-xs font-bold text-slate-100">
+												<a
+													href={getCertificateVerifyUrl(certificate)}
+													target="_blank"
+													rel="noreferrer"
+													className="text-xs font-bold text-slate-100 hover:text-blue-300">
 													{certificate.skill?.name ||
 														"Skill Certificate"}
-												</p>
+												</a>
 												<p className="mt-1 text-[10px] text-slate-500">
 													Issued{" "}
 													{new Date(

@@ -44,7 +44,40 @@ const sessionSchema = new mongoose.Schema({
   pointsAwarded: {
     type: Boolean,
     default: false
-  }
+  },
+  actualStartTime: {
+    type: Date
+  },
+  actualEndTime: {
+    type: Date
+  },
+  actualDurationMinutes: {
+    type: Number,
+    default: 0
+  },
+  attendance: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    role: {
+      type: String,
+      enum: ['mentor', 'learner'],
+      required: true
+    },
+    joinedAt: {
+      type: Date,
+      required: true
+    },
+    leftAt: {
+      type: Date
+    },
+    durationMinutes: {
+      type: Number,
+      default: 0
+    }
+  }]
 }, {
   timestamps: true
 });
