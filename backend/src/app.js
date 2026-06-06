@@ -51,6 +51,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve static note files/uploads if needed
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Health Check API
 app.get('/health', (req, res) => {

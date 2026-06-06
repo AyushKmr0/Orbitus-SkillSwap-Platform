@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import fs from 'fs';
+import { v2 as cloudinary } from 'cloudinary';
 import User from '../models/User.js';
 import Skill from '../models/Skill.js';
 import Leaderboard from '../models/Leaderboard.js';
@@ -32,6 +34,30 @@ const normalizeUsername = (value = '') => value
 
 const USERNAME_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const OTP_TTL_MS = 15 * 60 * 1000;
+
+const cloudinaryConfigured = () => (
+  process.env.CLOUDINARY_CLOUD_NAME &&
+  process.env.CLOUDINARY_API_KEY &&
+  process.env.CLOUDINARY_API_SECRET
+);
+
+const uploadResumeToCloudinary = async (filePath, originalName = '') => {
+  if (!cloudinaryConfigured()) return null;
+
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+
+  return cloudinary.uploader.upload(filePath, {
+    folder: 'orbitus/resumes',
+    resource_type: 'raw',
+    use_filename: true,
+    unique_filename: true,
+    filename_override: originalName || undefined
+  });
+};
 
 const authLog = (message, meta = {}) => {
   const safeMeta = Object.fromEntries(
@@ -919,8 +945,13 @@ export const uploadProfileResume = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No resume file uploaded' });
     }
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const resumeFile = `${baseUrl}/uploads/${req.file.filename}`;
+    const cloudinaryUpload = await uploadResumeToCloudinary(req.file.path, req.file.originalname);
+    const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+    const resumeFile = cloudinaryUpload?.secure_url || `${baseUrl.replace(/\/$/, '')}/uploads/${req.file.filename}`;
+
+    if (cloudinaryUpload?.secure_url && req.file.path) {
+      fs.promises.unlink(req.file.path).catch(() => {});
+    }
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
