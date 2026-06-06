@@ -62,7 +62,7 @@ const UserDashboard = () => {
 	const [editUsername, setEditUsername] = useState("");
 	const [editAvatar, setEditAvatar] = useState("");
 	const [editBio, setEditBio] = useState("");
-	const [editExp, setEditExp] = useState("Mid");
+	const [editExp, setEditExp] = useState("Fresher");
 	const [editEducation, setEditEducation] = useState([
 		{ degree: "", institution: "", year: "" },
 	]);
@@ -102,7 +102,7 @@ const UserDashboard = () => {
 				setEditUsername(user.username || "");
 				setEditAvatar(user.profileImage || "");
 				setEditBio(user.bio || "");
-				setEditExp(user.experienceLevel || "Mid");
+				setEditExp(user.experienceLevel || "Fresher");
 				setEditEducation(
 					Array.isArray(user.education) && user.education.length > 0
 						? user.education
@@ -976,7 +976,7 @@ const UserDashboard = () => {
 											setEditExp(e.target.value)
 										}
 										className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 outline-none">
-										<option value="Junior">Fresher</option>
+										<option value="Fresher">Fresher</option>
 										<option value="Junior">Junior</option>
 										<option value="Mid">Mid</option>
 										<option value="Senior">Senior</option>

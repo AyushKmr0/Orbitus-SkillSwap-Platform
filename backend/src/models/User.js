@@ -89,8 +89,8 @@ const userSchema = new mongoose.Schema({
   },
   experienceLevel: {
     type: String,
-    enum: ['Junior', 'Mid', 'Senior', 'Lead'],
-    default: 'Junior'
+    enum: ['Fresher', 'Junior', 'Mid', 'Senior', 'Lead'],
+    default: 'Fresher'
   },
   education: {
     type: mongoose.Schema.Types.Mixed,

@@ -11,7 +11,7 @@ const ProfileCompletionGate = () => {
   const dispatch = useDispatch();
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
-  const [experienceLevel, setExperienceLevel] = useState('Junior');
+  const [experienceLevel, setExperienceLevel] = useState('Fresher');
   const [interests, setInterests] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -111,7 +111,7 @@ const ProfileCompletionGate = () => {
                 onChange={(event) => setExperienceLevel(event.target.value)}
                 className="field-input px-4 py-3 text-sm"
               >
-                <option value="Junior">Fresher</option>
+                <option value="Fresher">Fresher</option>
                 <option value="Junior">Junior</option>
                 <option value="Mid">Mid</option>
                 <option value="Senior">Senior</option>

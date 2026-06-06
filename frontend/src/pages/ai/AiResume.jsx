@@ -96,7 +96,7 @@ const AiResume = () => {
 					socialLinks: user?.socialLinks || {},
 				},
 				summary: user?.bio || "Add your professional summary manually.",
-				experienceLevel: user?.experienceLevel || "Mid",
+				experienceLevel: user?.experienceLevel || "Fresher",
 				skills:
 					user?.skillsTeach?.map((s) => ({
 						name: s.skill?.name || "Skill",
@@ -129,7 +129,7 @@ const AiResume = () => {
 		headline: resumeData.headline || "",
 		bio: resumeData.personalInfo?.bio || "",
 		summary: resumeData.summary || "",
-		experienceLevel: resumeData.experienceLevel || "Mid",
+		experienceLevel: resumeData.experienceLevel || "Fresher",
 		education: Array.isArray(resumeData.education)
 			? resumeData.education
 					.map(formatEducationEntry)
