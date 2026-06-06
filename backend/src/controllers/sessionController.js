@@ -21,6 +21,8 @@ const getScheduledDurationMinutes = (session) => Math.max(
   Math.round((new Date(session.endTime) - new Date(session.startTime)) / 60000)
 );
 
+const getDocumentId = (value) => (value?._id || value)?.toString();
+
 const getJoinWindowState = (session, now = new Date()) => {
   const startAt = new Date(session.startTime);
   const endAt = new Date(session.endTime);
@@ -188,8 +190,11 @@ export const respondToSession = async (req, res) => {
     }
 
     // Authorization checks: Only mentor or learner can modify
-    const isMentor = session.mentor._id.toString() === req.user._id.toString();
-    const isLearner = session.learner._id.toString() === req.user._id.toString();
+    const mentorId = getDocumentId(session.mentor);
+    const learnerId = getDocumentId(session.learner);
+    const currentUserId = req.user._id.toString();
+    const isMentor = mentorId === currentUserId;
+    const isLearner = learnerId === currentUserId;
 
     if (!isMentor && !isLearner) {
       return res.status(403).json({ success: false, message: 'Not authorized to respond to this booking' });
@@ -314,8 +319,11 @@ export const joinSession = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Session booking not found' });
     }
 
-    const isMentor = session.mentor._id.toString() === req.user._id.toString();
-    const isLearner = session.learner._id.toString() === req.user._id.toString();
+    const mentorId = getDocumentId(session.mentor);
+    const learnerId = getDocumentId(session.learner);
+    const currentUserId = req.user._id.toString();
+    const isMentor = mentorId === currentUserId;
+    const isLearner = learnerId === currentUserId;
 
     if (!isMentor && !isLearner) {
       return res.status(403).json({ success: false, message: 'Not authorized to join this session' });
@@ -336,7 +344,11 @@ export const joinSession = async (req, res) => {
       });
     }
 
-    const mentorHasActiveRoom = session.attendance?.some(item => item.role === 'mentor' && !item.leftAt);
+    const mentorHasActiveRoom = session.attendance?.some(item => {
+      if (item.leftAt) return false;
+      const attendeeId = getDocumentId(item.user);
+      return item.role === 'mentor' || attendeeId === mentorId;
+    });
     if (!isMentor && !mentorHasActiveRoom) {
       return res.status(403).json({
         success: false,
@@ -360,6 +372,8 @@ export const joinSession = async (req, res) => {
         role,
         joinedAt: now
       });
+    } else if (!openAttendance.role) {
+      openAttendance.role = role;
     }
 
     await session.save();
