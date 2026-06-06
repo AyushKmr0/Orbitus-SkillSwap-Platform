@@ -3,6 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { setCurrentRoom, upsertActiveChat } from '../../features/chatSlice.js';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../../services/apiClient.js';
 import {
   Sparkles,
   User,
@@ -588,7 +589,7 @@ const AiMatches = () => {
                       {profileUser.socialLinks?.linkedin && <a href={profileUser.socialLinks.linkedin} target="_blank" rel="noreferrer" className="btn-secondary min-h-0 px-3 py-2 text-xs"><Briefcase size={13} /> LinkedIn</a>}
                       {profileUser.socialLinks?.github && <a href={profileUser.socialLinks.github} target="_blank" rel="noreferrer" className="btn-secondary min-h-0 px-3 py-2 text-xs"><GitBranch size={13} /> GitHub</a>}
                       {profileUser.socialLinks?.website && <a href={profileUser.socialLinks.website} target="_blank" rel="noreferrer" className="btn-secondary min-h-0 px-3 py-2 text-xs"><Globe size={13} /> Website</a>}
-                      {profileUser.resumeFile && <a href={profileUser.resumeFile} target="_blank" rel="noreferrer" className="btn-secondary min-h-0 px-3 py-2 text-xs"><FileText size={13} /> Resume</a>}
+                      {profileUser.resumeFile && <a href={`${API_BASE_URL}/api/users/${profileUser._id}/resume`} target="_blank" rel="noreferrer" className="btn-secondary min-h-0 px-3 py-2 text-xs"><FileText size={13} /> Resume</a>}
                       {(profileUser.socialLinks?.extra || []).filter(link => link.url).map((link, index) => (
                         <a key={index} href={link.url} target="_blank" rel="noreferrer" className="btn-secondary min-h-0 px-3 py-2 text-xs">
                           <ExternalLink size={13} /> {link.label || 'Link'}

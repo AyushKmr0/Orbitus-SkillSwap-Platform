@@ -59,6 +59,27 @@ const uploadResumeToCloudinary = async (filePath, originalName = '') => {
   });
 };
 
+const isAllowedResumeSource = (resumeUrl, req) => {
+  try {
+    const parsed = new URL(resumeUrl);
+    const ownBackendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+    const ownHost = new URL(ownBackendUrl).host;
+
+    return parsed.host === ownHost || parsed.host === 'res.cloudinary.com';
+  } catch {
+    return false;
+  }
+};
+
+const getResumeContentType = (resumeUrl = '', upstreamType = '') => {
+  const cleanUrl = resumeUrl.split('?')[0].toLowerCase();
+  if (cleanUrl.endsWith('.pdf')) return 'application/pdf';
+  if (cleanUrl.endsWith('.doc')) return 'application/msword';
+  if (cleanUrl.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (upstreamType && !upstreamType.includes('text/html')) return upstreamType;
+  return 'application/octet-stream';
+};
+
 const authLog = (message, meta = {}) => {
   const safeMeta = Object.fromEntries(
     Object.entries(meta).filter(([, value]) => value !== undefined && value !== '')
@@ -963,5 +984,38 @@ export const uploadProfileResume = async (req, res) => {
   } catch (error) {
     console.error('Resume Upload Error:', error.message);
     res.status(500).json({ success: false, message: 'Server error uploading resume' });
+  }
+};
+
+// @desc    Open a user's public resume with browser-friendly headers
+// @route   GET /api/users/:id/resume
+// @access  Public
+export const viewUserResume = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('resumeFile name');
+    if (!user?.resumeFile) {
+      return res.status(404).send('Resume not found');
+    }
+
+    if (!isAllowedResumeSource(user.resumeFile, req)) {
+      return res.status(400).send('Resume source is not allowed');
+    }
+
+    const response = await fetch(user.resumeFile);
+    if (!response.ok) {
+      return res.status(502).send('Resume file could not be loaded');
+    }
+
+    const contentType = getResumeContentType(user.resumeFile, response.headers.get('content-type') || '');
+    const fileName = `${normalizeUsername(user.name) || 'resume'}${contentType === 'application/pdf' ? '.pdf' : ''}`;
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return res.status(200).send(buffer);
+  } catch (error) {
+    console.error('Resume View Error:', error.message);
+    return res.status(500).send('Server error opening resume');
   }
 };

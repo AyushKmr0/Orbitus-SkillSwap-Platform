@@ -292,6 +292,7 @@ const UserDashboard = () => {
 		usernameAvailableAt && usernameAvailableAt.getTime() > Date.now();
 	const getCertificateVerifyUrl = (certificate) =>
 		`${API_BASE_URL}/api/certificates/verify/${certificate.uniqueId}`;
+	const resumeViewUrl = `${API_BASE_URL}/api/users/${user._id}/resume`;
 
 	// Chart configuration
 	const chartData = {
@@ -1079,7 +1080,7 @@ const UserDashboard = () => {
 									/>
 									{resumeFile && (
 										<a
-											href={resumeFile}
+											href={resumeViewUrl}
 											target="_blank"
 											rel="noreferrer"
 											className="btn-secondary min-h-0 px-3 py-2 text-xs">

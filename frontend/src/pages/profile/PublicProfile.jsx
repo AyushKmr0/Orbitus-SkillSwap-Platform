@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
+import { API_BASE_URL } from "../../services/apiClient.js";
 import {
 	Briefcase,
 	Calendar,
@@ -150,6 +151,7 @@ const PublicProfile = () => {
 
 	const education = renderEducation(profileUser.education);
 	const isOwnProfile = profileUser._id === user._id;
+	const resumeViewUrl = `${API_BASE_URL}/api/users/${profileUser._id}/resume`;
 
 	return (
 		<div className="page-shell space-y-6">
@@ -367,7 +369,7 @@ const PublicProfile = () => {
 								)}
 								{profileUser.resumeFile && (
 									<a
-										href={profileUser.resumeFile}
+										href={resumeViewUrl}
 										target="_blank"
 										rel="noreferrer"
 										className="btn-secondary min-h-0 px-3 py-2 text-xs">

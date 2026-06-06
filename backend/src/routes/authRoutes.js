@@ -14,6 +14,7 @@ import {
   updateUserProfile,
   getPublicUserProfile,
   uploadProfileResume,
+  viewUserResume,
   searchUsers,
   toggleFollowUser,
   startOAuth,
@@ -62,6 +63,7 @@ router.post('/profile/resume', protect, upload.single('resume'), uploadProfileRe
 router.delete('/account', protect, deleteAccount);
 router.get('/search', protect, searchUsers);
 router.post('/:id/follow', protect, toggleFollowUser);
+router.get('/:id/resume', viewUserResume);
 router.get('/:id', protect, getPublicUserProfile);
 
 export default router;
