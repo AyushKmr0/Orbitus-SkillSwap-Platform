@@ -149,6 +149,14 @@ const getResumeContentType = (resumeUrl = '', upstreamType = '') => {
   return 'application/octet-stream';
 };
 
+const headersToDebugObject = (headers) => {
+  const debugHeaders = {};
+  headers?.forEach((value, key) => {
+    debugHeaders[key] = value;
+  });
+  return debugHeaders;
+};
+
 const getLocalResumePath = (resumeUrl = '', req) => {
   try {
     const parsed = new URL(resumeUrl);
@@ -1054,10 +1062,34 @@ export const uploadProfileResume = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No resume file uploaded' });
     }
 
+    console.log('[RESUME DEBUG] Upload phase started', {
+      userId: req.user._id.toString(),
+      originalName: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      localPath: req.file.path,
+      cloudinaryConfigured: Boolean(cloudinaryConfigured())
+    });
+
     const cloudinaryUpload = await uploadResumeToCloudinary(req.file.path, req.file.originalname);
     const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
     const resumeFile = cloudinaryUpload?.secure_url || `${baseUrl.replace(/\/$/, '')}/uploads/${req.file.filename}`;
     const resumeCloudinary = buildCloudinaryResumeMeta(cloudinaryUpload);
+
+    console.log('[RESUME DEBUG] Cloudinary upload response', {
+      userId: req.user._id.toString(),
+      hasCloudinaryUpload: Boolean(cloudinaryUpload),
+      secure_url: cloudinaryUpload?.secure_url,
+      url: cloudinaryUpload?.url,
+      public_id: cloudinaryUpload?.public_id,
+      resource_type: cloudinaryUpload?.resource_type,
+      type: cloudinaryUpload?.type,
+      format: cloudinaryUpload?.format,
+      bytes: cloudinaryUpload?.bytes,
+      created_at: cloudinaryUpload?.created_at,
+      resumeFileToSave: resumeFile,
+      resumeCloudinary
+    });
 
     if (cloudinaryUpload?.secure_url && req.file.path) {
       fs.promises.unlink(req.file.path).catch(() => {});
@@ -1070,6 +1102,12 @@ export const uploadProfileResume = async (req, res) => {
         : { resumeFile, $unset: { resumeCloudinary: 1 } },
       { new: true }
     ).select('-password -refreshToken -otp').populate('skillsTeach.skill skillsLearn.skill');
+
+    console.log('[RESUME DEBUG] Resume saved in DB', {
+      userId: user._id.toString(),
+      savedResumeFile: user.resumeFile,
+      savedResumeCloudinary: user.resumeCloudinary
+    });
 
     res.status(201).json({ success: true, resumeFile, user: publicUserPayload(user, req.user._id) });
   } catch (error) {
@@ -1084,25 +1122,68 @@ export const uploadProfileResume = async (req, res) => {
 export const viewUserResume = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('resumeFile resumeCloudinary name');
+    const viewerUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+
+    console.log('[RESUME DEBUG] View phase started', {
+      requestedUserId: req.params.id,
+      viewerUrl,
+      routeHit: true,
+      foundUser: Boolean(user),
+      resumeFileFromDb: user?.resumeFile,
+      resumeCloudinaryFromDb: user?.resumeCloudinary
+    });
+
     if (!user?.resumeFile) {
       return res.status(404).send('Resume not found');
     }
 
     if (!isAllowedResumeSource(user.resumeFile, req)) {
+      console.error('[RESUME DEBUG] Resume source rejected', {
+        requestedUserId: req.params.id,
+        resumeFileFromDb: user.resumeFile
+      });
       return res.status(400).send('Resume source is not allowed');
     }
 
     const localResumePath = getLocalResumePath(user.resumeFile, req);
+    console.log('[RESUME DEBUG] Local resume lookup', {
+      requestedUserId: req.params.id,
+      resumeFileFromDb: user.resumeFile,
+      localResumePath,
+      localFileExists: Boolean(localResumePath)
+    });
+
     if (localResumePath) {
       const contentType = getResumeContentType(localResumePath);
       const fileName = `${normalizeUsername(user.name) || 'resume'}${contentType === 'application/pdf' ? '.pdf' : ''}`;
+      const fileBuffer = await fs.promises.readFile(localResumePath);
+      console.log('[RESUME DEBUG] Returning local resume bytes', {
+        requestedUserId: req.params.id,
+        contentType,
+        fileName,
+        byteLength: fileBuffer.length
+      });
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
-      return res.status(200).send(await fs.promises.readFile(localResumePath));
+      return res.status(200).send(fileBuffer);
     }
 
     let sourceUrl = user.resumeFile;
+    console.log('[RESUME DEBUG] Fetching resume source', {
+      requestedUserId: req.params.id,
+      sourceUrl
+    });
+
     let response = await fetch(sourceUrl);
+    console.log('[RESUME DEBUG] Resume source response', {
+      requestedUserId: req.params.id,
+      sourceUrl,
+      status: response.status,
+      statusText: response.statusText,
+      headers: headersToDebugObject(response.headers),
+      contentType: response.headers.get('content-type')
+    });
+
     if (!response.ok) {
       console.error('Resume upstream load failed:', {
         userId: user._id.toString(),
@@ -1114,7 +1195,19 @@ export const viewUserResume = async (req, res) => {
       const signedUrl = getSignedCloudinaryResumeUrl(user);
       if (signedUrl) {
         sourceUrl = signedUrl;
+        console.log('[RESUME DEBUG] Fetching signed resume source', {
+          requestedUserId: req.params.id,
+          sourceUrl
+        });
         response = await fetch(sourceUrl);
+        console.log('[RESUME DEBUG] Signed resume source response', {
+          requestedUserId: req.params.id,
+          sourceUrl,
+          status: response.status,
+          statusText: response.statusText,
+          headers: headersToDebugObject(response.headers),
+          contentType: response.headers.get('content-type')
+        });
       }
 
       if (!response.ok) {
@@ -1135,6 +1228,17 @@ export const viewUserResume = async (req, res) => {
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
 
     const buffer = Buffer.from(await response.arrayBuffer());
+    console.log('[RESUME DEBUG] Returning fetched resume bytes', {
+      requestedUserId: req.params.id,
+      finalSourceUrl: sourceUrl,
+      responseStatus: response.status,
+      upstreamContentType: response.headers.get('content-type'),
+      sentContentType: contentType,
+      fileName,
+      byteLength: buffer.length,
+      firstBytesHex: buffer.subarray(0, 8).toString('hex')
+    });
+
     return res.status(200).send(buffer);
   } catch (error) {
     console.error('Resume View Error:', error.message);
