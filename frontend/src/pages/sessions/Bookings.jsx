@@ -78,6 +78,8 @@ const Bookings = () => {
   };
 
   const handleSessionAction = async (sessionId, status, extraBody = {}) => {
+    if (status === 'Cancelled' && !window.confirm('Cancel this session?')) return;
+
     try {
       const res = await apiClient.put(`/api/sessions/${sessionId}/respond`, {
         status,
@@ -244,6 +246,7 @@ const Bookings = () => {
 
             const startObj = new Date(session.startTime);
             const canChangeTime = !['Completed', 'Rejected', 'Cancelled'].includes(status);
+            const canCancel = !['Completed', 'Rejected', 'Cancelled'].includes(status);
             const joinState = getJoinState(session);
             const actualMinutes = session.actualDurationMinutes || 0;
 
@@ -342,6 +345,15 @@ const Bookings = () => {
                       className="px-4 py-2.5 bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 text-xs font-bold rounded-xl transition-all"
                     >
                       Change Time
+                    </button>
+                  )}
+
+                  {canCancel && (
+                    <button
+                      onClick={() => handleSessionAction(session._id, 'Cancelled')}
+                      className="px-4 py-2.5 bg-red-600/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white text-xs font-bold rounded-xl transition-all"
+                    >
+                      Cancel Session
                     </button>
                   )}
 

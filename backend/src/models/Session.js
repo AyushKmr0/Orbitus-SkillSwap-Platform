@@ -55,6 +55,13 @@ const sessionSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  roomStartedAt: {
+    type: Date
+  },
+  roomStartedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
   attendance: [{
     user: {
       type: mongoose.Schema.Types.ObjectId,

@@ -344,11 +344,38 @@ export const joinSession = async (req, res) => {
       });
     }
 
-    const mentorHasActiveRoom = session.attendance?.some(item => {
+    const attendanceDebug = (session.attendance || []).map(item => ({
+      user: getDocumentId(item.user),
+      role: item.role,
+      joinedAt: item.joinedAt,
+      leftAt: item.leftAt,
+      isMentorUser: getDocumentId(item.user) === mentorId
+    }));
+    const mentorHasActiveAttendance = session.attendance?.some(item => {
       if (item.leftAt) return false;
       const attendeeId = getDocumentId(item.user);
       return item.role === 'mentor' || attendeeId === mentorId;
     });
+    const mentorStartedRoom = getDocumentId(session.roomStartedBy) === mentorId && Boolean(session.roomStartedAt);
+    const mentorHasActiveRoom = mentorHasActiveAttendance || mentorStartedRoom;
+
+    console.log('[SESSION JOIN DEBUG]', {
+      sessionId: session._id.toString(),
+      requesterId: currentUserId,
+      mentorId,
+      learnerId,
+      isMentor,
+      isLearner,
+      status: session.status,
+      room: session.jitsiRoomId,
+      roomStartedBy: getDocumentId(session.roomStartedBy),
+      roomStartedAt: session.roomStartedAt,
+      mentorHasActiveAttendance,
+      mentorStartedRoom,
+      mentorHasActiveRoom,
+      attendance: attendanceDebug
+    });
+
     if (!isMentor && !mentorHasActiveRoom) {
       return res.status(403).json({
         success: false,
@@ -364,6 +391,11 @@ export const joinSession = async (req, res) => {
 
     if (!session.actualStartTime) {
       session.actualStartTime = now;
+    }
+
+    if (isMentor && !session.roomStartedAt) {
+      session.roomStartedAt = now;
+      session.roomStartedBy = req.user._id;
     }
 
     if (!openAttendance) {
