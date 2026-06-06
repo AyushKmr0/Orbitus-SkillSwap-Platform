@@ -62,6 +62,10 @@ const formatEducationEntry = (item) => {
 		.join(" - ");
 };
 
+const getProjectName = (project) => project.name || project.title || "";
+const getProjectLink = (project) =>
+	project.link || project.url || project.githubUrl || project.liveUrl || "";
+
 const AiResume = () => {
 	const { token, user } = useSelector((state) => state.auth);
 
@@ -105,6 +109,7 @@ const AiResume = () => {
 					})) || [],
 				education: user?.education || "",
 				interests: user?.interests || [],
+				projects: user?.projects || [],
 				testimonials: [],
 				earnedPoints: user?.points || 0,
 			};
@@ -142,9 +147,9 @@ const AiResume = () => {
 		interestsText: (resumeData.interests || []).join(", "),
 		projects: resumeData.projects?.length
 			? resumeData.projects.map((project) => ({
-					name: project.name || project.title || "",
+					name: getProjectName(project),
 					role: project.role || project.techStack || "",
-					link: project.link || project.url || "",
+					link: getProjectLink(project),
 					description: project.description || "",
 				}))
 			: [emptyProject()],
@@ -200,7 +205,7 @@ const AiResume = () => {
 				.map((item) => item.trim())
 				.filter(Boolean),
 			projects: manualDraft.projects.filter(
-				(project) => project.name || project.description,
+				(project) => project.name || project.link || project.description,
 			),
 			experience: manualDraft.experience.filter(
 				(item) => item.title || item.company || item.description,
@@ -246,7 +251,11 @@ const AiResume = () => {
 	const educationList = (Array.isArray(education) ? education : [education])
 		.map(formatEducationEntry)
 		.filter(Boolean);
-	const projects = resume.projects || [];
+	const projects = (resume.projects || []).map((project) => ({
+		...project,
+		name: getProjectName(project),
+		link: getProjectLink(project),
+	}));
 	const experience = resume.experience || [];
 	const certifications = resume.certifications || [];
 	const customSections = resume.customSections || [];

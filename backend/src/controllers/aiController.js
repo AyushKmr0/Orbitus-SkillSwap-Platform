@@ -103,6 +103,22 @@ const normalizeEducation = (education) => {
   return education ? [education] : [];
 };
 
+const normalizeResumeProjects = (projects = []) => (
+  Array.isArray(projects)
+    ? projects
+        .filter(project => project?.title || project?.name || project?.description || project?.githubUrl || project?.liveUrl || project?.link || project?.url)
+        .map(project => ({
+          name: project.name || project.title || '',
+          title: project.title || project.name || '',
+          role: project.role || project.techStack || '',
+          link: project.link || project.url || project.githubUrl || project.liveUrl || '',
+          githubUrl: project.githubUrl || '',
+          liveUrl: project.liveUrl || '',
+          description: project.description || ''
+        }))
+    : []
+);
+
 const extractJsonPayload = (text) => {
   let cleanJsonString = text.trim();
   if (cleanJsonString.startsWith('```')) {
@@ -499,7 +515,7 @@ export const generateResume = async (req, res) => {
       skillsLookingToLearn: user.skillsLearn.map(s => ({ name: s.skill.name, level: s.level })),
       education: normalizeEducation(user.education),
       resumeFile: user.resumeFile,
-      projects: user.projects,
+      projects: normalizeResumeProjects(user.projects),
       interests: user.interests,
       testimonials,
       earnedPoints: user.points

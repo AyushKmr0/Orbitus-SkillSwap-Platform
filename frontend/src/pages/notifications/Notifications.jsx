@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import axios from 'axios';
 import { Bell, CheckCheck } from 'lucide-react';
 import { useSocket } from '../../context/SocketContext.jsx';
+import apiClient from '../../services/apiClient.js';
 
 const notificationLabels = {
   Follow: 'followed you',
@@ -18,19 +18,21 @@ const notificationLabels = {
 };
 
 const Notifications = () => {
-  const { markNotificationsRead, fetchNotificationSummary } = useSocket();
+  const { notifications, markNotificationsRead, fetchNotificationSummary } = useSocket();
   const { user } = useSelector((state) => state.auth);
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const isVisibleNotification = (item) => {
+    const senderId = item.sender?._id || item.sender;
+    return !senderId || senderId.toString() !== user?._id?.toString();
+  };
+
   const fetchNotifications = async () => {
     try {
-      const res = await axios.get('/api/notifications');
-      setItems((res.data.notifications || []).filter((item) => {
-        const senderId = item.sender?._id || item.sender;
-        return !senderId || senderId.toString() !== user?._id?.toString();
-      }));
+      const res = await apiClient.get('/api/notifications');
+      setItems((res.data.notifications || []).filter(isVisibleNotification));
     } catch (err) {
       console.error('Error loading notifications:', err);
     } finally {
@@ -41,6 +43,19 @@ const Notifications = () => {
   useEffect(() => {
     fetchNotifications();
   }, [user?._id]);
+
+  useEffect(() => {
+    if (!notifications.length) return;
+
+    setItems((prev) => {
+      const existingIds = new Set(prev.map((item) => item._id).filter(Boolean));
+      const freshItems = notifications
+        .filter(isVisibleNotification)
+        .filter((item) => !item._id || !existingIds.has(item._id));
+
+      return freshItems.length ? [...freshItems, ...prev] : prev;
+    });
+  }, [notifications, user?._id]);
 
   const markAllRead = async () => {
     await markNotificationsRead({});
