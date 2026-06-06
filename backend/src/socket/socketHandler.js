@@ -1,5 +1,4 @@
 import Message from '../models/Message.js';
-import Notification from '../models/Notification.js';
 import User from '../models/User.js';
 import Leaderboard from '../models/Leaderboard.js';
 import ChatPreference from '../models/ChatPreference.js';
@@ -143,26 +142,6 @@ export const socketHandler = (io) => {
 
         // Deliver immediately if recipient is active in room
         io.to(chatRoomId).emit('receive_private_message', populatedMessage);
-
-        // Send a Push Notification to the recipient if they are online but not in the active room
-        const isSelfMessage = senderId?.toString() === recipientId?.toString();
-        const recipientSocketIds = onlineUsers.get(recipientId?.toString());
-        if (!isSelfMessage && recipientSocketIds) {
-          // Create immediate notification record in MongoDB
-          const notification = await Notification.create({
-            recipient: recipientId,
-            sender: senderId,
-            type: 'NewMessage',
-            content: `New message from ${populatedMessage.sender.name}: "${content.substring(0, 30)}..."`,
-            link: '/chat'
-          });
-
-          recipientSocketIds.forEach((socketId) => {
-            if (socketId !== socket.id) {
-              io.to(socketId).emit('new_notification', notification);
-            }
-          });
-        }
       } catch (error) {
         console.error('[SOCKET ERROR] message transmission failed:', error.message);
       }

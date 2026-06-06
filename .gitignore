@@ -14,7 +14,7 @@ node_modules/
 .env
 .env.local
 .env.*.local
-imp.*
+*.txt
 
 # Build outputs
 dist/

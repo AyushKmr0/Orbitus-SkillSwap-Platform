@@ -2,6 +2,7 @@ import Notification from '../models/Notification.js';
 
 const visibleNotificationQuery = (userId, extra = {}) => ({
   recipient: userId,
+  type: { $ne: 'NewMessage' },
   $or: [
     { sender: { $exists: false } },
     { sender: null },
