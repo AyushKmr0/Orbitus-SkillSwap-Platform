@@ -62,17 +62,19 @@ Orbitus uses a split frontend/backend architecture:
 
 ## Screenshots
 
-| Area | Screenshot |
-| --- | --- |
-| Login Page | `screenshots/login.png` |
-| Dashboard | `screenshots/dashboard.png` |
-| Skill Catalog | `screenshots/skills.png` |
-| AI Matching | `screenshots/ai-matches.png` |
-| AI Roadmaps | `screenshots/ai-roadmaps.png` |
-| Messaging | `screenshots/chat.png` |
-| Daily Feeds | `screenshots/daily-feeds.png` |
-| Sessions | `screenshots/bookings.png` |
-| Certificates | `screenshots/certificate.png` |
+| Area            | Screenshot                              |
+| --------------- | --------------------------------------- |
+| Login Page      | [View](screenshots/login.png)           |
+| Dashboard       | [View](screenshots/dashboard.png)       |
+| Skill Catalog   | [View](screenshots/skills.png)          |
+| AI Matching     | [View](screenshots/ai-matches.png)      |
+| AI Roadmaps     | [View](screenshots/ai-roadmaps.png)     |
+| Messaging       | [View](screenshots/chat.png)            |
+| Community Feed  | [View](screenshots/community-feed.png)  |
+| Sessions        | [View](screenshots/bookings.png)        |
+| Certificates    | [View](screenshots/certificate.png)     |
+| Admin Dashboard | [View](screenshots/admin-dashboard.png) |
+
 
 ## Installation Guide
 
