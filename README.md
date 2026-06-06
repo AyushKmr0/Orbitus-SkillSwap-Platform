@@ -70,10 +70,9 @@ Orbitus uses a split frontend/backend architecture:
 | AI Matching     | [View](screenshots/ai-matches.png)      |
 | AI Roadmaps     | [View](screenshots/ai-roadmaps.png)     |
 | Messaging       | [View](screenshots/chat.png)            |
-| Community Feed  | [View](screenshots/community-feed.png)  |
+| Daily Feed      | [View](screenshots/daily-feed.png)      |
 | Sessions        | [View](screenshots/bookings.png)        |
 | Certificates    | [View](screenshots/certificate.png)     |
-| Admin Dashboard | [View](screenshots/admin-dashboard.png) |
 
 
 ## Installation Guide
