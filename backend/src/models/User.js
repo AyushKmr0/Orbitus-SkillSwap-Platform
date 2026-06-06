@@ -100,6 +100,13 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  resumeCloudinary: {
+    publicId: { type: String, default: '' },
+    resourceType: { type: String, default: '' },
+    type: { type: String, default: '' },
+    format: { type: String, default: '' },
+    version: { type: Number }
+  },
   projects: [{
     title: { type: String, default: '' },
     description: { type: String, default: '' },

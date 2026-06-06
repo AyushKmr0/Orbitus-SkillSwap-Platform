@@ -42,14 +42,18 @@ const cloudinaryConfigured = () => (
   process.env.CLOUDINARY_API_SECRET
 );
 
-const uploadResumeToCloudinary = async (filePath, originalName = '') => {
-  if (!cloudinaryConfigured()) return null;
-
+const configureCloudinary = () => {
   cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
   });
+};
+
+const uploadResumeToCloudinary = async (filePath, originalName = '') => {
+  if (!cloudinaryConfigured()) return null;
+
+  configureCloudinary();
 
   return cloudinary.uploader.upload(filePath, {
     folder: 'orbitus/resumes',
@@ -57,6 +61,70 @@ const uploadResumeToCloudinary = async (filePath, originalName = '') => {
     use_filename: true,
     unique_filename: true,
     filename_override: originalName || undefined
+  });
+};
+
+const buildCloudinaryResumeMeta = (uploadResult = null) => {
+  if (!uploadResult?.public_id) return undefined;
+
+  return {
+    publicId: uploadResult.public_id,
+    resourceType: uploadResult.resource_type || 'raw',
+    type: uploadResult.type || 'upload',
+    format: uploadResult.format || '',
+    version: uploadResult.version
+  };
+};
+
+const parseCloudinaryResumeMeta = (resumeUrl = '') => {
+  try {
+    const parsed = new URL(resumeUrl);
+    if (parsed.host !== 'res.cloudinary.com') return null;
+
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    const resourceType = parts[1];
+    const type = parts[2];
+    const versionIndex = parts.findIndex(part => /^v\d+$/.test(part));
+    const publicParts = parts.slice(versionIndex >= 0 ? versionIndex + 1 : 3);
+    const fileName = publicParts[publicParts.length - 1] || '';
+    const extensionMatch = fileName.match(/\.([a-z0-9]+)$/i);
+    const format = extensionMatch?.[1] || '';
+    const publicId = publicParts.join('/').replace(new RegExp(`\\.${format}$`, 'i'), '');
+
+    if (!resourceType || !type || !publicId) return null;
+
+    return {
+      publicId,
+      resourceType,
+      type,
+      format,
+      version: versionIndex >= 0 ? Number(parts[versionIndex].slice(1)) : undefined
+    };
+  } catch {
+    return null;
+  }
+};
+
+const getSignedCloudinaryResumeUrl = (user) => {
+  if (!cloudinaryConfigured()) return null;
+
+  const meta = user.resumeCloudinary?.publicId
+    ? user.resumeCloudinary
+    : parseCloudinaryResumeMeta(user.resumeFile);
+
+  if (!meta?.publicId) return null;
+
+  configureCloudinary();
+
+  const hasFormatInPublicId = meta.format && meta.publicId.toLowerCase().endsWith(`.${meta.format.toLowerCase()}`);
+
+  return cloudinary.url(meta.publicId, {
+    secure: true,
+    sign_url: true,
+    resource_type: meta.resourceType || 'raw',
+    type: meta.type || 'upload',
+    version: meta.version || undefined,
+    format: !hasFormatInPublicId && meta.format ? meta.format : undefined
   });
 };
 
@@ -989,6 +1057,7 @@ export const uploadProfileResume = async (req, res) => {
     const cloudinaryUpload = await uploadResumeToCloudinary(req.file.path, req.file.originalname);
     const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
     const resumeFile = cloudinaryUpload?.secure_url || `${baseUrl.replace(/\/$/, '')}/uploads/${req.file.filename}`;
+    const resumeCloudinary = buildCloudinaryResumeMeta(cloudinaryUpload);
 
     if (cloudinaryUpload?.secure_url && req.file.path) {
       fs.promises.unlink(req.file.path).catch(() => {});
@@ -996,7 +1065,9 @@ export const uploadProfileResume = async (req, res) => {
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      { resumeFile },
+      resumeCloudinary
+        ? { resumeFile, resumeCloudinary }
+        : { resumeFile, $unset: { resumeCloudinary: 1 } },
       { new: true }
     ).select('-password -refreshToken -otp').populate('skillsTeach.skill skillsLearn.skill');
 
@@ -1012,7 +1083,7 @@ export const uploadProfileResume = async (req, res) => {
 // @access  Public
 export const viewUserResume = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('resumeFile name');
+    const user = await User.findById(req.params.id).select('resumeFile resumeCloudinary name');
     if (!user?.resumeFile) {
       return res.status(404).send('Resume not found');
     }
@@ -1030,7 +1101,8 @@ export const viewUserResume = async (req, res) => {
       return res.status(200).send(await fs.promises.readFile(localResumePath));
     }
 
-    const response = await fetch(user.resumeFile);
+    let sourceUrl = user.resumeFile;
+    let response = await fetch(sourceUrl);
     if (!response.ok) {
       console.error('Resume upstream load failed:', {
         userId: user._id.toString(),
@@ -1038,10 +1110,25 @@ export const viewUserResume = async (req, res) => {
         statusText: response.statusText,
         host: new URL(user.resumeFile).host
       });
-      return res.status(502).send('Resume file could not be loaded');
+
+      const signedUrl = getSignedCloudinaryResumeUrl(user);
+      if (signedUrl) {
+        sourceUrl = signedUrl;
+        response = await fetch(sourceUrl);
+      }
+
+      if (!response.ok) {
+        console.error('Resume signed upstream load failed:', {
+          userId: user._id.toString(),
+          status: response.status,
+          statusText: response.statusText,
+          host: new URL(sourceUrl).host
+        });
+        return res.status(502).send('Resume file could not be loaded');
+      }
     }
 
-    const contentType = getResumeContentType(user.resumeFile, response.headers.get('content-type') || '');
+    const contentType = getResumeContentType(sourceUrl, response.headers.get('content-type') || '');
     const fileName = `${normalizeUsername(user.name) || 'resume'}${contentType === 'application/pdf' ? '.pdf' : ''}`;
 
     res.setHeader('Content-Type', contentType);
