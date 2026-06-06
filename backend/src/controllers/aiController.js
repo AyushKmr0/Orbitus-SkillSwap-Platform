@@ -313,12 +313,14 @@ export const getAiMatches = async (req, res) => {
 
     // 1. Suggest Mentors (Users who teach what I want to learn)
     const mentors = await User.find({
+      role: 'User',
       _id: { $ne: currentUser._id },
       'skillsTeach.skill': { $in: learnSkillIds }
     }).populate('skillsTeach.skill skillsLearn.skill').limit(5);
 
     // 2. Suggest Learners (Users who want to learn what I teach)
     const learners = await User.find({
+      role: 'User',
       _id: { $ne: currentUser._id },
       'skillsLearn.skill': { $in: teachSkillIds }
     }).populate('skillsTeach.skill skillsLearn.skill').limit(5);

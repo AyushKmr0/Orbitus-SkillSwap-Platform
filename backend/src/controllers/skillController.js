@@ -1,4 +1,6 @@
 import Skill from '../models/Skill.js';
+import Session from '../models/Session.js';
+import User from '../models/User.js';
 
 const DEFAULT_SKILLS = [
   { name: 'HTML5 & CSS3', category: 'Web Development', tags: ['frontend', 'layout'], description: 'Semantic HTML and responsive CSS for modern web interfaces.' },
@@ -73,5 +75,80 @@ export const createSkill = async (req, res) => {
   } catch (error) {
     console.error('Create Skill Error:', error.message);
     res.status(500).json({ success: false, message: 'Server error creating new skill entry' });
+  }
+};
+
+// @desc    Update a master skill
+// @route   PUT /api/skills/:id
+// @access  Private/Admin
+export const updateSkill = async (req, res) => {
+  const { name, category, tags, description } = req.body;
+
+  try {
+    if (!name || !category) {
+      return res.status(400).json({ success: false, message: 'Skill name and category are required' });
+    }
+
+    const skill = await Skill.findById(req.params.id);
+    if (!skill) {
+      return res.status(404).json({ success: false, message: 'Skill not found' });
+    }
+
+    const duplicate = await Skill.findOne({
+      _id: { $ne: skill._id },
+      name: name.trim()
+    });
+
+    if (duplicate) {
+      return res.status(400).json({ success: false, message: 'Another skill already uses this name' });
+    }
+
+    skill.name = name.trim();
+    skill.category = category.trim();
+    skill.description = description || '';
+    skill.tags = Array.isArray(tags) ? tags.map(tag => tag.trim()).filter(Boolean) : [];
+
+    await skill.save();
+
+    res.status(200).json({ success: true, message: 'Skill updated successfully', skill });
+  } catch (error) {
+    console.error('Update Skill Error:', error.message);
+    res.status(500).json({ success: false, message: 'Server error updating skill entry' });
+  }
+};
+
+// @desc    Remove a master skill
+// @route   DELETE /api/skills/:id
+// @access  Private/Admin
+export const deleteSkill = async (req, res) => {
+  try {
+    const skill = await Skill.findById(req.params.id);
+    if (!skill) {
+      return res.status(404).json({ success: false, message: 'Skill not found' });
+    }
+
+    const sessionCount = await Session.countDocuments({ skill: skill._id });
+    if (sessionCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'This skill is attached to existing sessions, so it cannot be removed'
+      });
+    }
+
+    await User.updateMany(
+      {},
+      {
+        $pull: {
+          skillsTeach: { skill: skill._id },
+          skillsLearn: { skill: skill._id }
+        }
+      }
+    );
+    await Skill.deleteOne({ _id: skill._id });
+
+    res.status(200).json({ success: true, message: 'Skill removed successfully' });
+  } catch (error) {
+    console.error('Delete Skill Error:', error.message);
+    res.status(500).json({ success: false, message: 'Server error removing skill entry' });
   }
 };

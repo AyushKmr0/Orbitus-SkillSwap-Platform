@@ -8,9 +8,11 @@ import {
   Star,
   Plus,
   Shield,
-  TrendingUp,
   CheckCircle,
-  Database
+  Database,
+  Edit2,
+  Trash2,
+  X
 } from 'lucide-react';
 import { Doughnut } from 'react-chartjs-2';
 import {
@@ -26,12 +28,28 @@ const AdminDashboard = () => {
   const { token } = useSelector((state) => state.auth);
   
   const [adminStats, setAdminStats] = useState(null);
+  const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newSkillName, setNewSkillName] = useState('');
   const [newSkillCategory, setNewSkillCategory] = useState('Web Development');
+  const [customSkillCategory, setCustomSkillCategory] = useState('');
   const [newSkillDesc, setNewSkillDesc] = useState('');
   const [newSkillTags, setNewSkillTags] = useState('');
+  const [editingSkillId, setEditingSkillId] = useState('');
+  const [editSkillDraft, setEditSkillDraft] = useState(null);
   const [skillMsg, setSkillMsg] = useState('');
+
+  const defaultCategories = [
+    'Web Development',
+    'MERN Stack',
+    'Java',
+    'Python',
+    'UI/UX Design',
+    'Data Science',
+    'AI/ML',
+    'Cyber Security',
+    'Mobile Development'
+  ];
 
   useEffect(() => {
     fetchAdminStats();
@@ -41,6 +59,7 @@ const AdminDashboard = () => {
     try {
       const res = await apiClient.get('/api/dashboard/admin');
       setAdminStats(res.data);
+      await fetchSkills();
     } catch (err) {
       console.error('Error loading admin stats:', err);
     } finally {
@@ -48,28 +67,97 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchSkills = async () => {
+    const res = await apiClient.get('/api/skills');
+    setSkills(res.data.skills || []);
+  };
+
+  const getSelectedCategory = () => (
+    newSkillCategory === '__custom__' ? customSkillCategory.trim() : newSkillCategory
+  );
+
+  const categoryOptions = Array.from(new Set([
+    ...defaultCategories,
+    ...(adminStats?.charts?.skillsBreakdown?.labels || []),
+    ...skills.map((skill) => skill.category).filter(Boolean)
+  ]));
+
   const handleCreateSkill = async (e) => {
     e.preventDefault();
     setSkillMsg('');
 
-    if (!newSkillName || !newSkillCategory) return;
+    const category = getSelectedCategory();
+    if (!newSkillName || !category) return;
 
     try {
       await apiClient.post('/api/skills', {
         name: newSkillName,
-        category: newSkillCategory,
+        category,
         description: newSkillDesc,
         tags: newSkillTags.split(',').map(t => t.trim()).filter(Boolean)
       });
 
       setSkillMsg('Skill created successfully in the master database!');
       setNewSkillName('');
+      setCustomSkillCategory('');
       setNewSkillDesc('');
       setNewSkillTags('');
       fetchAdminStats();
     } catch (err) {
       console.error('Error creating skill:', err);
       setSkillMsg(err.response?.data?.message || 'Error creating skill entry');
+    }
+  };
+
+  const startEditSkill = (skill) => {
+    setEditingSkillId(skill._id);
+    setEditSkillDraft({
+      name: skill.name || '',
+      category: skill.category || '',
+      description: skill.description || '',
+      tags: (skill.tags || []).join(', ')
+    });
+  };
+
+  const cancelEditSkill = () => {
+    setEditingSkillId('');
+    setEditSkillDraft(null);
+  };
+
+  const handleUpdateSkill = async (skillId) => {
+    if (!editSkillDraft?.name || !editSkillDraft?.category) return;
+    setSkillMsg('');
+
+    try {
+      await apiClient.put(`/api/skills/${skillId}`, {
+        name: editSkillDraft.name,
+        category: editSkillDraft.category,
+        description: editSkillDraft.description,
+        tags: editSkillDraft.tags.split(',').map(t => t.trim()).filter(Boolean)
+      });
+
+      setSkillMsg('Skill updated successfully.');
+      cancelEditSkill();
+      fetchAdminStats();
+    } catch (err) {
+      console.error('Error updating skill:', err);
+      setSkillMsg(err.response?.data?.message || 'Error updating skill entry');
+    }
+  };
+
+  const handleDeleteSkill = async (skillId) => {
+    const confirmed = window.confirm('Remove this skill from the master database?');
+    if (!confirmed) return;
+
+    setSkillMsg('');
+
+    try {
+      await apiClient.delete(`/api/skills/${skillId}`);
+      setSkillMsg('Skill removed successfully.');
+      fetchAdminStats();
+    } catch (err) {
+      console.error('Error deleting skill:', err);
+      setSkillMsg(err.response?.data?.message || 'Error removing skill entry');
     }
   };
 
@@ -83,13 +171,16 @@ const AdminDashboard = () => {
   }
 
   const { stats, charts, leaderboard } = adminStats;
+  const sessionLabels = charts?.sessionsBreakdown?.labels || ['Completed', 'Pending', 'Upcoming', 'Other'];
+  const sessionValues = charts?.sessionsBreakdown?.data || [0, 0, 0, 0];
+  const hasSessionChartData = sessionValues.some((value) => Number(value) > 0);
 
   // Chart configuration for Sessions Statuses
   const sessionsChartData = {
-    labels: charts?.sessionsBreakdown?.labels || ['Completed', 'Pending', 'Upcoming', 'Other'],
+    labels: sessionLabels,
     datasets: [
       {
-        data: charts?.sessionsBreakdown?.data || [0, 0, 0, 0],
+        data: sessionValues,
         backgroundColor: ['#10b981', '#f59e0b', '#6366f1', '#64748b'],
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.05)'
@@ -175,7 +266,22 @@ const AdminDashboard = () => {
           <div className="glass-panel p-6 rounded-3xl space-y-4">
             <h3 className="font-bold text-base text-slate-100 font-outfit text-center">Sessions Status Shares</h3>
             <div className="w-56 mx-auto">
-              <Doughnut data={sessionsChartData} options={chartOptions} />
+              {hasSessionChartData ? (
+                <Doughnut data={sessionsChartData} options={chartOptions} />
+              ) : (
+                <div className="flex h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 text-center">
+                  <FileCheck size={24} className="text-slate-500" />
+                  <p className="mt-2 text-xs font-semibold text-slate-400">No sessions yet</p>
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {sessionLabels.map((label, index) => (
+                <div key={label} className="rounded-xl border border-slate-850 bg-slate-900/40 px-3 py-2">
+                  <p className="text-slate-500">{label}</p>
+                  <p className="mt-0.5 font-bold text-slate-200">{sessionValues[index] || 0}</p>
+                </div>
+              ))}
             </div>
           </div>
           <div className="glass-panel p-6 rounded-3xl space-y-4">
@@ -216,12 +322,12 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Right Column - Add Skills to base */}
-        <div className="glass-panel p-6 rounded-3xl space-y-4 h-fit">
+        {/* Right Column - Add and manage skills */}
+        <div className="glass-panel p-6 rounded-3xl space-y-5 h-fit">
           <h3 className="font-bold text-lg text-slate-100 font-outfit flex items-center gap-2">
-            <Plus size={18} className="text-indigo-400" /> Insert Master Skill
+            <Plus size={18} className="text-indigo-400" /> Manage Master Skills
           </h3>
-          <p className="text-xs text-slate-400">Append new learning assets to the global categories list.</p>
+          <p className="text-xs text-slate-400">Add, edit, remove, and categorize skills in the global catalog.</p>
 
           {skillMsg && (
             <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs rounded-xl flex items-center gap-2">
@@ -250,16 +356,21 @@ const AdminDashboard = () => {
                 onChange={(e) => setNewSkillCategory(e.target.value)}
                 className="w-full px-4 py-2 bg-slate-900 border border-slate-850 rounded-xl text-slate-400 text-xs outline-none"
               >
-                <option value="Web Development">Web Development</option>
-                <option value="MERN Stack">MERN Stack</option>
-                <option value="Java">Java</option>
-                <option value="Python">Python</option>
-                <option value="UI/UX Design">UI/UX Design</option>
-                <option value="Data Science">Data Science</option>
-                <option value="AI/ML">AI/ML</option>
-                <option value="Cyber Security">Cyber Security</option>
-                <option value="Mobile Development">Mobile Development</option>
+                {categoryOptions.map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+                <option value="__custom__">Type new category...</option>
               </select>
+              {newSkillCategory === '__custom__' && (
+                <input
+                  type="text"
+                  required
+                  value={customSkillCategory}
+                  onChange={(e) => setCustomSkillCategory(e.target.value)}
+                  placeholder="Enter custom category"
+                  className="mt-2 w-full px-4 py-2 bg-slate-900 border border-slate-850 rounded-xl text-slate-200 text-xs outline-none"
+                />
+              )}
             </div>
 
             <div className="space-y-1">
@@ -288,6 +399,105 @@ const AdminDashboard = () => {
               <Plus size={14} /> Add Skill to Platform
             </button>
           </form>
+
+          <div className="border-t border-slate-850 pt-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h4 className="text-xs font-bold uppercase text-slate-400">Skill Database</h4>
+              <span className="rounded-full bg-slate-900 px-2 py-1 text-[10px] font-bold text-slate-400">{skills.length} skills</span>
+            </div>
+
+            <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
+              {skills.map((skill) => {
+                const isEditing = editingSkillId === skill._id;
+
+                return (
+                  <div key={skill._id} className="rounded-2xl border border-slate-850 bg-slate-900/40 p-3">
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <input
+                          value={editSkillDraft.name}
+                          onChange={(e) => setEditSkillDraft({ ...editSkillDraft, name: e.target.value })}
+                          className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-200 outline-none"
+                        />
+                        <input
+                          value={editSkillDraft.category}
+                          onChange={(e) => setEditSkillDraft({ ...editSkillDraft, category: e.target.value })}
+                          placeholder="Category"
+                          className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-200 outline-none"
+                        />
+                        <textarea
+                          value={editSkillDraft.description}
+                          onChange={(e) => setEditSkillDraft({ ...editSkillDraft, description: e.target.value })}
+                          rows={2}
+                          placeholder="Description"
+                          className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-200 outline-none"
+                        />
+                        <input
+                          value={editSkillDraft.tags}
+                          onChange={(e) => setEditSkillDraft({ ...editSkillDraft, tags: e.target.value })}
+                          placeholder="Tags, comma separated"
+                          className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-200 outline-none"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateSkill(skill._id)}
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500"
+                          >
+                            <CheckCircle size={13} /> Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEditSkill}
+                            className="flex items-center justify-center rounded-xl border border-slate-800 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-slate-100">{skill.name}</p>
+                            <p className="mt-0.5 text-[10px] font-semibold uppercase text-indigo-400">{skill.category}</p>
+                          </div>
+                          <div className="flex shrink-0 gap-1">
+                            <button
+                              type="button"
+                              onClick={() => startEditSkill(skill)}
+                              className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                              title="Edit skill"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSkill(skill._id)}
+                              className="rounded-lg p-2 text-red-400 hover:bg-red-500/10"
+                              title="Remove skill"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        {skill.description && (
+                          <p className="line-clamp-2 text-xs text-slate-500">{skill.description}</p>
+                        )}
+                        {skill.tags?.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {skill.tags.slice(0, 4).map((tag) => (
+                              <span key={tag} className="rounded-full bg-slate-950 px-2 py-0.5 text-[10px] font-semibold text-slate-500">{tag}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     </div>

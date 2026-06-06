@@ -208,7 +208,7 @@ export const getAdminDashboardStats = async (req, res) => {
     const categoryValues = Object.values(categoryShares);
 
     // 5. High Points Leaderboard lists
-    const leaders = await User.find({})
+    const leaders = await User.find({ role: 'User' })
       .sort({ points: -1 })
       .select('name email points profileImage')
       .limit(5);
@@ -248,7 +248,7 @@ export const getAdminDashboardStats = async (req, res) => {
 // @access  Private
 export const getLeaderboard = async (req, res) => {
   try {
-    const leaders = await User.find({})
+    const leaders = await User.find({ role: 'User' })
       .sort({ points: -1, createdAt: 1 })
       .select('name email points profileImage experienceLevel')
       .limit(25);
