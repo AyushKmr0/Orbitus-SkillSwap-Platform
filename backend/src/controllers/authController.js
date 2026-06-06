@@ -57,7 +57,7 @@ const uploadResumeToCloudinary = async (filePath, originalName = '') => {
 
   return cloudinary.uploader.upload(filePath, {
     folder: 'orbitus/resumes',
-    resource_type: 'auto',
+    resource_type: 'raw',
     use_filename: true,
     unique_filename: true,
     filename_override: originalName || undefined
