@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import fs from 'fs';
+import path from 'path';
 import { v2 as cloudinary } from 'cloudinary';
 import User from '../models/User.js';
 import Skill from '../models/Skill.js';
@@ -52,7 +53,7 @@ const uploadResumeToCloudinary = async (filePath, originalName = '') => {
 
   return cloudinary.uploader.upload(filePath, {
     folder: 'orbitus/resumes',
-    resource_type: 'raw',
+    resource_type: 'auto',
     use_filename: true,
     unique_filename: true,
     filename_override: originalName || undefined
@@ -78,6 +79,25 @@ const getResumeContentType = (resumeUrl = '', upstreamType = '') => {
   if (cleanUrl.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   if (upstreamType && !upstreamType.includes('text/html')) return upstreamType;
   return 'application/octet-stream';
+};
+
+const getLocalResumePath = (resumeUrl = '', req) => {
+  try {
+    const parsed = new URL(resumeUrl);
+    const ownBackendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+    const ownHost = new URL(ownBackendUrl).host;
+    if (parsed.host !== ownHost || !parsed.pathname.startsWith('/uploads/')) return null;
+
+    const fileName = path.basename(parsed.pathname);
+    const candidates = [
+      path.join(process.cwd(), 'uploads', fileName),
+      path.join(process.cwd(), 'backend', 'uploads', fileName)
+    ];
+
+    return candidates.find(candidate => fs.existsSync(candidate)) || null;
+  } catch {
+    return null;
+  }
 };
 
 const authLog = (message, meta = {}) => {
@@ -1001,8 +1021,23 @@ export const viewUserResume = async (req, res) => {
       return res.status(400).send('Resume source is not allowed');
     }
 
+    const localResumePath = getLocalResumePath(user.resumeFile, req);
+    if (localResumePath) {
+      const contentType = getResumeContentType(localResumePath);
+      const fileName = `${normalizeUsername(user.name) || 'resume'}${contentType === 'application/pdf' ? '.pdf' : ''}`;
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+      return res.status(200).send(await fs.promises.readFile(localResumePath));
+    }
+
     const response = await fetch(user.resumeFile);
     if (!response.ok) {
+      console.error('Resume upstream load failed:', {
+        userId: user._id.toString(),
+        status: response.status,
+        statusText: response.statusText,
+        host: new URL(user.resumeFile).host
+      });
       return res.status(502).send('Resume file could not be loaded');
     }
 
