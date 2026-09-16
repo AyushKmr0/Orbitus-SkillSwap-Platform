@@ -130,10 +130,6 @@ const AiRoadmap = () => {
             <p className="text-sm text-muted mt-1">Focused week-by-week plans that stay on the topic you ask for.</p>
           </div>
         </div>
-        <div className="accent-pill rounded-full px-3 py-1.5 text-xs font-semibold flex items-center gap-2">
-          <Sparkles size={14} />
-          Gemini assisted
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
