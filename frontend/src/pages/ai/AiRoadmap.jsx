@@ -507,35 +507,15 @@ const AiRoadmap = () => {
               {/* View 1: ROADMAP.SH STYLE INTERACTIVE MIND MAP */}
               {viewMode === 'mindmap' && (
                 <div className="space-y-4">
-                  {/* Roadmap.sh Canvas Toolbar & Legend */}
+                  {/* Roadmap.sh Canvas Toolbar */}
                   <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-[#181d26] p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm text-xs">
-                    {/* Left: Branding & Legend */}
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="flex items-center gap-1.5 font-bold text-app font-outfit">
-                        <Sparkles size={15} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
-                        <span>roadmap.sh Interactive Mind Map</span>
+                    {/* Left: Title & Milestones count */}
+                    <div className="flex items-center gap-2 font-bold text-app font-outfit">
+                      <Sparkles size={15} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                      <span>Interactive Learning Pathway</span>
+                      <span className="text-[11px] font-medium text-muted hidden sm:inline-block">
+                        • {activeRoadmap.roadmapData?.length || 0} Milestones
                       </span>
-
-                      <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block" />
-
-                      {/* Legend */}
-                      <div className="flex items-center gap-2.5 text-[11px] font-semibold text-muted">
-                        <span className="flex items-center gap-1">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block shadow-sm" />
-                          <span>Done</span>
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="relative flex h-2.5 w-2.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
-                          </span>
-                          <span>In Progress</span>
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 inline-block" />
-                          <span>To Learn</span>
-                        </span>
-                      </div>
                     </div>
 
                     {/* Right: Controls & Drawer Toggle */}
@@ -588,11 +568,15 @@ const AiRoadmap = () => {
                     </div>
                   </div>
 
-                  {/* Main Grid Canvas Viewport */}
+                  {/* Main Grid Canvas Viewport with Phenomenon Ambient Aurora */}
                   <div className="relative w-full h-[520px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-[#0b0f17] bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:20px_20px] shadow-inner overflow-auto">
+                    {/* Phenomenon Ambient Ethereal Glow Orbs */}
+                    <div className="absolute top-1/4 left-1/4 w-80 h-80 rounded-full bg-indigo-500/10 dark:bg-indigo-600/15 blur-[100px] phenomenon-aurora pointer-events-none" />
+                    <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-purple-500/10 dark:bg-purple-600/15 blur-[100px] phenomenon-aurora pointer-events-none" style={{ animationDelay: '-5s' }} />
+
                     <div
                       ref={mindMapContainerRef}
-                      className="p-4 sm:p-6 flex flex-col items-center justify-start min-w-[580px] md:min-w-[680px] m-auto"
+                      className="p-4 sm:p-6 flex flex-col items-center justify-start min-w-[580px] md:min-w-[680px] m-auto relative z-10"
                     >
                       {/* Zoomable Canvas Container */}
                       <div
@@ -603,14 +587,14 @@ const AiRoadmap = () => {
                         }}
                         className="w-full flex flex-col items-center py-1 select-none"
                       >
-                        {/* 1. START ROOT NODE (roadmap.sh Hero) */}
+                        {/* 1. START ROOT NODE (Phenomenon Glassmorphic Hero) */}
                         <div className="flex flex-col items-center z-10">
                           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/80 text-[10px] font-black text-indigo-600 dark:text-indigo-400 mb-1.5 shadow-sm">
                             <Sparkles size={11} />
                             <span>LEARNING PATHWAY</span>
                           </div>
 
-                          <div className="px-4 py-2.5 rounded-xl bg-white dark:bg-[#181d26] border-2 border-indigo-600 shadow-md shadow-indigo-600/10 text-center max-w-sm min-w-[240px] relative">
+                          <div className="phenomenon-card px-4 py-2.5 rounded-xl bg-white/90 dark:bg-[#181d26]/90 backdrop-blur-md border-2 border-indigo-600/90 shadow-md text-center max-w-sm min-w-[240px] relative">
                             <span className="text-[9px] font-black uppercase tracking-wider text-indigo-500 block mb-0.5">
                               Master Goal & Curriculum
                             </span>
@@ -634,27 +618,15 @@ const AiRoadmap = () => {
 
                         {/* 2. SEQUENTIAL ROADMAP SPINE (Desktop Alternating / Mobile Stacked) */}
                         <div className="relative w-full max-w-2xl flex flex-col items-center">
-                          {/* Continuous Central Spine Track */}
-                          <div className="absolute top-0 bottom-3 left-5 md:left-1/2 -translate-x-1/2 w-0.5 bg-slate-200 dark:bg-slate-800 rounded-full" />
+                          {/* Continuous Central Spine Track with Phenomenon Kinetic Beam */}
+                          <div className="absolute top-0 bottom-3 left-5 md:left-1/2 -translate-x-1/2 w-0.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div className="phenomenon-beam left-0" />
+                          </div>
 
                           {activeRoadmap.roadmapData.map((week, idx) => {
                             const isSelected = selectedNodeIndex === idx;
                             const isCompleted = week.completed;
-                            const firstUncompletedIdx = activeRoadmap.roadmapData.findIndex((w) => !w.completed);
-                            const isInProgress = !isCompleted && (isSelected || idx === firstUncompletedIdx);
                             const isEven = idx % 2 === 0;
-
-                            // Determine status pill
-                            let statusLabel = 'To Learn';
-                            let statusClasses = 'bg-slate-100 dark:bg-slate-800 text-muted border-slate-200 dark:border-slate-700';
-
-                            if (isCompleted) {
-                              statusLabel = 'Done';
-                              statusClasses = 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800';
-                            } else if (isInProgress) {
-                              statusLabel = 'In Progress';
-                              statusClasses = 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800';
-                            }
 
                             // Node card JSX
                             const NodeCard = (
@@ -663,33 +635,19 @@ const AiRoadmap = () => {
                                   setSelectedNodeIndex(idx);
                                   setShowDetailDrawer(true);
                                 }}
-                                className={`w-full sm:w-[260px] p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between group shadow-sm text-left ${
+                                className={`phenomenon-card w-full sm:w-[260px] p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between group shadow-sm text-left ${
                                   isSelected
-                                    ? 'bg-white dark:bg-[#1a2233] border-indigo-600 ring-2 ring-indigo-500/20 shadow-md shadow-indigo-500/10 scale-[1.01]'
+                                    ? 'phenomenon-halo bg-white dark:bg-[#1a2233] border-indigo-600 shadow-lg shadow-indigo-500/15'
                                     : isCompleted
                                     ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-400 dark:border-emerald-800/70 hover:border-emerald-500'
-                                    : isInProgress
-                                    ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-400 dark:border-amber-700 hover:border-amber-500'
-                                    : 'bg-white dark:bg-[#181d26] border-slate-200 dark:border-slate-800 hover:border-indigo-400'
+                                    : 'bg-white dark:bg-[#181d26] border-slate-200 dark:border-slate-800 hover:border-indigo-400/80'
                                 }`}
                               >
                                 {/* Card Header */}
                                 <div className="flex items-center justify-between gap-1 mb-1.5">
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-muted">
-                                      {week.week}
-                                    </span>
-                                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border flex items-center gap-1 ${statusClasses}`}>
-                                      {isInProgress && (
-                                        <span className="relative flex h-1.5 w-1.5">
-                                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500" />
-                                        </span>
-                                      )}
-                                      {isCompleted && <Check size={9} strokeWidth={3} />}
-                                      <span>{statusLabel}</span>
-                                    </span>
-                                  </div>
+                                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-indigo-50/80 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/50">
+                                    {week.week || `STAGE ${idx + 1}`}
+                                  </span>
 
                                   {/* Quick Toggle Button */}
                                   <button
@@ -714,7 +672,7 @@ const AiRoadmap = () => {
                                   {week.topic}
                                 </h4>
 
-                                {/* Subtopics Tags (signature roadmap.sh feature) */}
+                                {/* Subtopics Tags */}
                                 {week.details && week.details.length > 0 && (
                                   <div className="mt-2 flex flex-wrap gap-1">
                                     {week.details.slice(0, 2).map((item, dIdx) => (
@@ -765,10 +723,10 @@ const AiRoadmap = () => {
                                       setShowDetailDrawer(true);
                                     }}
                                     className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-[11px] shrink-0 z-10 transition-all border-2 ${
-                                      isCompleted
-                                        ? 'bg-emerald-500 border-emerald-400 text-white ring-2 ring-emerald-500/20 shadow-sm shadow-emerald-500/30'
-                                        : isInProgress
-                                        ? 'bg-amber-500 border-amber-400 text-white ring-2 ring-amber-500/20 shadow-sm shadow-amber-500/30'
+                                      isSelected
+                                        ? 'phenomenon-halo bg-indigo-600 border-indigo-400 text-white'
+                                        : isCompleted
+                                        ? 'bg-emerald-500 border-emerald-400 text-white ring-2 ring-emerald-500/20'
                                         : 'bg-white dark:bg-[#181d26] border-slate-300 dark:border-slate-700 text-muted hover:border-indigo-500'
                                     }`}
                                     title={`Step ${idx + 1}: ${week.topic}`}
@@ -792,10 +750,10 @@ const AiRoadmap = () => {
                                       setShowDetailDrawer(true);
                                     }}
                                     className={`absolute left-5 -translate-x-1/2 top-3 w-7 h-7 rounded-full flex items-center justify-center font-black text-[11px] shrink-0 z-10 border-2 ${
-                                      isCompleted
+                                      isSelected
+                                        ? 'phenomenon-halo bg-indigo-600 border-indigo-400 text-white'
+                                        : isCompleted
                                         ? 'bg-emerald-500 border-emerald-400 text-white ring-2 ring-emerald-500/20'
-                                        : isInProgress
-                                        ? 'bg-amber-500 border-amber-400 text-white ring-2 ring-amber-500/20'
                                         : 'bg-white dark:bg-[#181d26] border-slate-300 dark:border-slate-700 text-muted'
                                     }`}
                                   >
@@ -853,11 +811,6 @@ const AiRoadmap = () => {
                             <span className="text-xs font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-0.5 rounded-md">
                               Stage {selectedNodeIndex + 1} of {activeRoadmap.roadmapData.length} • {selectedNode.week}
                             </span>
-                            {selectedNode.completed && (
-                              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                <Check size={11} strokeWidth={3} /> Completed
-                              </span>
-                            )}
                           </div>
                           <h3 className="text-lg sm:text-xl font-extrabold text-app font-outfit">
                             {selectedNode.topic}
