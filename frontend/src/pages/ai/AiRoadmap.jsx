@@ -114,6 +114,8 @@ const AiRoadmap = () => {
   const [zoomIndex, setZoomIndex] = useState(1);
   const zoomScale = ZOOM_LEVELS[zoomIndex];
   const [showDetailDrawer, setShowDetailDrawer] = useState(true);
+  const [roadmapToDelete, setRoadmapToDelete] = useState(null);
+  const [deletingRoadmap, setDeletingRoadmap] = useState(false);
 
   const [checkedTasks, setCheckedTasks] = useState(() => {
     try {
@@ -278,16 +280,20 @@ const AiRoadmap = () => {
     }
   };
 
-  const handleRemoveRoadmap = async (roadmapId) => {
-    if (!window.confirm('Are you sure you want to remove this roadmap?')) return;
+  const confirmDeleteRoadmap = async () => {
+    if (!roadmapToDelete) return;
+    setDeletingRoadmap(true);
     try {
-      await apiClient.delete(`/api/ai/roadmap/${roadmapId}`);
-      const remaining = roadmapsList.filter((r) => r._id !== roadmapId);
+      await apiClient.delete(`/api/ai/roadmap/${roadmapToDelete._id}`);
+      const remaining = roadmapsList.filter((r) => r._id !== roadmapToDelete._id);
       setRoadmapsList(remaining);
       setActiveRoadmap(remaining[remaining.length - 1] || null);
+      setRoadmapToDelete(null);
     } catch (err) {
       console.error('Error removing roadmap:', err);
       setErrorMsg('Could not remove roadmap. Please try again.');
+    } finally {
+      setDeletingRoadmap(false);
     }
   };
 
@@ -439,7 +445,7 @@ const AiRoadmap = () => {
 
                     <button
                       type="button"
-                      onClick={() => handleRemoveRoadmap(map._id)}
+                      onClick={() => setRoadmapToDelete(map)}
                       className="p-1.5 rounded-xl text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 shrink-0"
                       title="Remove roadmap"
                     >
@@ -1290,6 +1296,44 @@ const AiRoadmap = () => {
                 </form>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Roadmap Confirmation Modal */}
+      {roadmapToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-[#181d26] border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-4 animate-modal-enter text-center">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto shadow-sm">
+              <Trash2 size={22} />
+            </div>
+
+            <div>
+              <h3 className="text-base font-extrabold text-app font-outfit">
+                Remove Roadmap?
+              </h3>
+              <p className="text-xs text-muted mt-1.5 leading-relaxed">
+                Are you sure you want to remove <span className="font-bold text-app">"{roadmapToDelete.topic}"</span>? This will permanently delete your milestones and study progress.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setRoadmapToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 text-muted hover:text-app transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deletingRoadmap}
+                onClick={confirmDeleteRoadmap}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md shadow-red-600/20 disabled:opacity-50"
+              >
+                {deletingRoadmap ? 'Removing...' : 'Yes, Remove'}
+              </button>
+            </div>
           </div>
         </div>
       )}
