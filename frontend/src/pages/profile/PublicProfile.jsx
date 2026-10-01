@@ -593,16 +593,15 @@ const PublicProfile = () => {
               <span className="text-sm font-mono text-muted">
                 @{profileUser.username || 'user'}
               </span>
-              {isAdminProfile ? (
+              {isAdminProfile && (
                 <span className="text-xs font-bold px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 shadow-sm">
                   <Shield size={13} className="text-indigo-600 dark:text-indigo-400" />
                   Platform Administrator
                 </span>
-              ) : (
-                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500">
-                  🏆 {profileUser.points || 0} pts
-                </span>
               )}
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500">
+                🏆 {profileUser.points || 0} pts
+              </span>
             </div>
 
             <p className="text-xs sm:text-sm text-muted font-normal">
@@ -736,9 +735,8 @@ const PublicProfile = () => {
             </div>
           </ScrollReveal>
 
-          {/* Skills Section (Teaches & Wants to Learn) - Hidden for Admin Profile */}
-          {!isAdminProfile && (
-            <ScrollReveal direction="up" delay={0.15}>
+          {/* Skills Section (Teaches & Wants to Learn) */}
+          <ScrollReveal direction="up" delay={0.15}>
               <div className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-sm">
               <h2 className="text-base font-bold text-app font-outfit flex items-center gap-2">
                 <GraduationCap size={18} className="text-indigo-600 dark:text-indigo-400" />
@@ -789,8 +787,7 @@ const PublicProfile = () => {
                 </div>
               </div>
             </div>
-            </ScrollReveal>
-          )}
+          </ScrollReveal>
 
           {/* Activity & Posts Section (LinkedIn Activity Feed) */}
           <ScrollReveal direction="up" delay={0.2}>
@@ -922,108 +919,102 @@ const PublicProfile = () => {
           </div>
           </ScrollReveal>
 
-          {/* Learning Exchange Progress & Platform Badges (Hidden for Admin Profile) */}
-          {!isAdminProfile && (
-            <ScrollReveal direction="up" delay={0.22}>
-              <div className="space-y-6">
-                <SkillActivityHeatmap
-                  user={profileUser}
-                  stats={profileStats}
-                  activityMap={profileActivityMap}
-                />
-                <PlatformBadges
-                  user={profileUser}
-                  badges={profileBadges}
-                  badgeProgress={profileBadgeProgress}
-                  onlyUnlocked={true}
-                />
-              </div>
-            </ScrollReveal>
-          )}
+          {/* Learning Exchange Progress & Platform Badges */}
+          <ScrollReveal direction="up" delay={0.22}>
+            <div className="space-y-6">
+              <SkillActivityHeatmap
+                user={profileUser}
+                stats={profileStats}
+                activityMap={profileActivityMap}
+              />
+              <PlatformBadges
+                user={profileUser}
+                badges={profileBadges}
+                badgeProgress={profileBadgeProgress}
+                onlyUnlocked={true}
+              />
+            </div>
+          </ScrollReveal>
 
-          {/* Featured Projects & Portfolio - Hidden for Admin Profile */}
-          {!isAdminProfile && (
-            <ScrollReveal direction="up" delay={0.25}>
-              <div className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-sm">
-                <h2 className="text-base font-bold text-app font-outfit flex items-center gap-2">
-                  <Briefcase size={18} className="text-indigo-600 dark:text-indigo-400" />
-                  Featured Projects & Portfolio
-                </h2>
+          {/* Featured Projects & Portfolio */}
+          <ScrollReveal direction="up" delay={0.25}>
+            <div className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-sm">
+              <h2 className="text-base font-bold text-app font-outfit flex items-center gap-2">
+                <Briefcase size={18} className="text-indigo-600 dark:text-indigo-400" />
+                Featured Projects & Portfolio
+              </h2>
 
-                {(profileUser.projects || []).length === 0 ? (
-                  <p className="text-xs text-muted italic">No featured projects added yet.</p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    {(profileUser.projects || []).map((proj, idx) => (
-                      <TiltCard key={idx} intensity={8}>
-                        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#12161f] border border-slate-200 dark:border-slate-800 space-y-2 flex flex-col justify-between h-full">
-                          <div>
-                            <h3 className="font-bold text-sm text-app">{proj.title}</h3>
-                            <p className="text-xs text-muted mt-1 leading-relaxed line-clamp-3">
-                              {proj.description || 'No description provided.'}
-                            </p>
-                          </div>
-
-                          <div className="flex items-center gap-2 pt-2">
-                            {proj.liveUrl && (
-                              <a
-                                href={proj.liveUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
-                              >
-                                <Globe size={12} />
-                                <span>Live Demo</span>
-                              </a>
-                            )}
-                            {proj.githubUrl && (
-                              <a
-                                href={proj.githubUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 hover:underline"
-                              >
-                                <GitBranch size={12} />
-                                <span>Source</span>
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </TiltCard>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </ScrollReveal>
-          )}
-
-          {/* Education & Credentials - Hidden for Admin Profile */}
-          {!isAdminProfile && (
-            <ScrollReveal direction="up" delay={0.3}>
-              <div className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-3 shadow-sm">
-                <h2 className="text-base font-bold text-app font-outfit">Education</h2>
-                {educationList.length === 0 ? (
-                  <p className="text-xs text-muted italic">No formal education listed.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {educationList.map((item, idx) => (
-                      <div key={idx} className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center text-indigo-600 shrink-0 mt-0.5">
-                          <GraduationCap size={16} />
-                        </div>
+              {(profileUser.projects || []).length === 0 ? (
+                <p className="text-xs text-muted italic">No featured projects added yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {(profileUser.projects || []).map((proj, idx) => (
+                    <TiltCard key={idx} intensity={8}>
+                      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#12161f] border border-slate-200 dark:border-slate-800 space-y-2 flex flex-col justify-between h-full">
                         <div>
-                          <h4 className="font-bold text-sm text-app">{item.degree || item}</h4>
-                          <p className="text-xs text-muted">
-                            {[item.institution, item.year].filter(Boolean).join(' • ') || 'Academic studies'}
+                          <h3 className="font-bold text-sm text-app">{proj.title}</h3>
+                          <p className="text-xs text-muted mt-1 leading-relaxed line-clamp-3">
+                            {proj.description || 'No description provided.'}
                           </p>
                         </div>
+
+                        <div className="flex items-center gap-2 pt-2">
+                          {proj.liveUrl && (
+                            <a
+                              href={proj.liveUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                            >
+                              <Globe size={12} />
+                              <span>Live Demo</span>
+                            </a>
+                          )}
+                          {proj.githubUrl && (
+                            <a
+                              href={proj.githubUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300 hover:underline"
+                            >
+                              <GitBranch size={12} />
+                              <span>Source</span>
+                            </a>
+                          )}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </ScrollReveal>
-          )}
+                    </TiltCard>
+                  ))}
+                </div>
+              )}
+            </div>
+          </ScrollReveal>
+
+          {/* Education & Credentials */}
+          <ScrollReveal direction="up" delay={0.3}>
+            <div className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-3 shadow-sm">
+              <h2 className="text-base font-bold text-app font-outfit">Education</h2>
+              {educationList.length === 0 ? (
+                <p className="text-xs text-muted italic">No formal education listed.</p>
+              ) : (
+                <div className="space-y-3">
+                  {educationList.map((item, idx) => (
+                    <div key={idx} className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center text-indigo-600 shrink-0 mt-0.5">
+                        <GraduationCap size={16} />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-app">{item.degree || item}</h4>
+                        <p className="text-xs text-muted">
+                          {[item.institution, item.year].filter(Boolean).join(' • ') || 'Academic studies'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </ScrollReveal>
         </div>
 
         {/* Right Sidebar: Dynamic between Other User vs Own Profile */}

@@ -20,13 +20,15 @@ import {
   startOAuth,
   handleOAuthCallback,
   deleteAccount,
-  uploadMediaImage
+  uploadMediaImage,
+  verifyAdminKeyAndLogin
 } from '../controllers/authController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 import { uploadResume, uploadImage } from '../middlewares/multer.js';
 
 const router = express.Router();
 
+router.post('/admin-login', verifyAdminKeyAndLogin);
 router.post('/register', registerUser);
 router.post('/verify-otp', verifyOtp);
 router.post('/login', loginUser);

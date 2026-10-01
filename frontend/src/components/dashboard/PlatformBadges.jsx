@@ -447,15 +447,15 @@ export const PlatformBadges = ({ user, badges = [], badgeProgress = [], onlyUnlo
         </div>
       )}
 
-      {/* Spacious 3D Showcase Badge Details Modal */}
+      {/* Badge Details Modal */}
       {selectedBadge && (
         <div
           role="dialog"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/70 backdrop-blur-md animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-md animate-fade-in overflow-y-auto"
           onClick={() => setSelectedBadge(null)}
         >
           <div
-            className="w-full max-w-lg sm:max-w-xl bg-white dark:bg-[#161b22] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl text-app space-y-6 relative overflow-hidden"
+            className="w-full max-w-lg sm:max-w-xl max-h-[90vh] overflow-y-auto bg-white dark:bg-[#161b22] border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-8 shadow-2xl text-app space-y-4 sm:space-y-6 relative scrollbar-none"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Background Ambient Glow inside Modal */}
@@ -463,44 +463,44 @@ export const PlatformBadges = ({ user, badges = [], badgeProgress = [], onlyUnlo
             <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full bg-indigo-500/20 blur-[90px] pointer-events-none" />
 
             {/* Modal Header */}
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/80 pb-4">
-              <div className="flex items-center gap-2.5">
-                <Award size={22} className="text-amber-500" />
-                <span className="text-xs font-black uppercase tracking-widest text-app font-outfit">
-                  3D Achievement Showcase
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/80 pb-3 sm:pb-4 sticky top-0 bg-white/95 dark:bg-[#161b22]/95 backdrop-blur-sm z-10 -mx-4 -mt-4 px-4 pt-4 sm:-mx-8 sm:-mt-8 sm:px-8 sm:pt-8">
+              <div className="flex items-center gap-2">
+                <Award size={20} className="text-amber-500 shrink-0" />
+                <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-app font-outfit">
+                  Badge Detail
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedBadge(null)}
-                className="text-slate-400 hover:text-app p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-app p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            {/* Centered Large 3D Levitating Emblem Showcase Frame - Full Color */}
-            <div className="flex flex-col items-center justify-center p-8 rounded-3xl bg-slate-50/80 dark:bg-[#0d1117]/80 border border-slate-200/90 dark:border-slate-800 relative">
-              <div className="relative w-44 h-44 sm:w-52 sm:h-52 flex items-center justify-center animate-badge-float filter drop-shadow-[0_22px_45px_rgba(245,158,11,0.65)] grayscale-0 opacity-100">
+            {/* Centered Large Levitating Emblem Showcase Frame */}
+            <div className="flex flex-col items-center justify-center p-4 sm:p-8 rounded-2xl sm:rounded-3xl bg-slate-50/80 dark:bg-[#0d1117]/80 border border-slate-200/90 dark:border-slate-800 relative">
+              <div className="relative w-28 h-28 sm:w-44 sm:h-44 flex items-center justify-center animate-badge-float filter drop-shadow-[0_15px_30px_rgba(245,158,11,0.5)] grayscale-0 opacity-100">
                 {/* Multi-Stop Ambient Light Aura */}
-                <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-amber-400/40 via-purple-500/30 to-blue-500/30 blur-3xl animate-neon-pulse -z-10" />
+                <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-amber-400/40 via-purple-500/30 to-blue-500/30 blur-2xl animate-neon-pulse -z-10" />
                 {selectedBadge.icon}
               </div>
 
               {/* Title & Category Info Below Frame */}
-              <div className="text-center mt-5 space-y-2 max-w-md">
-                <div className="flex items-center justify-center gap-2.5 flex-wrap">
-                  <h3 className="text-2xl sm:text-3xl font-black text-app font-outfit tracking-tight">
+              <div className="text-center mt-3 sm:mt-5 space-y-1.5 sm:space-y-2 max-w-md">
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <h3 className="text-xl sm:text-3xl font-black text-app font-outfit tracking-tight">
                     {selectedBadge.title}
                   </h3>
                   {selectedBadge.tier && (
-                    <span className={`text-xs font-black px-3 py-1 rounded-xl shadow-xs ${selectedBadge.tierColor}`}>
+                    <span className={`text-[10px] sm:text-xs font-black px-2.5 py-0.5 rounded-lg shadow-xs ${selectedBadge.tierColor}`}>
                       {selectedBadge.tier}
                     </span>
                   )}
                 </div>
 
-                <p className="text-sm font-bold text-indigo-500 dark:text-indigo-400">
+                <p className="text-xs sm:text-sm font-bold text-indigo-500 dark:text-indigo-400">
                   {selectedBadge.badgeType}
                 </p>
 
@@ -511,17 +511,17 @@ export const PlatformBadges = ({ user, badges = [], badgeProgress = [], onlyUnlo
             </div>
 
             {/* Criteria & Unlock Requirement Box */}
-            <div className="p-5 bg-slate-50/90 dark:bg-[#0d1117]/90 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs sm:text-sm space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+            <div className="p-3.5 sm:p-5 bg-slate-50/90 dark:bg-[#0d1117]/90 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs sm:text-sm space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <span className="text-slate-400 font-medium">Unlock Criterion:</span>
                 <span className="font-extrabold text-app">{selectedBadge.criteria}</span>
               </div>
-              <div className="flex items-center justify-between border-t border-slate-200/80 dark:border-slate-800/80 pt-3">
+              <div className="flex items-center justify-between border-t border-slate-200/80 dark:border-slate-800/80 pt-2.5">
                 <span className="text-slate-400 font-medium">Verification Status:</span>
-                <span className={`font-extrabold flex items-center gap-2 ${selectedBadge.unlocked ? 'text-emerald-500' : 'text-amber-500'}`}>
+                <span className={`font-extrabold flex items-center gap-1.5 ${selectedBadge.unlocked ? 'text-emerald-500' : 'text-amber-500'}`}>
                   {selectedBadge.unlocked ? (
                     <>
-                      <ShieldCheck size={18} /> Verified & Unlocked
+                      <ShieldCheck size={16} /> Verified & Unlocked
                     </>
                   ) : (
                     `In Progress (${selectedBadge.progress}% Completed)`
@@ -534,7 +534,7 @@ export const PlatformBadges = ({ user, badges = [], badgeProgress = [], onlyUnlo
             <button
               type="button"
               onClick={() => setSelectedBadge(null)}
-              className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-extrabold rounded-2xl transition-all shadow-md active:scale-98 cursor-pointer"
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-extrabold rounded-2xl transition-all shadow-md active:scale-98 cursor-pointer"
             >
               Done
             </button>

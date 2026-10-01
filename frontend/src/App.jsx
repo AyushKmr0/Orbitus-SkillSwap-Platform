@@ -42,7 +42,7 @@ const DashboardLayout = () => {
       <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden pt-16 lg:pt-0">
         <Suspense fallback={<PageLoader />}>
           <Routes>
-            <Route path="/" element={<Navigate to="dashboard" replace />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<UserDashboard />} />
             <Route path="skills" element={<SkillCatalog />} />
             <Route path="chat" element={<ChatRoom />} />
@@ -66,9 +66,12 @@ const DashboardLayout = () => {
             
             {/* Admin routes inside layout */}
             <Route path="admin" element={<AdminDashboard />} />
+            <Route path="admin/*" element={<AdminDashboard />} />
             <Route path="admin-portal" element={<AdminDashboard />} />
+            <Route path="admin-panel" element={<AdminDashboard />} />
+            <Route path="admin-panel/*" element={<AdminDashboard />} />
             
-            <Route path="*" element={<Navigate to="dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </Suspense>
       </div>

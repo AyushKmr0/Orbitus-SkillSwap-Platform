@@ -188,6 +188,11 @@ const Sidebar = () => {
               <img src={user.profileImage} alt={user.name} className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 object-cover border border-slate-200 dark:border-slate-700" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold text-app">{user.name}</p>
+                {user?.role === 'Admin' && (
+                  <span className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 block truncate">
+                    🛡️ Administrator
+                  </span>
+                )}
               </div>
             </Link>
             <Link

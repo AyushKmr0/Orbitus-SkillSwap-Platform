@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
+import { authSuccess, updateProfileSuccess } from '../../features/authSlice.js';
 import {
   Shield,
   Users,
@@ -41,6 +42,7 @@ const DEFAULT_SECRET_KEY = 'orbitus_master_admin_2026';
 
 const AdminDashboard = () => {
   const { user, token } = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -101,6 +103,7 @@ const AdminDashboard = () => {
       // 1. If currently logged in user has Admin role in DB/JWT
       if (user?.role === 'Admin') {
         setIsAuthenticated(true);
+        setLoading(false);
         return;
       }
 
@@ -108,14 +111,16 @@ const AdminDashboard = () => {
       const candidateKey = urlKey || adminKey;
       if (candidateKey) {
         try {
-          const res = await apiClient.get('/api/dashboard/admin', {
+          const res = await apiClient.post('/api/auth/admin-login', { secretKey: candidateKey }, {
             headers: { 'x-admin-secret': candidateKey }
           });
-          if (res.data) {
+          if (res.data?.token && res.data?.user) {
             setAdminKey(candidateKey);
             localStorage.setItem('orbitus_admin_key', candidateKey);
+            dispatch(authSuccess({ accessToken: res.data.token, user: res.data.user }));
             setIsAuthenticated(true);
             setAuthError('');
+            setLoading(false);
             return;
           }
         } catch (err) {
@@ -195,14 +200,15 @@ const AdminDashboard = () => {
     setLoading(true);
     setAuthError('');
     try {
-      const res = await apiClient.get('/api/dashboard/admin', {
+      const res = await apiClient.post('/api/auth/admin-login', { secretKey: candidate }, {
         headers: { 'x-admin-secret': candidate }
       });
-      if (res.data) {
+      if (res.data?.token && res.data?.user) {
         localStorage.setItem('orbitus_admin_key', candidate);
         setAdminKey(candidate);
+        dispatch(authSuccess({ accessToken: res.data.token, user: res.data.user }));
         setIsAuthenticated(true);
-        setAdminStats(res.data);
+        setAuthError('');
       }
     } catch (err) {
       setAuthError(err.response?.data?.message || 'Access denied: Invalid administrator secret passkey.');
@@ -408,47 +414,47 @@ const AdminDashboard = () => {
   // URL Secret Passkey Gate
   if (!isAuthenticated) {
     return (
-      <div className="flex-1 p-4 sm:p-8 flex flex-col justify-center items-center min-h-screen bg-slate-950 text-slate-200">
-        <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl">
+      <div className="page-shell flex-1 p-4 sm:p-8 flex flex-col justify-center items-center min-h-[75vh] text-app">
+        <div className="w-full max-w-md bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl text-app relative overflow-hidden">
           <div className="text-center space-y-2">
-            <div className="w-14 h-14 rounded-2xl bg-purple-600/10 border border-purple-500/20 text-purple-400 mx-auto flex items-center justify-center">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 mx-auto flex items-center justify-center">
               <Key size={26} />
             </div>
-            <h2 className="text-xl font-extrabold text-white">Administrator Portal</h2>
-            <p className="text-xs text-slate-400">
-              Enter your administrative passkey or access via your master URL token to unlock platform controls.
+            <h2 className="text-xl font-extrabold text-app font-outfit">Administrator Portal</h2>
+            <p className="text-xs text-muted leading-relaxed">
+              Enter your administrative passkey or access via your secret URL token to unlock platform controls.
             </p>
           </div>
 
           {authError && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl text-center">
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs rounded-xl text-center font-medium">
               {authError}
             </div>
           )}
 
           <form onSubmit={handleManualAuth} className="space-y-4 text-xs">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Secret Key</label>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-extrabold text-muted uppercase tracking-wider">Secret Key</label>
               <input
                 type="password"
                 required
                 placeholder="Enter admin secret passkey..."
                 value={passkeyInput}
                 onChange={(e) => setPasskeyInput(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 outline-none focus:border-purple-500 font-mono text-sm"
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-[#0f1117] border border-slate-200 dark:border-slate-800 rounded-2xl text-app outline-none focus:border-indigo-500 font-mono text-sm shadow-xs"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold transition-all shadow"
+              className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold transition-all shadow-md active:scale-98 cursor-pointer"
             >
               Verify & Enter Console
             </button>
           </form>
 
-          <p className="text-[11px] text-slate-500 text-center">
-            Tip: You can bookmark <code className="text-purple-400">/admin-portal?key={DEFAULT_SECRET_KEY}</code> for direct access.
+          <p className="text-[11px] text-muted text-center">
+            Tip: You can bookmark <code className="text-indigo-600 dark:text-indigo-400 font-bold">/admin-portal?key={DEFAULT_SECRET_KEY}</code> for direct access.
           </p>
         </div>
       </div>
@@ -456,34 +462,44 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 bg-slate-950 min-h-screen text-slate-200 overflow-y-auto">
-      {/* Admin Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-slate-900/80 via-slate-900/60 to-purple-950/40 p-6 rounded-3xl border border-slate-800/80 backdrop-blur-md shadow-xl">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 bg-purple-600/10 border border-purple-500/20 text-purple-400 rounded-2xl">
-              <Shield size={22} />
+    <div className="page-shell flex-1 p-4 sm:p-6 lg:p-8 space-y-6 min-h-screen text-app overflow-y-auto">
+      {/* Admin Hero Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-violet-700 text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden">
+        <div className="absolute -right-12 -bottom-12 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-white/15 border border-white/20 text-white rounded-2xl backdrop-blur-md shadow-sm">
+              <Shield size={24} />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-outfit tracking-tight">
-              Master Admin Console
-            </h1>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black text-white font-outfit tracking-tight">
+                Master Admin Console
+              </h1>
+              <p className="text-xs sm:text-sm text-indigo-100/90 mt-0.5 font-medium">
+                Global platform telemetry, user moderation, study group management & announcements.
+              </p>
+            </div>
           </div>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Global management portal: monitor telemetry, moderate users & groups, publish announcements.
-          </p>
         </div>
 
-        {statusMsg && (
-          <span className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold rounded-2xl animate-pulse">
-            {statusMsg}
-          </span>
-        )}
+        <div className="relative z-10 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-xs font-bold bg-white/15 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/20">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>System Operational</span>
+          </div>
+
+          {statusMsg && (
+            <span className="px-4 py-2 bg-emerald-500 text-white text-xs font-bold rounded-2xl shadow-md animate-fade-in">
+              {statusMsg}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Admin Navigation Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-slate-850">
+      <div className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-1.5 shadow-xs flex items-center gap-1.5 overflow-x-auto scrollbar-none">
         {[
-          { id: 'overview', label: 'Overview & Charts', icon: BarChart3 },
+          { id: 'overview', label: 'Overview & Analytics', icon: BarChart3 },
           { id: 'feedbacks', label: 'User Feedback', icon: MessageSquare, badge: unreadFeedbackCount },
           { id: 'skill-requests', label: 'Course Requests', icon: FileCheck },
           { id: 'users', label: 'User Accounts', icon: Users },
@@ -498,16 +514,16 @@ const AdminDashboard = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shrink-0 relative ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 relative cursor-pointer ${
                 isActive
-                  ? 'bg-purple-600 text-white shadow'
-                  : 'bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-850'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/25'
+                  : 'text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800/60'
               }`}
             >
-              <Icon size={14} />
+              <Icon size={15} />
               <span>{tab.label}</span>
               {tab.badge > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black">
+                <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black shadow-xs">
                   {tab.badge}
                 </span>
               )}
@@ -518,27 +534,29 @@ const AdminDashboard = () => {
 
       {/* Tab 1: Overview & Charts */}
       {activeTab === 'overview' && (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-fade-in">
           {adminStats && (
             <>
               {/* Stat Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
                 {[
-                  { label: 'Total Users', value: adminStats.stats.totalUsers, icon: Users, color: 'text-blue-400' },
-                  { label: 'Active Users', value: adminStats.stats.activeUsers, icon: CheckCircle, color: 'text-emerald-400' },
-                  { label: 'Study Sessions', value: adminStats.stats.totalSessions, icon: FileCheck, color: 'text-purple-400' },
-                  { label: 'Platform Skills', value: adminStats.stats.totalSkills, icon: Database, color: 'text-amber-400' },
-                  { label: 'Reviews Posted', value: adminStats.stats.totalReviews, icon: Star, color: 'text-pink-400' },
-                  { label: 'Admins', value: adminStats.stats.adminCount, icon: Shield, color: 'text-indigo-400' }
+                  { label: 'Total Users', value: adminStats.stats.totalUsers, icon: Users, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-950/40' },
+                  { label: 'Active Users', value: adminStats.stats.activeUsers, icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40' },
+                  { label: 'Study Sessions', value: adminStats.stats.totalSessions, icon: FileCheck, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-950/40' },
+                  { label: 'Platform Skills', value: adminStats.stats.totalSkills, icon: Database, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40' },
+                  { label: 'Reviews Posted', value: adminStats.stats.totalReviews, icon: Star, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/40' },
+                  { label: 'Admins', value: adminStats.stats.adminCount, icon: Shield, color: 'text-sky-600 dark:text-sky-400', bg: 'bg-sky-50 dark:bg-sky-950/40' }
                 ].map((s, idx) => {
                   const Icon = s.icon;
                   return (
-                    <div key={idx} className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-4 space-y-1 shadow">
+                    <div key={idx} className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl p-4.5 space-y-2 shadow-xs hover:shadow-md transition-all">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase text-slate-500">{s.label}</span>
-                        <Icon size={14} className={s.color} />
+                        <span className="text-[10px] font-extrabold uppercase text-muted tracking-wider">{s.label}</span>
+                        <div className={`p-1.5 rounded-xl ${s.bg}`}>
+                          <Icon size={15} className={s.color} />
+                        </div>
                       </div>
-                      <p className="text-xl sm:text-2xl font-black text-white">{s.value}</p>
+                      <p className="text-2xl sm:text-3xl font-black text-app font-outfit">{s.value}</p>
                     </div>
                   );
                 })}
@@ -546,19 +564,19 @@ const AdminDashboard = () => {
 
               {/* Chart breakdown */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 space-y-4">
-                  <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
-                    <BarChart3 size={16} className="text-blue-400" />
+                <div className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 space-y-4 shadow-sm">
+                  <h3 className="font-bold text-sm text-app font-outfit flex items-center gap-2">
+                    <BarChart3 size={16} className="text-indigo-600 dark:text-indigo-400" />
                     Session Status Breakdown
                   </h3>
-                  <div className="h-60 flex items-center justify-center">
+                  <div className="h-64 flex items-center justify-center">
                     <Doughnut
                       data={{
                         labels: adminStats.charts.sessionsBreakdown.labels,
                         datasets: [
                           {
                             data: adminStats.charts.sessionsBreakdown.data,
-                            backgroundColor: ['#10b981', '#f59e0b', '#3b82f6', '#ef4444'],
+                            backgroundColor: ['#10b981', '#f59e0b', '#6366f1', '#ef4444'],
                             borderWidth: 0
                           }
                         ]
@@ -568,12 +586,12 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 space-y-4">
-                  <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
-                    <Database size={16} className="text-purple-400" />
+                <div className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 space-y-4 shadow-sm">
+                  <h3 className="font-bold text-sm text-app font-outfit flex items-center gap-2">
+                    <Database size={16} className="text-purple-600 dark:text-purple-400" />
                     Skills Category Share
                   </h3>
-                  <div className="h-60 flex items-center justify-center">
+                  <div className="h-64 flex items-center justify-center">
                     <Bar
                       data={{
                         labels: adminStats.charts.skillsBreakdown.labels,
@@ -581,8 +599,8 @@ const AdminDashboard = () => {
                           {
                             label: 'Skills Count',
                             data: adminStats.charts.skillsBreakdown.data,
-                            backgroundColor: '#8b5cf6',
-                            borderRadius: 6
+                            backgroundColor: '#6366f1',
+                            borderRadius: 8
                           }
                         ]
                       }}
@@ -598,26 +616,26 @@ const AdminDashboard = () => {
 
       {/* Tab: User Feedbacks */}
       {activeTab === 'feedbacks' && (
-        <div className="space-y-4">
+        <div className="space-y-4 animate-fade-in">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
-              <h3 className="font-bold text-base text-white">Direct User Feedbacks & Suggestions</h3>
-              <p className="text-xs text-slate-400">
+              <h3 className="font-bold text-base text-app font-outfit">Direct User Feedbacks & Suggestions</h3>
+              <p className="text-xs text-muted">
                 Submitted by users via Settings. Review feedback, leave responses, or mark resolved.
               </p>
             </div>
 
             {/* Filter status */}
-            <div className="flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-2xl border border-slate-800 text-xs">
+            <div className="flex items-center gap-1.5 bg-white dark:bg-[#181d28] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs shadow-xs">
               {['all', 'unread', 'reviewed', 'resolved'].map((st) => (
                 <button
                   key={st}
                   type="button"
                   onClick={() => setFeedbackStatusFilter(st)}
-                  className={`px-3 py-1.5 rounded-xl font-bold uppercase text-[10px] transition-all ${
+                  className={`px-3 py-1.5 rounded-xl font-bold uppercase text-[10px] transition-all cursor-pointer ${
                     feedbackStatusFilter === st
-                      ? 'bg-purple-600 text-white'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-muted hover:text-app'
                   }`}
                 >
                   {st}
@@ -627,9 +645,9 @@ const AdminDashboard = () => {
           </div>
 
           {loading ? (
-            <div className="text-center py-12 text-xs text-slate-400">Loading user feedbacks...</div>
+            <div className="text-center py-12 text-xs text-muted">Loading user feedbacks...</div>
           ) : feedbacksList.length === 0 ? (
-            <div className="text-center py-12 rounded-3xl bg-slate-900/40 border border-dashed border-slate-800 text-xs text-slate-400">
+            <div className="text-center py-12 rounded-3xl bg-white dark:bg-[#181d28] border border-dashed border-slate-200 dark:border-slate-800 text-xs text-muted">
               No feedback entries matching filter &quot;{feedbackStatusFilter}&quot;.
             </div>
           ) : (
@@ -637,7 +655,7 @@ const AdminDashboard = () => {
               {feedbacksList.map((fb) => (
                 <div
                   key={fb._id}
-                  className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-5 space-y-3 shadow-md flex flex-col justify-between"
+                  className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl p-5 space-y-3 shadow-xs flex flex-col justify-between"
                 >
                   <div className="space-y-2.5">
                     {/* User header */}
@@ -646,25 +664,25 @@ const AdminDashboard = () => {
                         <img
                           src={fb.user?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(fb.user?.name || 'User')}&background=6366f1&color=fff`}
                           alt={fb.user?.name}
-                          className="w-9 h-9 rounded-full object-cover shrink-0 border border-slate-700"
+                          className="w-9 h-9 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-700"
                         />
                         <div className="min-w-0">
-                          <p className="font-bold text-xs text-white truncate">{fb.user?.name || 'Anonymous'}</p>
-                          <p className="text-[10px] text-slate-400 truncate">{fb.user?.email} • @{fb.user?.username}</p>
+                          <p className="font-bold text-xs text-app truncate">{fb.user?.name || 'Anonymous'}</p>
+                          <p className="text-[10px] text-muted truncate">{fb.user?.email} • @{fb.user?.username}</p>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="px-2 py-0.5 rounded-md bg-purple-950/60 border border-purple-800/60 text-purple-300 text-[10px] font-bold">
+                        <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold">
                           {fb.category}
                         </span>
                         <span
                           className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
                             fb.status === 'resolved'
-                              ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/60'
+                              ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
                               : fb.status === 'reviewed'
-                              ? 'bg-blue-950/60 text-blue-300 border border-blue-800/60'
-                              : 'bg-amber-950/60 text-amber-300 border border-amber-800/60'
+                              ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+                              : 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
                           }`}
                         >
                           {fb.status}
@@ -673,27 +691,27 @@ const AdminDashboard = () => {
                     </div>
 
                     {/* Rating & Subject */}
-                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/60">
-                      <span className="font-bold text-white text-xs">{fb.subject || 'No Subject'}</span>
-                      <span className="text-[11px] text-amber-400">{'⭐'.repeat(fb.rating || 5)}</span>
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
+                      <span className="font-bold text-app text-xs">{fb.subject || 'No Subject'}</span>
+                      <span className="text-[11px] text-amber-500">{'⭐'.repeat(fb.rating || 5)}</span>
                     </div>
 
                     {/* Message */}
-                    <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line bg-slate-950/40 p-3 rounded-2xl border border-slate-800/40">
+                    <p className="text-xs text-muted leading-relaxed whitespace-pre-line bg-slate-50 dark:bg-[#12161f] p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
                       {fb.message}
                     </p>
 
                     {/* Admin Note if any */}
                     {fb.adminNotes && (
-                      <div className="p-2.5 rounded-xl bg-purple-950/30 border border-purple-800/40 text-[11px] text-purple-300">
+                      <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] text-indigo-600 dark:text-indigo-300">
                         <span className="font-bold">Your Response:</span> {fb.adminNotes}
                       </div>
                     )}
                   </div>
 
                   {/* Action buttons */}
-                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
-                    <span className="text-[10px] text-slate-500">
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                    <span className="text-[10px] text-muted">
                       {new Date(fb.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
 
@@ -701,7 +719,7 @@ const AdminDashboard = () => {
                       <button
                         type="button"
                         onClick={() => handleAddAdminFeedbackNote(fb._id)}
-                        className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 font-semibold transition-colors"
+                        className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-app font-semibold transition-colors cursor-pointer"
                         title="Add admin response note"
                       >
                         Respond
@@ -710,7 +728,7 @@ const AdminDashboard = () => {
                         <button
                           type="button"
                           onClick={() => handleUpdateFeedbackStatus(fb._id, 'resolved')}
-                          className="px-2.5 py-1 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 font-semibold border border-emerald-500/30 transition-colors"
+                          className="px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-200 dark:border-emerald-800 transition-colors cursor-pointer"
                         >
                           Resolve
                         </button>
@@ -718,7 +736,7 @@ const AdminDashboard = () => {
                       <button
                         type="button"
                         onClick={() => handleDeleteFeedback(fb._id)}
-                        className="p-1.5 rounded-xl text-red-400 hover:bg-red-500/20 transition-colors"
+                        className="p-1.5 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                         title="Delete feedback"
                       >
                         <Trash2 size={13} />
@@ -734,17 +752,17 @@ const AdminDashboard = () => {
 
       {/* Tab 2: Users Management */}
       {activeTab === 'users' && (
-        <div className="space-y-4">
+        <div className="space-y-4 animate-fade-in">
           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
             <div className="relative flex-1 max-w-md">
-              <Search size={16} className="absolute left-3.5 top-3 text-slate-500" />
+              <Search size={16} className="absolute left-3.5 top-3 text-muted" />
               <input
                 type="text"
                 placeholder="Search user by name, email, or username..."
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && loadDashboardData()}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-2xl text-xs sm:text-sm text-slate-200 outline-none focus:border-purple-500"
+                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 rounded-2xl text-xs sm:text-sm text-app outline-none focus:border-indigo-500 shadow-xs"
               />
             </div>
 
@@ -752,7 +770,7 @@ const AdminDashboard = () => {
               <select
                 value={userRoleFilter}
                 onChange={(e) => setUserRoleFilter(e.target.value)}
-                className="px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-2xl text-xs text-slate-200 outline-none"
+                className="px-3.5 py-2.5 bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-app outline-none cursor-pointer"
               >
                 <option value="All">All Roles</option>
                 <option value="User">Regular Users</option>
@@ -760,17 +778,17 @@ const AdminDashboard = () => {
               </select>
               <button
                 onClick={loadDashboardData}
-                className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-2xl transition-all"
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-2xl transition-all shadow-xs cursor-pointer"
               >
                 Filter
               </button>
             </div>
           </div>
 
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-3xl overflow-hidden shadow">
+          <div className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-950/80 border-b border-slate-800 text-slate-400 uppercase text-[10px]">
+                <thead className="bg-slate-50 dark:bg-[#12161f] border-b border-slate-200 dark:border-slate-800 text-muted uppercase text-[10px] font-extrabold tracking-wider">
                   <tr>
                     <th className="p-4">User</th>
                     <th className="p-4">Email</th>
@@ -780,77 +798,35 @@ const AdminDashboard = () => {
                     <th className="p-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-850">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {usersList.map((u) => (
-                    <tr key={u._id} className="hover:bg-slate-850/40 transition-colors">
+                    <tr key={u._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="p-4 flex items-center gap-3">
-                        <img src={u.profileImage} alt={u.name} className="w-8 h-8 rounded-full bg-slate-800 object-cover" />
+                        <img src={u.profileImage} alt={u.name} className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 object-cover border border-slate-200 dark:border-slate-700" />
                         <div>
-                          <p className="font-bold text-slate-100">{u.name}</p>
-                          <p className="text-[10px] text-slate-500">@{u.username || 'user'}</p>
+                          <p className="font-bold text-app">{u.name}</p>
+                          <p className="text-[10px] text-muted">@{u.username || 'user'}</p>
                         </div>
                       </td>
-                      <td className="p-4 text-slate-300 font-mono text-[11px]">{u.email}</td>
+                      <td className="p-4 text-muted font-mono text-[11px]">{u.email}</td>
                       <td className="p-4">
-                        <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${u.role === 'Admin' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-slate-800 text-slate-400'}`}>
+                        <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${u.role === 'Admin' ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800' : 'bg-slate-100 dark:bg-slate-800 text-muted'}`}>
                           {u.role}
                         </span>
                       </td>
-                      <td className="p-4 font-bold text-slate-200">{u.points || 0}</td>
-                      <td className="p-4 text-slate-500">{new Date(u.createdAt).toLocaleDateString()}</td>
+                      <td className="p-4 font-bold text-app">{u.points || 0}</td>
+                      <td className="p-4 text-muted">{new Date(u.createdAt).toLocaleDateString()}</td>
                       <td className="p-4 text-right space-x-2">
                         <button
                           onClick={() => handlePromoteDemoteUser(u._id, u.role)}
-                          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold"
+                          className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-app rounded-xl text-[10px] font-bold transition-colors cursor-pointer"
                         >
                           {u.role === 'Admin' ? 'Demote' : 'Promote'}
                         </button>
                         <button
                           onClick={() => handleDeleteUser(u._id)}
-                          className="p-1 text-red-400 hover:bg-red-500/10 rounded-lg"
+                          className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
                           title="Delete user"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 3: Study Groups Management */}
-      {activeTab === 'groups' && (
-        <div className="space-y-4">
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-3xl overflow-hidden shadow">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-950/80 border-b border-slate-800 text-slate-400 uppercase text-[10px]">
-                  <tr>
-                    <th className="p-4">Group Name</th>
-                    <th className="p-4">Privacy</th>
-                    <th className="p-4">Category</th>
-                    <th className="p-4">Creator</th>
-                    <th className="p-4">Members</th>
-                    <th className="p-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-850">
-                  {groupsList.map((g) => (
-                    <tr key={g._id} className="hover:bg-slate-850/40 transition-colors">
-                      <td className="p-4 font-bold text-slate-100">{g.name}</td>
-                      <td className="p-4 capitalize">{g.privacy}</td>
-                      <td className="p-4 text-slate-300">{g.category}</td>
-                      <td className="p-4 text-slate-400">{g.creator?.name || 'Unknown'}</td>
-                      <td className="p-4 font-bold text-slate-200">{g.membersCount}</td>
-                      <td className="p-4 text-right">
-                        <button
-                          onClick={() => handleDeleteGroup(g._id)}
-                          className="p-1 text-red-400 hover:bg-red-500/10 rounded-lg"
-                          title="Delete group"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -864,25 +840,67 @@ const AdminDashboard = () => {
         </div>
       )}
 
+      {/* Tab 3: Study Groups Management */}
+      {activeTab === 'groups' && (
+        <div className="space-y-4 animate-fade-in">
+          <div className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-[#12161f] border-b border-slate-200 dark:border-slate-800 text-muted uppercase text-[10px] font-extrabold tracking-wider">
+                  <tr>
+                    <th className="p-4">Group Name</th>
+                    <th className="p-4">Privacy</th>
+                    <th className="p-4">Category</th>
+                    <th className="p-4">Creator</th>
+                    <th className="p-4">Members</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                  {groupsList.map((g) => (
+                    <tr key={g._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="p-4 font-bold text-app">{g.name}</td>
+                      <td className="p-4 capitalize text-muted">{g.privacy}</td>
+                      <td className="p-4 text-muted">{g.category}</td>
+                      <td className="p-4 text-muted">{g.creator?.name || 'Unknown'}</td>
+                      <td className="p-4 font-bold text-app">{g.membersCount}</td>
+                      <td className="p-4 text-right">
+                        <button
+                          onClick={() => handleDeleteGroup(g._id)}
+                          className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
+                          title="Delete group"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tab 4: Posts Moderation */}
       {activeTab === 'posts' && (
-        <div className="space-y-3">
+        <div className="space-y-3 animate-fade-in">
           {postsList.map((p) => (
-            <div key={p._id} className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-4 flex items-start justify-between gap-4">
+            <div key={p._id} className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl p-4 sm:p-5 flex items-start justify-between gap-4 shadow-xs">
               <div className="space-y-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-xs text-slate-200">{p.author?.name || 'User'}</span>
-                  <span className="text-[10px] text-slate-500">@{p.author?.username || 'user'}</span>
-                  <span className="text-[10px] text-slate-500">• {new Date(p.createdAt).toLocaleDateString()}</span>
+                  <span className="font-bold text-xs text-app">{p.author?.name || 'User'}</span>
+                  <span className="text-[10px] text-muted">@{p.author?.username || 'user'}</span>
+                  <span className="text-[10px] text-muted">• {new Date(p.createdAt).toLocaleDateString()}</span>
                 </div>
-                <p className="text-xs text-slate-300 line-clamp-3 leading-relaxed">{p.content}</p>
+                <p className="text-xs text-muted line-clamp-3 leading-relaxed">{p.content}</p>
               </div>
               <button
                 onClick={() => handleDeletePost(p._id)}
-                className="p-2 text-red-400 hover:bg-red-500/10 rounded-xl shrink-0"
+                className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl shrink-0 transition-colors cursor-pointer"
                 title="Remove post"
               >
-                <Trash2 size={15} />
+                <Trash2 size={16} />
               </button>
             </div>
           ))}
@@ -891,28 +909,28 @@ const AdminDashboard = () => {
 
       {/* Tab 5: Skills Catalog */}
       {activeTab === 'skills' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <form onSubmit={handleAddSkill} className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-5 space-y-3.5 text-xs h-fit">
-            <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
-              <Plus size={15} className="text-purple-400" /> Register New Skill
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+          <form onSubmit={handleAddSkill} className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl p-5 space-y-4 text-xs h-fit shadow-xs">
+            <h3 className="font-bold text-sm text-app font-outfit flex items-center gap-2">
+              <Plus size={16} className="text-indigo-600 dark:text-indigo-400" /> Register New Skill
             </h3>
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase text-slate-400">Skill Name *</label>
+              <label className="text-[10px] font-extrabold uppercase text-muted tracking-wider">Skill Name *</label>
               <input
                 type="text"
                 required
                 value={newSkillName}
                 onChange={(e) => setNewSkillName(e.target.value)}
                 placeholder="e.g. Next.js App Router"
-                className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 outline-none focus:border-purple-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#0f1117] border border-slate-200 dark:border-slate-800 rounded-xl text-app outline-none focus:border-indigo-500"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase text-slate-400">Category</label>
+              <label className="text-[10px] font-extrabold uppercase text-muted tracking-wider">Category</label>
               <select
                 value={newSkillCategory}
                 onChange={(e) => setNewSkillCategory(e.target.value)}
-                className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 outline-none"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#0f1117] border border-slate-200 dark:border-slate-800 rounded-xl text-app outline-none cursor-pointer"
               >
                 <option value="Web Development">Web Development</option>
                 <option value="DSA & Algorithms">DSA & Algorithms</option>
@@ -923,31 +941,31 @@ const AdminDashboard = () => {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase text-slate-400">Description</label>
+              <label className="text-[10px] font-extrabold uppercase text-muted tracking-wider">Description</label>
               <textarea
                 rows={2}
                 value={newSkillDesc}
                 onChange={(e) => setNewSkillDesc(e.target.value)}
                 placeholder="Skill scope..."
-                className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 outline-none resize-none"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#0f1117] border border-slate-200 dark:border-slate-800 rounded-xl text-app outline-none resize-none"
               />
             </div>
-            <button type="submit" className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold transition-all shadow">
+            <button type="submit" className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all shadow-md active:scale-98 cursor-pointer">
               Add Skill to Catalog
             </button>
           </form>
 
           <div className="lg:col-span-2 space-y-3">
-            <h3 className="font-bold text-sm text-slate-100">Registered Platform Skills ({skills.length})</h3>
+            <h3 className="font-bold text-sm text-app font-outfit">Registered Platform Skills ({skills.length})</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {skills.map((s) => (
-                <div key={s._id} className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-2">
+                <div key={s._id} className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-2 shadow-xs">
                   <div className="min-w-0">
-                    <p className="font-bold text-xs text-slate-100 truncate">{s.name}</p>
-                    <p className="text-[10px] text-slate-400">{s.category}</p>
+                    <p className="font-bold text-xs text-app truncate">{s.name}</p>
+                    <p className="text-[10px] text-muted">{s.category}</p>
                   </div>
-                  <button onClick={() => handleDeleteSkill(s._id)} className="p-1 text-red-400 hover:bg-red-500/10 rounded-lg">
-                    <Trash2 size={13} />
+                  <button onClick={() => handleDeleteSkill(s._id)} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer">
+                    <Trash2 size={14} />
                   </button>
                 </div>
               ))}
@@ -958,29 +976,29 @@ const AdminDashboard = () => {
 
       {/* Tab 5.5: Course Requests from Community */}
       {activeTab === 'skill-requests' && (
-        <div className="space-y-4">
+        <div className="space-y-4 animate-fade-in">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
-              <h3 className="font-bold text-base text-white flex items-center gap-2">
-                <FileCheck size={18} className="text-purple-400" />
+              <h3 className="font-bold text-base text-app font-outfit flex items-center gap-2">
+                <FileCheck size={18} className="text-indigo-600 dark:text-indigo-400" />
                 Community Course Proposals & Skill Requests
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted">
                 Review courses suggested by users. Approving a request creates the skill in the catalog and automatically adds it to the user's profile.
               </p>
             </div>
 
             {/* Filter Status Pills */}
-            <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 p-1 rounded-xl">
+            <div className="flex items-center gap-1.5 bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 p-1 rounded-2xl text-xs shadow-xs">
               {['all', 'pending', 'approved', 'rejected'].map((st) => (
                 <button
                   key={st}
                   type="button"
                   onClick={() => setSkillRequestStatusFilter(st)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold capitalize transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer ${
                     skillRequestStatusFilter === st
-                      ? 'bg-purple-600 text-white shadow'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-muted hover:text-app'
                   }`}
                 >
                   {st}
@@ -990,7 +1008,7 @@ const AdminDashboard = () => {
           </div>
 
           {skillRequests.length === 0 ? (
-            <div className="text-center py-16 bg-slate-900/40 border border-slate-800 rounded-3xl text-slate-500 text-xs">
+            <div className="text-center py-16 bg-white dark:bg-[#181d28] border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl text-muted text-xs">
               No course requests found under "{skillRequestStatusFilter}".
             </div>
           ) : (
@@ -998,21 +1016,21 @@ const AdminDashboard = () => {
               {skillRequests.map((req) => (
                 <div
                   key={req._id}
-                  className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between"
+                  className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl p-5 space-y-3 flex flex-col justify-between shadow-xs"
                 >
                   <div className="space-y-2">
                     <div className="flex justify-between items-start gap-2">
                       <div>
-                        <h4 className="font-bold text-sm text-white">{req.name}</h4>
-                        <span className="text-[11px] font-semibold text-purple-400">{req.category}</span>
+                        <h4 className="font-bold text-sm text-app">{req.name}</h4>
+                        <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">{req.category}</span>
                       </div>
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                           req.status === 'approved'
-                            ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400'
                             : req.status === 'rejected'
-                            ? 'bg-red-500/10 border border-red-500/20 text-red-400'
-                            : 'bg-amber-500/10 border border-amber-500/20 text-amber-400 animate-pulse'
+                            ? 'bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400'
+                            : 'bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400 animate-pulse'
                         }`}
                       >
                         {req.status}
@@ -1020,63 +1038,63 @@ const AdminDashboard = () => {
                     </div>
 
                     {req.description && (
-                      <p className="text-xs text-slate-300 bg-slate-950/60 p-2.5 rounded-xl border border-slate-850">
+                      <p className="text-xs text-muted bg-slate-50 dark:bg-[#12161f] p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
                         {req.description}
                       </p>
                     )}
 
                     <div className="flex flex-wrap gap-2 text-[11px]">
-                      <span className="px-2 py-0.5 rounded-lg bg-slate-800 text-slate-300">
-                        Intent: <strong className="text-white capitalize">{req.intent}</strong>
+                      <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-muted font-medium">
+                        Intent: <strong className="text-app capitalize">{req.intent}</strong>
                       </span>
-                      <span className="px-2 py-0.5 rounded-lg bg-slate-800 text-slate-300">
-                        Level: <strong className="text-white">{req.level || 'Intermediate'}</strong>
+                      <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-muted font-medium">
+                        Level: <strong className="text-app">{req.level || 'Intermediate'}</strong>
                       </span>
                       {req.tags?.map((t) => (
-                        <span key={t} className="px-2 py-0.5 rounded-lg bg-slate-850 text-slate-400">
+                        <span key={t} className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-muted">
                           #{t}
                         </span>
                       ))}
                     </div>
 
                     {/* Requesting user info */}
-                    <div className="pt-2 border-t border-slate-800/80 flex items-center gap-2.5">
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
                       <img
                         src={req.user?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(req.user?.name || 'User')}&background=6366f1&color=fff`}
                         alt=""
-                        className="w-7 h-7 rounded-full bg-slate-800"
+                        className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800"
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-slate-200 truncate">{req.user?.name}</p>
-                        <p className="text-[10px] text-slate-400 truncate">@{req.user?.username || req.user?.email}</p>
+                        <p className="text-xs font-bold text-app truncate">{req.user?.name}</p>
+                        <p className="text-[10px] text-muted truncate">@{req.user?.username || req.user?.email}</p>
                       </div>
-                      <span className="text-[10px] text-slate-500">
+                      <span className="text-[10px] text-muted">
                         {new Date(req.createdAt).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
 
                   {req.status === 'pending' && (
-                    <div className="flex gap-2 pt-2 border-t border-slate-800/80">
+                    <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                       <button
                         type="button"
                         onClick={() => handleRejectSkillRequest(req._id)}
-                        className="flex-1 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold transition-all"
+                        className="flex-1 py-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs font-bold transition-all cursor-pointer"
                       >
                         Reject
                       </button>
                       <button
                         type="button"
                         onClick={() => handleApproveSkillRequest(req._id)}
-                        className="flex-1 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow"
+                        className="flex-1 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
                       >
-                        Approve & Add to Catalog
+                        Approve & Add
                       </button>
                     </div>
                   )}
 
                   {req.status === 'rejected' && req.adminFeedback && (
-                    <p className="text-[10px] text-red-400/80 italic pt-1">
+                    <p className="text-[10px] text-rose-500 italic pt-1">
                       Reason: {req.adminFeedback}
                     </p>
                   )}

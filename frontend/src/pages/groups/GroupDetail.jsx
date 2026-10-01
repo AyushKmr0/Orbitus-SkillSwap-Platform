@@ -952,7 +952,7 @@ const GroupDetail = () => {
         )}
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <div className="flex-1 overflow-y-auto p-3 pt-5 sm:p-4 space-y-2">
           {displayedMessages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted gap-2 py-16">
               <Users size={36} className="opacity-40" />
@@ -1051,7 +1051,7 @@ const GroupDetail = () => {
                       toggleSelectMessage(msg._id);
                     }
                   }}
-                  className={`flex items-end gap-2 group relative ${isMe ? 'flex-row-reverse' : 'flex-row'} ${
+                  className={`flex items-end gap-2 group relative ${isMe ? 'justify-end' : 'justify-start'} ${
                     menuOpen || activeReactionMsgId === msg._id ? 'z-50 relative' : 'relative z-0'
                   } ${selectedMsgIds.includes(msg._id) ? 'bg-indigo-50/60 dark:bg-indigo-950/30 rounded-xl' : ''} ${
                     msg.reactions?.length > 0 ? 'mb-2.5' : ''

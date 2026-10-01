@@ -774,7 +774,7 @@ const ChatRoom = () => {
               )}
 
               {/* Chat Stream Bubble list */}
-              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[#efeae2] p-2 sm:p-4 dark:bg-[#1a1c22]">
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[#efeae2] p-3 pt-5 sm:p-4 dark:bg-[#1a1c22]">
                 {loading ? (
                   <div className="flex justify-center items-center py-20">
                     <div className="w-8 h-8 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />

@@ -30,6 +30,14 @@ apiClient.interceptors.request.use((config) => {
     };
   }
 
+  const adminKey = localStorage.getItem('orbitus_admin_key');
+  if (adminKey && !config.headers?.['x-admin-secret']) {
+    config.headers = {
+      ...config.headers,
+      'x-admin-secret': adminKey
+    };
+  }
+
   return config;
 });
 
