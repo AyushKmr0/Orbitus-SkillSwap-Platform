@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -15,6 +16,9 @@ import reviewRoutes from './routes/reviewRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import postRoutes from './routes/postRoutes.js';
 import certificateRoutes from './routes/certificateRoutes.js';
+import groupRoutes from './routes/groupRoutes.js';
+import feedbackRoutes from './routes/feedbackRoutes.js';
+import { errorHandler } from './middlewares/errorMiddleware.js';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -26,7 +30,11 @@ const configuredOrigins = [
 
 const allowedOrigins = [
   ...configuredOrigins,
-  'https://orbitus-skill-swap-platform.vercel.app'
+  'https://orbitus-skill-swap-platform.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173'
 ].filter(Boolean);
 
 // ES module path support
@@ -34,10 +42,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Standard Middlewares
+app.use(compression());
 app.use(cors({
   origin: (origin, callback) => {
-    const normalizedOrigin = origin?.replace(/\/$/, '');
-    if (!origin || allowedOrigins.includes(normalizedOrigin)) {
+    if (!origin) return callback(null, true);
+    const normalizedOrigin = origin.replace(/\/$/, '');
+    if (
+      allowedOrigins.includes(normalizedOrigin) ||
+      /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalizedOrigin) ||
+      normalizedOrigin.endsWith('.vercel.app')
+    ) {
       return callback(null, true);
     }
 
@@ -70,21 +84,15 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/certificates', certificateRoutes);
+app.use('/api/groups', groupRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // 404 Route handler
 app.use((req, res, next) => {
   res.status(404).json({ success: false, message: `Resource not found: ${req.originalUrl}` });
 });
 
-// Global Centralized Error Handler
-app.use((err, req, res, next) => {
-  console.error('[SERVER ERROR HANDLER]:', err.stack || err.message);
-  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
-  res.status(statusCode).json({
-    success: false,
-    message: err.message || 'Internal Server Error',
-    stack: process.env.NODE_ENV === 'production' ? null : err.stack
-  });
-});
+// Centralized ApiError & Server Error Handler
+app.use(errorHandler);
 
 export default app;

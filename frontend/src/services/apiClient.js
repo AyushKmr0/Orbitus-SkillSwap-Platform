@@ -18,6 +18,8 @@ let refreshPromise = null;
 
 const getStoredToken = () => localStorage.getItem('accessToken') || '';
 
+const pendingGetRequests = new Map();
+
 apiClient.interceptors.request.use((config) => {
   const token = store.getState().auth.token || getStoredToken();
 
@@ -30,6 +32,23 @@ apiClient.interceptors.request.use((config) => {
 
   return config;
 });
+
+// Deduplicate concurrent GET requests to prevent redundant network calls
+const originalGet = apiClient.get;
+apiClient.get = function (url, config = {}) {
+  if (config.bypassDedupe || config.responseType === 'blob') {
+    return originalGet.call(this, url, config);
+  }
+  const cacheKey = `${url}?${JSON.stringify(config.params || {})}`;
+  if (pendingGetRequests.has(cacheKey)) {
+    return pendingGetRequests.get(cacheKey);
+  }
+  const requestPromise = originalGet.call(this, url, config).finally(() => {
+    pendingGetRequests.delete(cacheKey);
+  });
+  pendingGetRequests.set(cacheKey, requestPromise);
+  return requestPromise;
+};
 
 apiClient.interceptors.response.use(
   (response) => response,

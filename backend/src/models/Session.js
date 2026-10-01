@@ -14,7 +14,11 @@ const sessionSchema = new mongoose.Schema({
   skill: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Skill',
-    required: true
+    required: false
+  },
+  topic: {
+    type: String,
+    default: 'Skill Exchange Session'
   },
   startTime: {
     type: Date,
@@ -29,9 +33,30 @@ const sessionSchema = new mongoose.Schema({
     enum: ['Pending', 'Accepted', 'Rejected', 'Rescheduled', 'Completed', 'Cancelled'],
     default: 'Pending'
   },
-  jitsiRoomId: {
+  acceptedAt: {
+    type: Date
+  },
+  // VC Meeting link fields
+  meetingLink: {
     type: String,
-    required: true
+    default: ''
+  },
+  meetingLinkProvider: {
+    type: String,
+    enum: ['Google Meet', 'Zoom', 'Microsoft Teams', 'Discord', 'Custom Link', 'Other'],
+    default: 'Google Meet'
+  },
+  meetingLinkSharedBy: {
+    type: String,
+    enum: ['mentor', 'learner', 'either'],
+    default: 'either'
+  },
+  meetingLinkAddedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  meetingLinkAddedAt: {
+    type: Date
   },
   notes: {
     type: String,
@@ -45,49 +70,22 @@ const sessionSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  actualStartTime: {
+  sessionStartedAt: {
     type: Date
   },
-  actualEndTime: {
+  sessionEndedAt: {
     type: Date
   },
   actualDurationMinutes: {
     type: Number,
     default: 0
-  },
-  roomStartedAt: {
-    type: Date
-  },
-  roomStartedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  attendance: [{
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
-    },
-    role: {
-      type: String,
-      enum: ['mentor', 'learner'],
-      required: true
-    },
-    joinedAt: {
-      type: Date,
-      required: true
-    },
-    leftAt: {
-      type: Date
-    },
-    durationMinutes: {
-      type: Number,
-      default: 0
-    }
-  }]
+  }
 }, {
   timestamps: true
 });
+
+sessionSchema.index({ mentor: 1, status: 1, startTime: -1 });
+sessionSchema.index({ learner: 1, status: 1, startTime: -1 });
 
 const Session = mongoose.model('Session', sessionSchema);
 export default Session;

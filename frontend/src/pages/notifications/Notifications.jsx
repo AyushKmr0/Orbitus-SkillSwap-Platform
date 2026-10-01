@@ -78,7 +78,7 @@ const Notifications = () => {
   };
 
   return (
-    <div className="page-shell">
+    <div className="page-shell animate-fade-in">
       <div className="mx-auto max-w-3xl space-y-5">
         <div className="page-header">
           <div>
@@ -95,7 +95,7 @@ const Notifications = () => {
             <div className="p-10 text-center text-sm text-muted">Loading notifications...</div>
           ) : items.length === 0 ? (
             <div className="p-10 text-center text-sm text-muted">No notifications right now.</div>
-          ) : items.map((item) => {
+          ) : items.map((item, idx) => {
             const sender = item.sender;
 
             return (
@@ -103,13 +103,13 @@ const Notifications = () => {
                 key={item._id}
                 type="button"
                 onClick={() => openNotification(item)}
-                className="flex w-full items-start gap-3 border-b p-4 text-left transition-colors hover:bg-slate-100 dark:hover:bg-white/5"
+                className={`flex w-full items-start gap-3 border-b p-4 text-left transition-colors hover:bg-slate-100 dark:hover:bg-white/5 animate-card-enter stagger-${(idx % 6) + 1}`}
                 style={{ borderColor: 'var(--app-border)' }}
               >
                 {sender?.profileImage ? (
-                  <img src={sender.profileImage} alt={sender.name} className="h-10 w-10 rounded-lg bg-slate-100 dark:bg-slate-800" />
+                  <img src={sender.profileImage} alt={sender.name} className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 object-cover" />
                 ) : (
-                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white">
                     <Bell size={18} />
                   </span>
                 )}

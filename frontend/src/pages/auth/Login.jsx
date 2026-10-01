@@ -80,7 +80,7 @@ const Login = () => {
 
   return (
     <div className="app-shell grid min-h-screen place-items-center p-4">
-      <div className="w-full max-w-[980px] overflow-hidden rounded-lg border bg-white shadow-2xl dark:bg-[#181d26]" style={{ borderColor: 'var(--app-border)' }}>
+      <div className="w-full max-w-[980px] overflow-hidden rounded-lg border bg-white shadow-2xl dark:bg-[#22242a]" style={{ borderColor: 'var(--app-border)' }}>
         <div className="grid min-h-[620px] lg:grid-cols-[0.95fr_1.05fr]">
           <aside className="hidden border-r bg-slate-50 p-10 dark:bg-[#151922] lg:flex lg:flex-col lg:justify-between" style={{ borderColor: 'var(--app-border)' }}>
             <div>
@@ -126,11 +126,11 @@ const Login = () => {
               )}
 
               <div className="mb-5 grid gap-3 sm:grid-cols-2">
-                <a href={apiPath('/api/auth/oauth/google')} className="btn-secondary justify-center">
+                <a href={`${apiPath('/api/auth/oauth/google')}?origin=${encodeURIComponent(window.location.origin)}`} className="btn-secondary justify-center">
                   <span className="text-base font-black">G</span>
                   <span>Google</span>
                 </a>
-                <a href={apiPath('/api/auth/oauth/github')} className="btn-secondary justify-center">
+                <a href={`${apiPath('/api/auth/oauth/github')}?origin=${encodeURIComponent(window.location.origin)}`} className="btn-secondary justify-center">
                   <GitBranch size={18} />
                   <span>GitHub</span>
                 </a>

@@ -17,11 +17,19 @@ export const protect = async (req, res, next) => {
         return res.status(401).json({ success: false, message: 'Not authorized, user not found' });
       }
 
-      next();
+      return next();
     } catch (error) {
       console.error('JWT Protection Error:', error.message);
       return res.status(401).json({ success: false, message: 'Not authorized, token failed' });
     }
+  }
+
+  // Also allow admin secret key for administrative tasks even without bearer token
+  const secretKey = req.headers['x-admin-secret'] || req.query.adminKey;
+  const configuredSecret = process.env.ADMIN_SECRET_KEY || (process.env.NODE_ENV !== 'production' ? 'orbitus_master_admin_2026' : null);
+  if (configuredSecret && secretKey && secretKey === configuredSecret) {
+    req.isAdminSecret = true;
+    return next();
   }
 
   if (!token) {
@@ -30,9 +38,16 @@ export const protect = async (req, res, next) => {
 };
 
 export const adminOnly = (req, res, next) => {
-  if (req.user && req.user.role === 'Admin') {
-    next();
-  } else {
-    return res.status(403).json({ success: false, message: 'Access denied, administrator role required' });
+  const secretKey = req.headers['x-admin-secret'] || req.query.adminKey;
+  const configuredSecret = process.env.ADMIN_SECRET_KEY || (process.env.NODE_ENV !== 'production' ? 'orbitus_master_admin_2026' : null);
+
+  if ((configuredSecret && secretKey && secretKey === configuredSecret) || req.isAdminSecret) {
+    return next();
   }
+
+  if (req.user && req.user.role === 'Admin') {
+    return next();
+  }
+
+  return res.status(403).json({ success: false, message: 'Access denied, administrator role or valid secret access key required' });
 };

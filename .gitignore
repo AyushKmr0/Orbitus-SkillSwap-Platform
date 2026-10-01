@@ -1,42 +1,54 @@
-# Log files
-*.log
-*-dev.log
-*-dev.err.log
-vite-err.log
-vite-out.log
-
 # Dependencies
 node_modules/
+**/node_modules/
 .pnp
 .pnp.js
 
-# Environment
+# Environment variables & confidential files
 .env
-.env.local
-.env.*.local
-*.txt
+.env.*
+!.env.example
+*.env
+*.pem
+*.key
+*.cert
+*.crt
+
+# Uploads & User data
+uploads/
+**/uploads/*
+!**/uploads/.gitkeep
 
 # Build outputs
 dist/
+**/dist/
 build/
-.next/
+**/.next/
+out/
 
-# IDE
+# Logs & Debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+vite-err.log
+vite-out.log
+
+# IDE & Editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.settings/
 
-# OS
+# OS generated files
 .DS_Store
 Thumbs.db
+ehthumbs.db
 
-# Cache
+# Caches
 .eslintcache
 .cache/
-
-# Misc
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+.parcel-cache

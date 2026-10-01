@@ -63,9 +63,9 @@ const Register = () => {
   };
 
   return (
-    <div className="app-shell grid min-h-screen place-items-center p-4">
-      <div className="w-full max-w-[980px] overflow-hidden rounded-lg border bg-white shadow-2xl dark:bg-[#181d26]" style={{ borderColor: 'var(--app-border)' }}>
-        <div className="grid min-h-[660px] lg:grid-cols-[0.95fr_1.05fr]">
+    <div className="app-shell grid min-h-screen place-items-center p-4 overflow-y-auto">
+      <div className="w-full max-w-[980px] overflow-hidden rounded-lg border bg-white shadow-2xl dark:bg-[#22242a]" style={{ borderColor: 'var(--app-border)' }}>
+        <div className="grid lg:grid-cols-[0.95fr_1.05fr]">
           <aside className="hidden border-r bg-slate-50 p-10 dark:bg-[#151922] lg:flex lg:flex-col lg:justify-between" style={{ borderColor: 'var(--app-border)' }}>
             <div>
               <div className="mb-8 flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg bg-white">
@@ -77,7 +77,7 @@ const Register = () => {
                 Add your account first, then use the catalog to define what you teach and what you want to learn.
               </p>
             </div>
-            <div className="rounded-lg border bg-white p-4 text-sm text-muted dark:bg-[#181d26]" style={{ borderColor: 'var(--app-border)' }}>
+            <div className="rounded-lg border bg-white p-4 text-sm text-muted dark:bg-[#22242a]" style={{ borderColor: 'var(--app-border)' }}>
               Orbitus uses email verification so mentors and learners can coordinate safely.
             </div>
           </aside>
@@ -113,11 +113,11 @@ const Register = () => {
               {!isRegistered ? (
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <a href={apiPath('/api/auth/oauth/google')} className="btn-secondary justify-center">
+                    <a href={`${apiPath('/api/auth/oauth/google')}?origin=${encodeURIComponent(window.location.origin)}`} className="btn-secondary justify-center">
                       <span className="text-base font-black">G</span>
                       <span>Google</span>
                     </a>
-                    <a href={apiPath('/api/auth/oauth/github')} className="btn-secondary justify-center">
+                    <a href={`${apiPath('/api/auth/oauth/github')}?origin=${encodeURIComponent(window.location.origin)}`} className="btn-secondary justify-center">
                       <GitBranch size={18} />
                       <span>GitHub</span>
                     </a>
@@ -130,9 +130,9 @@ const Register = () => {
                   </div>
 
                   {[
-                    ['name', 'Full Name', 'John Doe', User, name, setName, 'text'],
-                    ['username', 'Username', 'john_doe', AtSign, username, setUsername, 'text'],
-                    ['email', 'Email Address', 'john@example.com', Mail, email, setEmail, 'email'],
+                    ['name', 'Full Name', 'Enter full name', User, name, setName, 'text'],
+                    ['username', 'Username', 'Enter username', AtSign, username, setUsername, 'text'],
+                    ['email', 'Email Address', 'name@example.com', Mail, email, setEmail, 'email'],
                     ['password', 'Password', 'Password', Lock, password, setPassword, showPassword ? 'text' : 'password'],
                     ['confirmPassword', 'Confirm Password', 'Confirm password', Lock, confirmPassword, setConfirmPassword, showConfirmPassword ? 'text' : 'password']
                   ].map(([id, label, placeholder, Icon, value, setter, type]) => (

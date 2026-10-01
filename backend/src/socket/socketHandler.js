@@ -2,6 +2,8 @@ import Message from '../models/Message.js';
 import User from '../models/User.js';
 import Leaderboard from '../models/Leaderboard.js';
 import ChatPreference from '../models/ChatPreference.js';
+import Group from '../models/Group.js';
+import GroupMessage from '../models/GroupMessage.js';
 
 // Global map to track online users (userId -> Set<socketId>)
 export const onlineUsers = new Map();
@@ -43,8 +45,24 @@ export const emitNotificationToUser = (recipientId, notification) => {
   }
 };
 
+export const emitGroupMessage = (groupId, message) => {
+  if (socketServer && groupId) {
+    socketServer.to(`group_${groupId}`).emit('receive_group_message', message);
+  }
+};
+
+export const emitUserFollowUpdate = (userId, payload) => {
+  const recipientSocketIds = onlineUsers.get(userId?.toString());
+  if (socketServer && recipientSocketIds) {
+    recipientSocketIds.forEach((socketId) => {
+      socketServer.to(socketId).emit('user_follow_update', payload);
+    });
+  }
+};
+
 const populateMessage = (message) => message.populate([
   { path: 'sender recipient', select: 'name profileImage' },
+  { path: 'reactions.user', select: 'name profileImage' },
   {
     path: 'replyTo',
     select: 'content sender deletedAt',
@@ -140,8 +158,17 @@ export const socketHandler = (io) => {
           });
         }
 
-        // Deliver immediately if recipient is active in room
+        // Deliver immediately to room and both user sockets for guaranteed arrival
         io.to(chatRoomId).emit('receive_private_message', populatedMessage);
+
+        const recipientSockets = onlineUsers.get(recipientId?.toString()) || [];
+        recipientSockets.forEach((sId) => {
+          io.to(sId).emit('receive_private_message', populatedMessage);
+        });
+        const senderSockets = onlineUsers.get(senderId?.toString()) || [];
+        senderSockets.forEach((sId) => {
+          io.to(sId).emit('receive_private_message', populatedMessage);
+        });
       } catch (error) {
         console.error('[SOCKET ERROR] message transmission failed:', error.message);
       }
@@ -158,6 +185,12 @@ export const socketHandler = (io) => {
         });
 
         if (!message) return;
+
+        const fiveMinutes = 5 * 60 * 1000;
+        if (Date.now() - new Date(message.createdAt).getTime() > fiveMinutes) {
+          socket.emit('error_message', { message: 'Messages can only be edited within 5 minutes of sending' });
+          return;
+        }
 
         message.content = content;
         message.isEdited = true;
@@ -206,6 +239,39 @@ export const socketHandler = (io) => {
       }
     });
 
+    socket.on('react_message', async (payload) => {
+      const { messageId, userId, emoji, chatRoomId } = payload;
+      try {
+        const message = await Message.findById(messageId);
+        if (!message) return;
+
+        if (!message.reactions) message.reactions = [];
+
+        const existingIndex = message.reactions.findIndex(
+          (r) => r.user?.toString() === userId.toString()
+        );
+
+        if (existingIndex > -1) {
+          if (message.reactions[existingIndex].emoji === emoji) {
+            message.reactions.splice(existingIndex, 1);
+          } else {
+            message.reactions[existingIndex].emoji = emoji;
+          }
+        } else {
+          message.reactions.push({ user: userId, emoji });
+        }
+
+        await message.save();
+        const populatedMessage = await populateMessage(message);
+        io.to(chatRoomId).emit('message_reaction_updated', {
+          messageId,
+          reactions: populatedMessage.reactions
+        });
+      } catch (error) {
+        console.error('[SOCKET ERROR] message reaction failed:', error.message);
+      }
+    });
+
     // 4. Client typing indicator
     socket.on('typing', (payload) => {
       const { chatRoomId, userId, isTyping } = payload;
@@ -240,7 +306,98 @@ export const socketHandler = (io) => {
       }
     });
 
-    // 7. Cleanup on client disconnection
+    // 7. Group Socket Events (Real-time group chat & group study calls)
+    socket.on('join_group', (groupId) => {
+      if (groupId) {
+        socket.join(`group_${groupId}`);
+      }
+    });
+
+    socket.on('leave_group', (groupId) => {
+      if (groupId) {
+        socket.leave(`group_${groupId}`);
+      }
+    });
+
+    socket.on('send_group_message', async (payload) => {
+      const { groupId, senderId, content, fileUrl, fileType, replyTo } = payload;
+      try {
+        const message = await GroupMessage.create({
+          group: groupId,
+          sender: senderId,
+          content: content || '',
+          fileUrl: fileUrl || '',
+          fileType: fileType || 'none',
+          replyTo: replyTo || undefined
+        });
+
+        const populated = await GroupMessage.findById(message._id)
+          .populate('sender', 'name username profileImage')
+          .populate({
+            path: 'replyTo',
+            populate: { path: 'sender', select: 'name username' }
+          });
+
+        io.to(`group_${groupId}`).emit('receive_group_message', populated);
+      } catch (err) {
+        console.error('[SOCKET ERROR] Group message failed:', err.message);
+      }
+    });
+
+    socket.on('group_vc_link_changed', (payload) => {
+      const { groupId, meetingLink, meetingLinkProvider, updatedByName } = payload;
+      io.to(`group_${groupId}`).emit('group_vc_link_updated', {
+        groupId,
+        meetingLink,
+        meetingLinkProvider,
+        updatedByName
+      });
+    });
+
+    socket.on('group_message_pinned', (payload) => {
+      const { groupId, messageId, isPinned } = payload;
+      io.to(`group_${groupId}`).emit('group_pin_changed', { groupId, messageId, isPinned });
+    });
+
+    socket.on('group_message_deleted', (payload) => {
+      const { groupId, messageId } = payload;
+      io.to(`group_${groupId}`).emit('group_message_removed', { groupId, messageId });
+    });
+
+    socket.on('react_group_message', async (payload) => {
+      const { groupId, messageId, userId, emoji } = payload;
+      try {
+        const message = await GroupMessage.findById(messageId);
+        if (!message) return;
+
+        if (!message.reactions) message.reactions = [];
+
+        const existingIndex = message.reactions.findIndex(
+          (r) => r.user?.toString() === userId.toString()
+        );
+
+        if (existingIndex > -1) {
+          if (message.reactions[existingIndex].emoji === emoji) {
+            message.reactions.splice(existingIndex, 1);
+          } else {
+            message.reactions[existingIndex].emoji = emoji;
+          }
+        } else {
+          message.reactions.push({ user: userId, emoji });
+        }
+
+        await message.save();
+        io.to(`group_${groupId}`).emit('group_message_reaction_updated', {
+          groupId,
+          messageId,
+          reactions: message.reactions
+        });
+      } catch (err) {
+        console.error('[SOCKET ERROR] group message reaction failed:', err.message);
+      }
+    });
+
+    // 8. Cleanup on client disconnection
     socket.on('disconnect', () => {
       console.log(`[SOCKET]: Client disconnected (ID: ${socket.id})`);
       if (socket.userId) {

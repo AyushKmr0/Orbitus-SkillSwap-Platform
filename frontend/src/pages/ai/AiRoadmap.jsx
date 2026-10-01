@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
+import { motion } from 'framer-motion';
+import { ScrollReveal, TiltCard, MorphingBlob } from '../../components/motion/index.js';
 import {
   Map,
   Compass,
@@ -303,19 +305,24 @@ const AiRoadmap = () => {
   const activeEngineObj = AI_PROVIDERS.find((p) => p.id === activeAiProvider);
 
   return (
-    <div className="page-shell flex-1 p-4 sm:p-6 lg:p-8 space-y-6 min-h-screen text-app overflow-y-auto animate-fade-in">
+    <div className="page-shell flex-1 p-4 sm:p-6 lg:p-8 space-y-6 min-h-screen text-app overflow-y-auto relative">
+      {/* Ambient Morphing Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <MorphingBlob size={340} color="rgba(99, 102, 241, 0.07)" className="-top-24 -left-16" />
+        <MorphingBlob size={280} color="rgba(16, 185, 129, 0.05)" className="top-80 -right-16" />
+      </div>
       {/* Brand Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-[#181d26] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-[#22242a] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
         <div className="flex items-start gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/20 shrink-0">
             <Map size={24} />
           </div>
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-app font-outfit tracking-tight">
-              Interactive Learning Roadmaps
+              Learning Roadmaps
             </h1>
             <p className="text-xs sm:text-sm text-muted mt-1">
-              Explore step-by-step learning paths with visual mind maps, practical milestones, and direct study resources.
+              Visual step-by-step learning paths and milestones.
             </p>
           </div>
         </div>
@@ -342,13 +349,13 @@ const AiRoadmap = () => {
         {/* Left Column: Generator & Syllabus history */}
         <div className="space-y-6">
           {/* Creator Form */}
-          <div className="bg-white dark:bg-[#181d26] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+          <div className="bg-white dark:bg-[#22242a] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
             <h3 className="font-bold text-base text-app font-outfit flex items-center gap-2">
               <Compass size={18} className="text-indigo-600 dark:text-indigo-400" />
-              Create Study Path
+              Create Roadmap
             </h3>
             <p className="text-xs text-muted leading-relaxed">
-              Enter any skill or craft you want to learn — from languages and arts to tech and public speaking.
+              Enter any skill to generate a structured study path.
             </p>
 
             {errorMsg && (
@@ -363,8 +370,8 @@ const AiRoadmap = () => {
                 required
                 value={topicInput}
                 onChange={(e) => setTopicInput(e.target.value)}
-                placeholder="What skill do you want to learn? (e.g. Docker, RAG, Redis, Spanish)"
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl text-app text-sm outline-none focus:border-indigo-500 transition-colors"
+                placeholder="e.g. Python, Docker, Design, Spanish..."
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-[#15171e] border border-slate-200 dark:border-slate-700/80 rounded-2xl text-app text-sm outline-none focus:border-indigo-500 transition-colors"
               />
 
               <button
@@ -389,7 +396,7 @@ const AiRoadmap = () => {
             {/* Quick suggested chips */}
             <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
               <span className="text-[11px] font-bold text-muted uppercase tracking-wider block">
-                Popular Learning Paths:
+                Popular Topics:
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {SUGGESTED_TOPICS.map((topic) => (
@@ -407,7 +414,7 @@ const AiRoadmap = () => {
           </div>
 
           {/* Active syllabuses history list */}
-          <div className="bg-white dark:bg-[#181d26] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+          <div className="bg-white dark:bg-[#22242a] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
             <h3 className="font-bold text-base text-app font-outfit flex items-center gap-2">
               <BookOpen size={18} className="text-indigo-600 dark:text-indigo-400" />
               Saved Study Paths ({roadmapsList.length})
@@ -461,7 +468,7 @@ const AiRoadmap = () => {
         {/* Right Column: Mind Map / List View */}
         <div className="lg:col-span-2">
           {activeRoadmap ? (
-            <div className="bg-white dark:bg-[#181d26] p-5 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
+            <div className="bg-white dark:bg-[#22242a] p-5 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
               {/* Roadmap Header & View Switcher */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
                 <div>
@@ -514,7 +521,7 @@ const AiRoadmap = () => {
               {viewMode === 'mindmap' && (
                 <div className="space-y-4">
                   {/* Roadmap.sh Canvas Toolbar */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-[#181d26] p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-[#22242a] p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm text-xs">
                     {/* Left: Title & Milestones count */}
                     <div className="flex items-center gap-2 font-bold text-app font-outfit">
                       <Sparkles size={15} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
@@ -575,14 +582,14 @@ const AiRoadmap = () => {
                   </div>
 
                   {/* Main Grid Canvas Viewport with Phenomenon Ambient Aurora */}
-                  <div className="relative w-full h-[520px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-[#0b0f17] bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:20px_20px] shadow-inner overflow-auto">
+                  <div className="relative w-full h-[480px] sm:h-[540px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-[#0b0f17] bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:20px_20px] shadow-inner overflow-x-hidden md:overflow-x-auto overflow-y-auto">
                     {/* Phenomenon Ambient Ethereal Glow Orbs */}
                     <div className="absolute top-1/4 left-1/4 w-80 h-80 rounded-full bg-indigo-500/10 dark:bg-indigo-600/15 blur-[100px] phenomenon-aurora pointer-events-none" />
                     <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-purple-500/10 dark:bg-purple-600/15 blur-[100px] phenomenon-aurora pointer-events-none" style={{ animationDelay: '-5s' }} />
 
                     <div
                       ref={mindMapContainerRef}
-                      className="p-4 sm:p-6 flex flex-col items-center justify-start min-w-[580px] md:min-w-[680px] m-auto relative z-10"
+                      className="p-3 sm:p-6 flex flex-col items-center justify-start w-full min-w-0 md:min-w-[680px] m-auto relative z-10"
                     >
                       {/* Zoomable Canvas Container */}
                       <div
@@ -594,13 +601,13 @@ const AiRoadmap = () => {
                         className="w-full flex flex-col items-center py-1 select-none"
                       >
                         {/* 1. START ROOT NODE (Phenomenon Glassmorphic Hero) */}
-                        <div className="flex flex-col items-center z-10">
+                        <div className="flex flex-col items-center z-10 w-full max-w-sm px-2">
                           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/80 text-[10px] font-black text-indigo-600 dark:text-indigo-400 mb-1.5 shadow-sm">
                             <Sparkles size={11} />
                             <span>LEARNING PATHWAY</span>
                           </div>
 
-                          <div className="phenomenon-card px-4 py-2.5 rounded-xl bg-white/90 dark:bg-[#181d26]/90 backdrop-blur-md border-2 border-indigo-600/90 shadow-md text-center max-w-sm min-w-[240px] relative">
+                          <div className="phenomenon-card px-4 py-2.5 rounded-xl bg-white/90 dark:bg-[#22242a]/90 backdrop-blur-md border-2 border-indigo-600/90 shadow-md text-center w-full relative">
                             <span className="text-[9px] font-black uppercase tracking-wider text-indigo-500 block mb-0.5">
                               Master Goal & Curriculum
                             </span>
@@ -625,7 +632,7 @@ const AiRoadmap = () => {
                         {/* 2. SEQUENTIAL ROADMAP SPINE (Desktop Alternating / Mobile Stacked) */}
                         <div className="relative w-full max-w-2xl flex flex-col items-center">
                           {/* Continuous Central Spine Track with Phenomenon Kinetic Beam */}
-                          <div className="absolute top-0 bottom-3 left-5 md:left-1/2 -translate-x-1/2 w-0.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div className="absolute top-0 bottom-3 left-4 sm:left-5 md:left-1/2 -translate-x-1/2 w-0.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                             <div className="phenomenon-beam left-0" />
                           </div>
 
@@ -636,7 +643,9 @@ const AiRoadmap = () => {
 
                             // Node card JSX
                             const NodeCard = (
-                              <div
+                              <motion.div
+                                whileHover={{ scale: 1.03, y: -2 }}
+                                whileTap={{ scale: 0.98 }}
                                 onClick={() => {
                                   setSelectedNodeIndex(idx);
                                   setShowDetailDrawer(true);
@@ -646,7 +655,7 @@ const AiRoadmap = () => {
                                     ? 'phenomenon-halo bg-white dark:bg-[#1a2233] border-indigo-600 shadow-lg shadow-indigo-500/15'
                                     : isCompleted
                                     ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-400 dark:border-emerald-800/70 hover:border-emerald-500'
-                                    : 'bg-white dark:bg-[#181d26] border-slate-200 dark:border-slate-800 hover:border-indigo-400/80'
+                                    : 'bg-white dark:bg-[#22242a] border-slate-200 dark:border-slate-800 hover:border-indigo-400/80'
                                 }`}
                               >
                                 {/* Card Header */}
@@ -706,7 +715,7 @@ const AiRoadmap = () => {
                                     Guide <ChevronRight size={11} />
                                   </span>
                                 </div>
-                              </div>
+                              </motion.div>
                             );
 
                             return (
@@ -733,7 +742,7 @@ const AiRoadmap = () => {
                                         ? 'phenomenon-halo bg-indigo-600 border-indigo-400 text-white'
                                         : isCompleted
                                         ? 'bg-emerald-500 border-emerald-400 text-white ring-2 ring-emerald-500/20'
-                                        : 'bg-white dark:bg-[#181d26] border-slate-300 dark:border-slate-700 text-muted hover:border-indigo-500'
+                                        : 'bg-white dark:bg-[#22242a] border-slate-300 dark:border-slate-700 text-muted hover:border-indigo-500'
                                     }`}
                                     title={`Step ${idx + 1}: ${week.topic}`}
                                   >
@@ -747,7 +756,7 @@ const AiRoadmap = () => {
                                 </div>
 
                                 {/* MOBILE LAYOUT (Stacked to right of spine) */}
-                                <div className="flex md:hidden w-full items-start pl-10 relative">
+                                <div className="flex md:hidden w-full items-start pl-9 sm:pl-10 relative">
                                   {/* Spine Node Marker */}
                                   <button
                                     type="button"
@@ -755,12 +764,12 @@ const AiRoadmap = () => {
                                       setSelectedNodeIndex(idx);
                                       setShowDetailDrawer(true);
                                     }}
-                                    className={`absolute left-5 -translate-x-1/2 top-3 w-7 h-7 rounded-full flex items-center justify-center font-black text-[11px] shrink-0 z-10 border-2 ${
+                                    className={`absolute left-4 sm:left-5 -translate-x-1/2 top-3 w-7 h-7 rounded-full flex items-center justify-center font-black text-[11px] shrink-0 z-10 border-2 ${
                                       isSelected
                                         ? 'phenomenon-halo bg-indigo-600 border-indigo-400 text-white'
                                         : isCompleted
                                         ? 'bg-emerald-500 border-emerald-400 text-white ring-2 ring-emerald-500/20'
-                                        : 'bg-white dark:bg-[#181d26] border-slate-300 dark:border-slate-700 text-muted'
+                                        : 'bg-white dark:bg-[#22242a] border-slate-300 dark:border-slate-700 text-muted'
                                     }`}
                                   >
                                     {isCompleted ? <Check size={11} strokeWidth={3} /> : idx + 1}
@@ -781,7 +790,7 @@ const AiRoadmap = () => {
                               className={`px-4 py-2.5 rounded-xl border-2 text-center max-w-[260px] transition-all shadow-sm ${
                                 activeRoadmap.progress === 100
                                   ? 'bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/30 border-emerald-500'
-                                  : 'bg-white dark:bg-[#181d26] border-slate-200 dark:border-slate-800'
+                                  : 'bg-white dark:bg-[#22242a] border-slate-200 dark:border-slate-800'
                               }`}
                             >
                               <div className="w-8 h-8 rounded-full mx-auto mb-1 flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400">
@@ -871,7 +880,7 @@ const AiRoadmap = () => {
                                 className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-start gap-2.5 ${
                                   isChecked
                                     ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/60'
-                                    : 'bg-slate-50 dark:bg-[#181d26] border-slate-200 dark:border-slate-800 hover:border-indigo-400'
+                                    : 'bg-slate-50 dark:bg-[#22242a] border-slate-200 dark:border-slate-800 hover:border-indigo-400'
                                 }`}
                               >
                                 <button
@@ -912,7 +921,7 @@ const AiRoadmap = () => {
                                   href={url}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="group p-3 rounded-2xl bg-slate-50 dark:bg-[#181d26] hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 transition-all flex items-center justify-between gap-3 text-xs"
+                                  className="group p-3 rounded-2xl bg-slate-50 dark:bg-[#22242a] hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 transition-all flex items-center justify-between gap-3 text-xs"
                                 >
                                   <div className="min-w-0">
                                     <span className="text-[9px] uppercase font-black text-indigo-600 dark:text-indigo-400 block mb-0.5">
@@ -975,7 +984,7 @@ const AiRoadmap = () => {
                         className={`w-7 h-7 rounded-xl border flex items-center justify-center flex-shrink-0 transition-all mt-0.5 ${
                           week.completed
                             ? 'bg-emerald-600 border-emerald-500 text-white shadow'
-                            : 'bg-white dark:bg-[#181d26] border-slate-300 dark:border-slate-700 text-transparent hover:border-indigo-500'
+                            : 'bg-white dark:bg-[#22242a] border-slate-300 dark:border-slate-700 text-transparent hover:border-indigo-500'
                         }`}
                       >
                         <CheckCircle size={16} />
@@ -1018,7 +1027,7 @@ const AiRoadmap = () => {
                                   href={url}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-[#181d26] border border-slate-200 dark:border-slate-800 hover:border-indigo-400 text-indigo-600 dark:text-indigo-400 text-[11px] font-semibold transition-colors"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 hover:border-indigo-400 text-indigo-600 dark:text-indigo-400 text-[11px] font-semibold transition-colors"
                                 >
                                   <span>{title}</span>
                                   <ExternalLink size={10} />
@@ -1034,7 +1043,7 @@ const AiRoadmap = () => {
               )}
             </div>
           ) : (
-            <div className="bg-white dark:bg-[#181d26] p-12 rounded-3xl border border-slate-200 dark:border-slate-800 text-center space-y-4 shadow-sm">
+            <div className="bg-white dark:bg-[#22242a] p-12 rounded-3xl border border-slate-200 dark:border-slate-800 text-center space-y-4 shadow-sm">
               <div className="w-16 h-16 rounded-3xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto">
                 <Map size={32} />
               </div>
@@ -1049,8 +1058,8 @@ const AiRoadmap = () => {
 
       {/* USER-FRIENDLY AI ENGINE SETTINGS MODAL */}
       {showAiKeyModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg bg-white dark:bg-[#181d26] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+        <div role="dialog" data-modal="true" className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg bg-white dark:bg-[#22242a] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-3">
@@ -1059,7 +1068,7 @@ const AiRoadmap = () => {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-base text-app font-outfit">AI Learning Engine</h3>
-                  <p className="text-xs text-muted">Choose how your study roadmaps are generated</p>
+                  <p className="text-xs text-muted">Configure your roadmap generator</p>
                 </div>
               </div>
               <button
@@ -1075,7 +1084,7 @@ const AiRoadmap = () => {
             </div>
 
             {/* Segmented Mode Selector */}
-            <div className="flex p-1 bg-slate-100 dark:bg-slate-900/60 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+            <div className="flex p-1 bg-slate-100 dark:bg-[#15171e] rounded-2xl border border-slate-200/60 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setAiModalTab('builtin')}
@@ -1112,7 +1121,7 @@ const AiRoadmap = () => {
             {/* TAB 1: BUILT-IN AI */}
             {aiModalTab === 'builtin' && (
               <div className="space-y-4 animate-fade-in">
-                <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/50 space-y-3">
+                <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-[#1a1c24] border border-emerald-200/80 dark:border-emerald-800/50 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
                       <Sparkles size={15} />
@@ -1129,22 +1138,8 @@ const AiRoadmap = () => {
                     )}
                   </div>
                   <p className="text-xs text-muted leading-relaxed">
-                    Enjoy fast, unlimited learning roadmaps without setting up keys, signing up for developer accounts, or paying fees.
+                    Free, unlimited learning roadmaps powered by Orbitus AI. Includes 6-week curriculum, mind maps, and weekly resources.
                   </p>
-                  <ul className="space-y-1.5 text-xs text-app font-medium pt-1">
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <span>Instant 6-week curriculum with visual mind maps</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <span>Curated articles, video links & weekly milestones</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <span>Zero setup — works automatically for every member</span>
-                    </li>
-                  </ul>
                 </div>
 
                 {hasCustomKey ? (
@@ -1181,7 +1176,7 @@ const AiRoadmap = () => {
             {/* TAB 2: CUSTOM API KEY (OPTIONAL) */}
             {aiModalTab === 'custom' && (
               <div className="space-y-4 animate-fade-in text-xs">
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#1a1c24] border border-slate-200 dark:border-slate-800 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-app text-xs flex items-center gap-1.5">
                       <ShieldCheck size={15} className="text-indigo-600 dark:text-indigo-400" />
@@ -1198,7 +1193,7 @@ const AiRoadmap = () => {
                     )}
                   </div>
                   <p className="text-[11px] text-muted">
-                    If you prefer using your personal OpenAI, Google Gemini, Groq, or Claude account, connect it below.
+                    Connect your personal API key (optional).
                   </p>
                 </div>
 
@@ -1218,7 +1213,7 @@ const AiRoadmap = () => {
                           className={`p-3 rounded-2xl border text-left transition-all ${
                             isSelected
                               ? 'bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-600 ring-2 ring-indigo-500/20'
-                              : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-indigo-300'
+                              : 'bg-white dark:bg-[#1a1c24] border-slate-200 dark:border-slate-800 hover:border-indigo-300'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
@@ -1257,10 +1252,10 @@ const AiRoadmap = () => {
                       value={customKeyInput}
                       onChange={(e) => setCustomKeyInput(e.target.value)}
                       required
-                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl text-app text-xs outline-none focus:border-indigo-500 font-mono"
+                      className="w-full px-3.5 py-2.5 bg-white dark:bg-[#15171e] border border-slate-200 dark:border-slate-700/80 rounded-xl text-app text-xs outline-none focus:border-indigo-500 font-mono"
                     />
                     <p className="text-[10px] text-muted">
-                      Your key is securely encrypted and stored privately. It is only used to generate your roadmaps.
+                      Stored securely and encrypted.
                     </p>
                   </div>
 
@@ -1302,8 +1297,8 @@ const AiRoadmap = () => {
 
       {/* Delete Roadmap Confirmation Modal */}
       {roadmapToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-[#181d26] border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-4 animate-modal-enter text-center">
+        <div role="dialog" data-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-4 animate-modal-enter text-center">
             <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto shadow-sm">
               <Trash2 size={22} />
             </div>

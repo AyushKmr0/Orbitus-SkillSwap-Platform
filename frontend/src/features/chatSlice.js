@@ -79,6 +79,13 @@ const chatSlice = createSlice({
     removeMessageForMe: (state, action) => {
       state.messages = state.messages.filter(message => message._id !== action.payload.messageId);
     },
+    updateMessageReactions: (state, action) => {
+      const { messageId, reactions } = action.payload;
+      const msg = state.messages.find(m => m._id === messageId);
+      if (msg) {
+        msg.reactions = reactions;
+      }
+    },
     chatFailure: (state, action) => {
       state.loading = false;
       state.error = action.payload;
@@ -101,6 +108,7 @@ export const {
   setMessages,
   addMessage,
   updateMessage,
+  updateMessageReactions,
   removeMessageForMe,
   chatFailure,
   clearChatState

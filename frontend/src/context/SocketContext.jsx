@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useSelector, useDispatch } from 'react-redux';
-import { addMessage, updateMessage, removeMessageForMe, setActiveChats } from '../features/chatSlice.js';
+import { addMessage, updateMessage, updateMessageReactions, removeMessageForMe, setActiveChats } from '../features/chatSlice.js';
 import { updateProfileSuccess } from '../features/authSlice.js';
 import apiClient from '../services/apiClient.js';
 import { socketUrl } from '../config/env.js';
@@ -9,6 +9,32 @@ import { socketUrl } from '../config/env.js';
 const SocketContext = createContext(null);
 
 export const useSocket = () => useContext(SocketContext);
+
+export const playNotificationChime = () => {
+  if (localStorage.getItem('orbitus_pref_sound') === 'false') return;
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
+
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.35);
+  } catch {
+    // Autoplay fallback
+  }
+};
 
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
@@ -42,11 +68,15 @@ export const SocketProvider = ({ children }) => {
 
       setSocket(socketConn);
 
-      // Bind setup user handshake
-      socketConn.emit('setup_user', user._id);
+      // Bind setup user handshake with privacy presence check
+      const hideOnline = localStorage.getItem('orbitus_pref_online') === 'false';
+      if (!hideOnline) {
+        socketConn.emit('setup_user', user._id);
+      }
 
       // Listen to real-time message streams
       socketConn.on('receive_private_message', (message) => {
+        playNotificationChime();
         if (message.chatRoomId === currentRoomIdRef.current) {
           dispatch(addMessage(message));
           
@@ -77,6 +107,10 @@ export const SocketProvider = ({ children }) => {
         }
       });
 
+      socketConn.on('message_reaction_updated', (payload) => {
+        dispatch(updateMessageReactions(payload));
+      });
+
       socketConn.on('points_awarded', (payload) => {
         if (payload?.totalPoints !== undefined) {
           dispatch(updateProfileSuccess({ ...userRef.current, points: payload.totalPoints }));
@@ -90,6 +124,7 @@ export const SocketProvider = ({ children }) => {
         if (!recipientId || recipientId.toString() !== userRef.current?._id?.toString()) return;
         if (senderId && senderId.toString() === userRef.current?._id?.toString()) return;
 
+        playNotificationChime();
         setNotifications((prev) => [notification, ...prev]);
         fetchNotificationSummary();
         fetchActiveChats();

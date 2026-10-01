@@ -156,6 +156,19 @@ const userSchema = new mongoose.Schema({
   dailyLoginTracker: {
     type: Date,
     default: null
+  },
+  coverImage: {
+    type: String,
+    default: ''
+  },
+  customAiKey: {
+    type: String,
+    default: ''
+  },
+  customAiProvider: {
+    type: String,
+    enum: ['gemini', 'openai', 'groq', 'claude', 'default'],
+    default: 'default'
   }
 }, {
   timestamps: true

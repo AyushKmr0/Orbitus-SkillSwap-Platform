@@ -5,10 +5,11 @@ import Notification from '../models/Notification.js';
 import Badge from '../models/Badge.js';
 import Certificate from '../models/Certificate.js';
 import QRCode from 'qrcode';
-
-const JOIN_WINDOW_BEFORE_MINUTES = Number(process.env.SESSION_JOIN_WINDOW_BEFORE_MINUTES) || 5;
-const MIN_ATTENDANCE_MINUTES = Number(process.env.SESSION_MIN_ATTENDANCE_MINUTES) || 45;
-const MIN_ATTENDANCE_RATIO = Number(process.env.SESSION_MIN_ATTENDANCE_RATIO) || 0.75;
+import {
+  asyncHandler,
+  ApiError,
+  ApiResponse
+} from '../utils/index.js';
 
 const getPublicBaseUrl = (req) => (
   process.env.PUBLIC_BACKEND_URL ||
@@ -16,79 +17,7 @@ const getPublicBaseUrl = (req) => (
   `${req.protocol}://${req.get('host')}`
 ).replace(/\/$/, '');
 
-const getScheduledDurationMinutes = (session) => Math.max(
-  0,
-  Math.round((new Date(session.endTime) - new Date(session.startTime)) / 60000)
-);
-
 const getDocumentId = (value) => (value?._id || value)?.toString();
-
-const getJoinWindowState = (session, now = new Date()) => {
-  const startAt = new Date(session.startTime);
-  const endAt = new Date(session.endTime);
-  const opensAt = new Date(startAt.getTime() - JOIN_WINDOW_BEFORE_MINUTES * 60 * 1000);
-
-  if (now < opensAt) {
-    return { state: 'Upcoming', canJoin: false, opensAt, startAt, endAt };
-  }
-
-  if (now > endAt) {
-    return { state: 'Session Ended', canJoin: false, opensAt, startAt, endAt };
-  }
-
-  return { state: 'Join Available', canJoin: true, opensAt, startAt, endAt };
-};
-
-const calculateAttendanceMinutes = (session) => {
-  if (!Array.isArray(session.attendance)) return 0;
-
-  const sessionStart = new Date(session.startTime).getTime();
-  const sessionEnd = new Date(session.endTime).getTime();
-  const intervalsByRole = session.attendance.reduce((totals, item) => {
-    if (!item.joinedAt || !item.leftAt || !item.role) return totals;
-
-    const start = Math.max(new Date(item.joinedAt).getTime(), sessionStart);
-    const end = Math.min(new Date(item.leftAt).getTime(), sessionEnd);
-    if (end <= start) return totals;
-
-    totals[item.role] ||= [];
-    totals[item.role].push([start, end]);
-    return totals;
-  }, {});
-
-  const sumMergedMinutes = (intervals = []) => {
-    if (intervals.length === 0) return 0;
-
-    const sorted = [...intervals].sort((a, b) => a[0] - b[0]);
-    const merged = [];
-
-    sorted.forEach(([start, end]) => {
-      const last = merged[merged.length - 1];
-      if (!last || start > last[1]) {
-        merged.push([start, end]);
-      } else {
-        last[1] = Math.max(last[1], end);
-      }
-    });
-
-    return merged.reduce((total, [start, end]) => (
-      total + Math.max(0, Math.round((end - start) / 60000))
-    ), 0);
-  };
-
-  const mentorMinutes = sumMergedMinutes(intervalsByRole.mentor);
-  const learnerMinutes = sumMergedMinutes(intervalsByRole.learner);
-  if (!mentorMinutes || !learnerMinutes) {
-    return 0;
-  }
-
-  return Math.min(mentorMinutes, learnerMinutes, getScheduledDurationMinutes(session));
-};
-
-const getCompletionThresholdMinutes = (session) => {
-  const scheduledDuration = getScheduledDurationMinutes(session);
-  return Math.min(MIN_ATTENDANCE_MINUTES, Math.ceil(scheduledDuration * MIN_ATTENDANCE_RATIO));
-};
 
 const awardMentorBadges = async (mentorId, points) => {
   const completedMentorSessions = await Session.countDocuments({
@@ -103,7 +32,7 @@ const awardMentorBadges = async (mentorId, points) => {
   if (completedMentorSessions >= 10) badgeNames.push('Master Mentor');
   if (points >= 300) badgeNames.push('Top Contributor');
 
-  await Promise.all(badgeNames.map(name => Badge.findOneAndUpdate(
+  await Promise.all(badgeNames.map((name) => Badge.findOneAndUpdate(
     { user: mentorId, name },
     { $setOnInsert: { user: mentorId, name, unlockedAt: new Date() } },
     { upsert: true }
@@ -111,407 +40,344 @@ const awardMentorBadges = async (mentorId, points) => {
 };
 
 const issueCertificate = async (session, req) => {
+  const skillId = session.skill?._id || session.skill;
+  if (!skillId) return null;
+
   const existing = await Certificate.findOne({
     recipient: session.learner._id,
-    skill: session.skill._id
+    skill: skillId
   });
   if (existing) return existing;
 
-  const uniqueId = `ORBITUS-${session.skill._id.toString().slice(-6).toUpperCase()}-${session.learner._id.toString().slice(-6).toUpperCase()}-${Date.now()}`;
+  const uniqueId = `ORBITUS-${skillId.toString().slice(-6).toUpperCase()}-${session.learner._id.toString().slice(-6).toUpperCase()}-${Date.now()}`;
   const verifyUrl = `${getPublicBaseUrl(req)}/api/certificates/verify/${uniqueId}`;
   const verificationQrCode = await QRCode.toDataURL(verifyUrl);
 
   return Certificate.create({
     recipient: session.learner._id,
-    skill: session.skill._id,
+    skill: skillId,
     uniqueId,
     verificationQrCode
   });
 };
 
-// @desc    Book a new learning session
-// @route   POST /api/sessions/book
-// @access  Private
-export const bookSession = async (req, res) => {
-  const { mentorId, skillId, startTime, endTime, notes } = req.body;
+export const bookSession = asyncHandler(async (req, res) => {
+  const {
+    mentorId,
+    skillId,
+    topic,
+    startTime,
+    endTime,
+    notes,
+    meetingLink,
+    meetingLinkProvider,
+    meetingLinkSharedBy
+  } = req.body;
 
-  try {
-    if (!mentorId || !skillId || !startTime || !endTime) {
-      return res.status(400).json({ success: false, message: 'Please provide all required parameters' });
+  if (!mentorId || !startTime || !endTime) {
+    throw new ApiError(400, 'Please provide mentor, start time, and end time');
+  }
+
+  const mentor = await User.findById(mentorId);
+  if (!mentor) {
+    throw new ApiError(404, 'Mentor not found');
+  }
+
+  const hasLink = Boolean(meetingLink && meetingLink.trim());
+
+  const sessionData = {
+    mentor: mentorId,
+    learner: req.user._id,
+    topic: (topic && topic.trim()) || 'Skill Exchange Session',
+    startTime,
+    endTime,
+    status: 'Pending',
+    notes: notes || '',
+    meetingLink: hasLink ? meetingLink.trim() : '',
+    meetingLinkProvider: meetingLinkProvider || 'Google Meet',
+    meetingLinkSharedBy: meetingLinkSharedBy || 'either',
+    meetingLinkAddedBy: hasLink ? req.user._id : undefined,
+    meetingLinkAddedAt: hasLink ? new Date() : undefined
+  };
+
+  if (skillId) {
+    sessionData.skill = skillId;
+  }
+
+  const session = await Session.create(sessionData);
+
+  await Notification.create({
+    recipient: mentorId,
+    sender: req.user._id,
+    type: 'SessionBooked',
+    content: `${req.user.name} has requested a study session: "${sessionData.topic}" on ${new Date(startTime).toLocaleDateString()}.`,
+    link: '/bookings'
+  });
+
+  return res.status(201).json(
+    new ApiResponse(201, { session }, 'Session booking requested successfully!')
+  );
+});
+
+export const updateMeetingLink = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { meetingLink, meetingLinkProvider } = req.body;
+
+  if (!meetingLink || !meetingLink.trim()) {
+    throw new ApiError(400, 'Meeting link cannot be empty');
+  }
+
+  const session = await Session.findById(id).populate('mentor learner skill');
+  if (!session) {
+    throw new ApiError(404, 'Session not found');
+  }
+
+  const mentorId = getDocumentId(session.mentor);
+  const learnerId = getDocumentId(session.learner);
+  const currentUserId = req.user._id.toString();
+  const isMentor = mentorId === currentUserId;
+  const isLearner = learnerId === currentUserId;
+
+  if (!isMentor && !isLearner) {
+    throw new ApiError(403, 'Not authorized to modify this session');
+  }
+
+  if (session.meetingLinkSharedBy === 'mentor' && !isMentor) {
+    throw new ApiError(403, 'This session is configured for the mentor to share the video call link.');
+  }
+  if (session.meetingLinkSharedBy === 'learner' && !isLearner) {
+    throw new ApiError(403, 'This session is configured for the learner to share the video call link.');
+  }
+
+  session.meetingLink = meetingLink.trim();
+  if (meetingLinkProvider) {
+    session.meetingLinkProvider = meetingLinkProvider;
+  }
+  session.meetingLinkAddedBy = req.user._id;
+  session.meetingLinkAddedAt = new Date();
+  await session.save();
+
+  const recipientId = isMentor ? session.learner._id : session.mentor._id;
+  await Notification.create({
+    recipient: recipientId,
+    sender: req.user._id,
+    type: 'SessionBooked',
+    content: `${req.user.name} added the video call link (${session.meetingLinkProvider}) for your session.`,
+    link: '/bookings'
+  });
+
+  return res.status(200).json(
+    new ApiResponse(200, { session }, 'Meeting link updated successfully!')
+  );
+});
+
+export const startSession = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const session = await Session.findById(id).populate('mentor learner');
+  if (!session) {
+    throw new ApiError(404, 'Session not found');
+  }
+
+  const mentorId = getDocumentId(session.mentor);
+  const learnerId = getDocumentId(session.learner);
+  const currentUserId = req.user._id.toString();
+
+  if (mentorId !== currentUserId && learnerId !== currentUserId) {
+    throw new ApiError(403, 'Not authorized');
+  }
+
+  if (!session.sessionStartedAt) {
+    session.sessionStartedAt = new Date();
+    await session.save();
+  }
+
+  return res.status(200).json(
+    new ApiResponse(200, { sessionStartedAt: session.sessionStartedAt }, 'Session timer started')
+  );
+});
+
+export const endSession = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const session = await Session.findById(id).populate('mentor learner');
+  if (!session) {
+    throw new ApiError(404, 'Session not found');
+  }
+
+  const mentorId = getDocumentId(session.mentor);
+  const learnerId = getDocumentId(session.learner);
+  const currentUserId = req.user._id.toString();
+
+  if (mentorId !== currentUserId && learnerId !== currentUserId) {
+    throw new ApiError(403, 'Not authorized');
+  }
+
+  const now = new Date();
+  session.sessionEndedAt = now;
+
+  if (session.sessionStartedAt) {
+    session.actualDurationMinutes = Math.max(1, Math.round((now - new Date(session.sessionStartedAt)) / 60000));
+  } else {
+    const scheduledMinutes = Math.max(0, Math.round((new Date(session.endTime) - new Date(session.startTime)) / 60000));
+    session.actualDurationMinutes = scheduledMinutes;
+  }
+
+  await session.save();
+
+  return res.status(200).json(
+    new ApiResponse(200, { session }, `Session ended. Total duration: ${session.actualDurationMinutes} minutes.`)
+  );
+});
+
+export const respondToSession = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status, startTime, endTime } = req.body;
+
+  const session = await Session.findById(id).populate('mentor learner skill');
+  if (!session) {
+    throw new ApiError(404, 'Session booking not found');
+  }
+
+  const mentorId = getDocumentId(session.mentor);
+  const learnerId = getDocumentId(session.learner);
+  const currentUserId = req.user._id.toString();
+  const isMentor = mentorId === currentUserId;
+  const isLearner = learnerId === currentUserId;
+
+  if (!isMentor && !isLearner) {
+    throw new ApiError(403, 'Not authorized to respond to this booking');
+  }
+
+  if (startTime || endTime) {
+    if (!startTime || !endTime) {
+      throw new ApiError(400, 'Changing time requires both start and end times');
+    }
+    session.startTime = startTime;
+    session.endTime = endTime;
+  }
+
+  if (status) {
+    session.status = status;
+    if (status === 'Accepted' && !session.acceptedAt) {
+      session.acceptedAt = new Date();
+    }
+  }
+
+  if (status === 'Completed') {
+    if (!isMentor) {
+      throw new ApiError(403, 'Only the mentor can mark this session as completed');
     }
 
-    const mentor = await User.findById(mentorId);
-    if (!mentor) {
-      return res.status(404).json({ success: false, message: 'Mentor not found' });
+    if (!session.sessionEndedAt) {
+      session.sessionEndedAt = new Date();
     }
 
-    const safeMentorName = mentor.name.replace(/[^a-z0-9]/gi, '');
-    const jitsiRoomId = `Orbitus-${safeMentorName}-${Date.now().toString(36)}-${Math.floor(100 + Math.random() * 900)}`;
+    // Calculate actual meeting duration from start/accept time to marked complete time
+    const startTimeRef = session.sessionStartedAt || session.acceptedAt || session.startTime || session.createdAt || new Date();
+    const computedDuration = Math.max(1, Math.round((new Date(session.sessionEndedAt) - new Date(startTimeRef)) / 60000));
+    session.actualDurationMinutes = computedDuration;
 
-    const session = await Session.create({
+    // Calculate dynamic karma points based on meeting duration (base 25 + 1.5 pts per min, capped at 200 pts)
+    const meetingPoints = Math.max(25, Math.min(200, Math.round(computedDuration * 1.5) || 50));
 
-      mentor: mentorId,
-      learner: req.user._id,
-      skill: skillId,
-      startTime,
-      endTime,
-      status: 'Pending',
-      jitsiRoomId,
-      notes: notes || ''
-    });
+    // Immediately remove meeting link upon completion
+    session.meetingLink = '';
+    session.meetingLinkProvider = '';
+    session.meetingLinkAddedBy = null;
 
-    // Create Notification for the mentor
+    const awardClaim = await Session.updateOne(
+      { _id: session._id, pointsAwarded: false },
+      {
+        $set: {
+          pointsAwarded: true,
+          status: 'Completed',
+          actualDurationMinutes: session.actualDurationMinutes,
+          sessionEndedAt: session.sessionEndedAt,
+          meetingLink: '',
+          meetingLinkProvider: '',
+          meetingLinkAddedBy: null
+        }
+      }
+    );
+
+    if (awardClaim.modifiedCount > 0) {
+      const mentor = await User.findById(session.mentor._id);
+      mentor.points = (mentor.points || 0) + meetingPoints;
+      await mentor.save();
+
+      await Leaderboard.findOneAndUpdate(
+        { user: mentor._id },
+        { $inc: { points: meetingPoints } },
+        { upsert: true }
+      );
+      session.pointsAwarded = true;
+      await awardMentorBadges(mentor._id, mentor.points);
+
+      // Award learner attendance & learning points
+      const learnerPoints = Math.max(10, Math.round(meetingPoints * 0.5));
+      const learnerUser = await User.findById(session.learner._id);
+      if (learnerUser) {
+        learnerUser.points = (learnerUser.points || 0) + learnerPoints;
+        await learnerUser.save();
+        await Leaderboard.findOneAndUpdate(
+          { user: learnerUser._id },
+          { $inc: { points: learnerPoints } },
+          { upsert: true }
+        );
+      }
+    }
+
+    session.pointsAwarded = true;
+    await session.save();
+
+    const certificate = await issueCertificate(session, req);
+
     await Notification.create({
-      recipient: mentorId,
-      sender: req.user._id,
-      type: 'SessionBooked',
-      content: `${req.user.name} has requested a skill session on ${new Date(startTime).toLocaleDateString()}.`,
+      recipient: session.learner._id,
+      sender: session.mentor._id,
+      type: 'BadgeUnlocked',
+      content: `Your session with ${session.mentor.name} is complete! Duration: ${session.actualDurationMinutes} mins (+${meetingPoints} pts). Tap to leave a rating.`,
       link: '/bookings'
     });
 
-    res.status(201).json({ success: true, message: 'Session booking requested successfully!', session });
-  } catch (error) {
-    console.error('Book Session Error:', error.message);
-    res.status(500).json({ success: false, message: 'Server error booking learning session' });
-  }
-};
-
-// @desc    Respond to a booking request (Accept/Reject/Complete)
-// @route   PUT /api/sessions/:id/respond
-// @access  Private
-export const respondToSession = async (req, res) => {
-  const { id } = req.params;
-  const { status, startTime, endTime } = req.body; // Status: Accepted, Rejected, Rescheduled, Completed, Cancelled
-
-  try {
-    const session = await Session.findById(id).populate('mentor learner skill');
-    if (!session) {
-      return res.status(404).json({ success: false, message: 'Session booking not found' });
-    }
-
-    // Authorization checks: Only mentor or learner can modify
-    const mentorId = getDocumentId(session.mentor);
-    const learnerId = getDocumentId(session.learner);
-    const currentUserId = req.user._id.toString();
-    const isMentor = mentorId === currentUserId;
-    const isLearner = learnerId === currentUserId;
-
-    if (!isMentor && !isLearner) {
-      return res.status(403).json({ success: false, message: 'Not authorized to respond to this booking' });
-    }
-
-    if (startTime || endTime) {
-      if (!startTime || !endTime) {
-        return res.status(400).json({ success: false, message: 'Changing time requires both start and end times' });
-      }
-      session.startTime = startTime;
-      session.endTime = endTime;
-    }
-
-    if (status === 'Rescheduled') {
-      session.status = 'Rescheduled';
-    } else {
-      session.status = status;
-    }
-
-    const durationMinutes = Math.max(0, Math.round((new Date(session.endTime) - new Date(session.startTime)) / 60000));
-
-    // Gamification Points award: completed sessions of at least 60 minutes award +50 pts to mentor
-    if (status === 'Completed') {
-      if (!isMentor) {
-        return res.status(403).json({ success: false, message: 'Only the mentor can mark this session complete' });
-      }
-
-      const actualDurationMinutes = calculateAttendanceMinutes(session);
-      const requiredAttendanceMinutes = getCompletionThresholdMinutes(session);
-
-      if (durationMinutes < 60) {
-        return res.status(400).json({
-          success: false,
-          message: 'Session must be at least 60 minutes to mark complete and award points.'
-        });
-      }
-
-      if (actualDurationMinutes < requiredAttendanceMinutes) {
-        return res.status(400).json({
-          success: false,
-          message: `Session needs at least ${requiredAttendanceMinutes} minutes of actual attendance before completion. Current attendance: ${actualDurationMinutes} minutes.`
-        });
-      }
-
-      session.actualDurationMinutes = actualDurationMinutes;
-
-      const awardClaim = await Session.updateOne(
-        { _id: session._id, pointsAwarded: false },
-        {
-          $set: {
-            pointsAwarded: true,
-            actualDurationMinutes,
-            status: 'Completed'
-          }
-        }
-      );
-
-      if (awardClaim.modifiedCount > 0) {
-        const mentor = await User.findById(session.mentor._id);
-        mentor.points += 50;
-        await mentor.save();
-
-        await Leaderboard.findOneAndUpdate(
-          { user: mentor._id },
-          { $inc: { points: 50 } },
-          { upsert: true }
-        );
-        session.pointsAwarded = true;
-        await awardMentorBadges(mentor._id, mentor.points);
-      }
-
-      session.pointsAwarded = true;
-      await session.save();
-      const certificate = await issueCertificate(session, req);
-
-      // Create Notification for the learner prompting them to write a review
-      await Notification.create({
-        recipient: session.learner._id,
-        sender: session.mentor._id,
-        type: 'BadgeUnlocked', // Re-used for system achievement alerts
-        content: `Your session with ${session.mentor.name} is complete! Tap here to leave them a rating and review.`,
-        link: '/bookings'
-      });
-
+    if (certificate) {
       await Notification.create({
         recipient: session.learner._id,
         sender: session.mentor._id,
         type: 'CertificateGenerated',
-        content: `Your ${session.skill.name} certificate is ready. Certificate ID: ${certificate.uniqueId}`,
+        content: `Your verified certificate is ready! ID: ${certificate.uniqueId}`,
         link: '/dashboard'
       });
-    } else {
-      await session.save();
-
-      // Standard Response alerts
-      const recipient = isMentor ? session.learner._id : session.mentor._id;
-      await Notification.create({
-        recipient,
-        sender: req.user._id,
-        type: 'SessionBooked',
-        content: `${req.user.name} set the session status to: ${status}.`,
-        link: '/bookings'
-      });
     }
-
-    res.status(200).json({ success: true, message: `Session status updated to ${status}!`, session });
-  } catch (error) {
-    console.error('Session Response Error:', error.message);
-    res.status(500).json({ success: false, message: 'Server error responding to session booking' });
-  }
-};
-
-// @desc    Validate and start an accepted session call
-// @route   POST /api/sessions/:id/join
-// @access  Private
-export const joinSession = async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const session = await Session.findById(id).populate('mentor learner skill');
-    if (!session) {
-      return res.status(404).json({ success: false, message: 'Session booking not found' });
-    }
-
-    const mentorId = getDocumentId(session.mentor);
-    const learnerId = getDocumentId(session.learner);
-    const currentUserId = req.user._id.toString();
-    const isMentor = mentorId === currentUserId;
-    const isLearner = learnerId === currentUserId;
-
-    if (!isMentor && !isLearner) {
-      return res.status(403).json({ success: false, message: 'Not authorized to join this session' });
-    }
-
-    if (!['Accepted', 'Rescheduled'].includes(session.status)) {
-      return res.status(400).json({ success: false, message: 'Only accepted sessions can be joined' });
-    }
-
-    const joinWindow = getJoinWindowState(session);
-    if (!joinWindow.canJoin) {
-      return res.status(403).json({
-        success: false,
-        message: joinWindow.state === 'Upcoming'
-          ? `Join opens ${JOIN_WINDOW_BEFORE_MINUTES} minutes before the session starts.`
-          : 'This session has ended.',
-        joinWindow
-      });
-    }
-
-    const attendanceDebug = (session.attendance || []).map(item => ({
-      user: getDocumentId(item.user),
-      role: item.role,
-      joinedAt: item.joinedAt,
-      leftAt: item.leftAt,
-      isMentorUser: getDocumentId(item.user) === mentorId
-    }));
-    const mentorHasActiveAttendance = session.attendance?.some(item => {
-      if (item.leftAt) return false;
-      const attendeeId = getDocumentId(item.user);
-      return item.role === 'mentor' || attendeeId === mentorId;
-    });
-    const mentorStartedRoom = getDocumentId(session.roomStartedBy) === mentorId && Boolean(session.roomStartedAt);
-    const mentorHasActiveRoom = mentorHasActiveAttendance || mentorStartedRoom;
-
-    console.log('[SESSION JOIN DEBUG]', {
-      sessionId: session._id.toString(),
-      requesterId: currentUserId,
-      mentorId,
-      learnerId,
-      isMentor,
-      isLearner,
-      status: session.status,
-      room: session.jitsiRoomId,
-      roomStartedBy: getDocumentId(session.roomStartedBy),
-      roomStartedAt: session.roomStartedAt,
-      mentorHasActiveAttendance,
-      mentorStartedRoom,
-      mentorHasActiveRoom,
-      attendance: attendanceDebug
-    });
-
-    if (!isMentor && !mentorHasActiveRoom) {
-      return res.status(403).json({
-        success: false,
-        message: 'The mentor needs to start the room first so the session has a host.'
-      });
-    }
-
-    const now = new Date();
-    const role = isMentor ? 'mentor' : 'learner';
-    const openAttendance = session.attendance?.find(item => (
-      item.user.toString() === req.user._id.toString() && !item.leftAt
-    ));
-
-    if (!session.actualStartTime) {
-      session.actualStartTime = now;
-    }
-
-    if (isMentor && !session.roomStartedAt) {
-      session.roomStartedAt = now;
-      session.roomStartedBy = req.user._id;
-    }
-
-    if (!openAttendance) {
-      session.attendance.push({
-        user: req.user._id,
-        role,
-        joinedAt: now
-      });
-    } else if (!openAttendance.role) {
-      openAttendance.role = role;
-    }
-
+  } else {
     await session.save();
 
-    const displayName = `${req.user.name}${isMentor ? ' (Mentor)' : ''}`;
-    const jitsiUrl = `https://meet.jit.si/${encodeURIComponent(session.jitsiRoomId)}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(displayName)}"&userInfo.email="${encodeURIComponent(req.user.email || '')}"`;
-
-    console.log('[SESSION JOIN]', {
-      sessionId: session._id.toString(),
-      userId: req.user._id.toString(),
-      role,
-      room: session.jitsiRoomId,
-      joinedAt: now.toISOString()
+    const recipient = isMentor ? session.learner._id : session.mentor._id;
+    await Notification.create({
+      recipient,
+      sender: req.user._id,
+      type: 'SessionBooked',
+      content: `${req.user.name} set the session status to: ${status}.`,
+      link: '/bookings'
     });
-
-    res.status(200).json({
-      success: true,
-      roomId: session.jitsiRoomId,
-      jitsiUrl,
-      role,
-      isModeratorExpected: isMentor,
-      joinWindow,
-      message: isMentor
-        ? 'Mentor joined as expected host for this Orbitus room.'
-        : 'Learner joined the approved Orbitus room.'
-    });
-  } catch (error) {
-    console.error('Session Join Error:', error.message);
-    res.status(500).json({ success: false, message: 'Server error joining session' });
   }
-};
 
-// @desc    Record session leave event
-// @route   POST /api/sessions/:id/leave
-// @access  Private
-export const leaveSession = async (req, res) => {
-  const { id } = req.params;
+  return res.status(200).json(
+    new ApiResponse(200, { session }, `Session status updated to ${status}!`)
+  );
+});
 
-  try {
-    const session = await Session.findById(id);
-    if (!session) {
-      return res.status(404).json({ success: false, message: 'Session booking not found' });
-    }
+export const getSessionHistory = asyncHandler(async (req, res) => {
+  const sessions = await Session.find({
+    $or: [{ mentor: req.user._id }, { learner: req.user._id }]
+  })
+    .populate('mentor learner', 'name username profileImage bio experienceLevel points')
+    .populate('skill', 'name category')
+    .populate('meetingLinkAddedBy', 'name username')
+    .sort({ startTime: -1 });
 
-    const isParticipant = [session.mentor.toString(), session.learner.toString()]
-      .includes(req.user._id.toString());
-
-    if (!isParticipant) {
-      return res.status(403).json({ success: false, message: 'Not authorized to leave this session' });
-    }
-
-    const now = new Date();
-    const openAttendance = session.attendance?.slice().reverse().find(item => (
-      item.user.toString() === req.user._id.toString() && !item.leftAt
-    ));
-
-    if (openAttendance) {
-      openAttendance.leftAt = now;
-      openAttendance.durationMinutes = Math.max(
-        0,
-        Math.round((now - new Date(openAttendance.joinedAt)) / 60000)
-      );
-    }
-
-    session.actualEndTime = now;
-    session.actualDurationMinutes = calculateAttendanceMinutes(session);
-    await session.save();
-
-    console.log('[SESSION LEAVE]', {
-      sessionId: session._id.toString(),
-      userId: req.user._id.toString(),
-      actualDurationMinutes: session.actualDurationMinutes
-    });
-
-    res.status(200).json({
-      success: true,
-      actualDurationMinutes: session.actualDurationMinutes
-    });
-  } catch (error) {
-    console.error('Session Leave Error:', error.message);
-    res.status(500).json({ success: false, message: 'Server error recording session attendance' });
-  }
-};
-
-// @desc    Get session booking history for current user (both as mentor and learner)
-// @route   GET /api/sessions/history
-// @access  Private
-export const getSessionHistory = async (req, res) => {
-  try {
-    const sessions = await Session.find({
-      $or: [{ mentor: req.user._id }, { learner: req.user._id }]
-    })
-      .populate('mentor learner', 'name profileImage bio experienceLevel points')
-      .populate('skill', 'name category')
-      .sort({ startTime: -1 });
-
-    const sessionsWithJoinState = sessions.map((session) => {
-      const obj = session.toObject();
-      obj.joinWindow = getJoinWindowState(session);
-      obj.completionThresholdMinutes = getCompletionThresholdMinutes(session);
-      return obj;
-    });
-
-    res.status(200).json({ success: true, sessions: sessionsWithJoinState });
-  } catch (error) {
-    console.error('Fetch Session History Error:', error.message);
-    res.status(500).json({ success: false, message: 'Server error fetching session logs' });
-  }
-};
+  return res.status(200).json(
+    new ApiResponse(200, { sessions }, 'Session history retrieved')
+  );
+});

@@ -49,10 +49,24 @@ const messageSchema = new mongoose.Schema({
     type: String,
     required: true,
     index: true
-  }
+  },
+  reactions: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    emoji: {
+      type: String,
+      required: true
+    }
+  }]
 }, {
   timestamps: true
 });
+
+messageSchema.index({ chatRoomId: 1, createdAt: -1 });
+messageSchema.index({ recipient: 1, isSeen: 1 });
+messageSchema.index({ sender: 1, recipient: 1, createdAt: -1 });
 
 const Message = mongoose.model('Message', messageSchema);
 export default Message;

@@ -4,9 +4,8 @@ import {
   generateRoadmap,
   updateRoadmap,
   deleteRoadmap,
-  generateResume,
-  startMockInterview,
-  evaluateInterview
+  getCustomAiKeyStatus,
+  saveCustomAiKey
 } from '../controllers/aiController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 
@@ -18,8 +17,9 @@ router.get('/match', getAiMatches);
 router.post('/roadmap', generateRoadmap);
 router.put('/roadmap/:id', updateRoadmap);
 router.delete('/roadmap/:id', deleteRoadmap);
-router.post('/resume', generateResume);
-router.post('/mock-interview/start', startMockInterview);
-router.post('/mock-interview/evaluate', evaluateInterview);
+
+// Personal AI connection routes
+router.get('/custom-key', getCustomAiKeyStatus);
+router.put('/custom-key', saveCustomAiKey);
 
 export default router;
