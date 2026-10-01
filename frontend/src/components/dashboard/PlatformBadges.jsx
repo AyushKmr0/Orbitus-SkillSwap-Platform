@@ -451,74 +451,75 @@ export const PlatformBadges = ({ user, badges = [], badgeProgress = [], onlyUnlo
       {selectedBadge && (
         <div
           role="dialog"
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-md animate-fade-in overflow-y-auto"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto"
           onClick={() => setSelectedBadge(null)}
         >
           <div
-            className="w-full max-w-lg sm:max-w-xl max-h-[90vh] overflow-y-auto bg-white dark:bg-[#161b22] border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-8 shadow-2xl text-app space-y-4 sm:space-y-6 relative scrollbar-none"
+            className="w-full max-w-md sm:max-w-lg bg-white dark:bg-[#161b22] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xl text-app relative overflow-hidden space-y-4 sm:space-y-5"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Background Ambient Glow inside Modal */}
-            <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-amber-500/20 blur-[90px] pointer-events-none" />
-            <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full bg-indigo-500/20 blur-[90px] pointer-events-none" />
-
             {/* Modal Header */}
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/80 pb-3 sm:pb-4 sticky top-0 bg-white/95 dark:bg-[#161b22]/95 backdrop-blur-sm z-10 -mx-4 -mt-4 px-4 pt-4 sm:-mx-8 sm:-mt-8 sm:px-8 sm:pt-8">
-              <div className="flex items-center gap-2">
-                <Award size={20} className="text-amber-500 shrink-0" />
-                <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-app font-outfit">
-                  Badge Detail
-                </span>
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-500">
+                  <Award size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-outfit">
+                    Badge Details
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-400">
+                    Platform Achievement & Progress
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedBadge(null)}
-                className="text-slate-400 hover:text-app p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
-            {/* Centered Large Levitating Emblem Showcase Frame */}
-            <div className="flex flex-col items-center justify-center p-4 sm:p-8 rounded-2xl sm:rounded-3xl bg-slate-50/80 dark:bg-[#0d1117]/80 border border-slate-200/90 dark:border-slate-800 relative">
-              <div className="relative w-28 h-28 sm:w-44 sm:h-44 flex items-center justify-center animate-badge-float filter drop-shadow-[0_15px_30px_rgba(245,158,11,0.5)] grayscale-0 opacity-100">
-                {/* Multi-Stop Ambient Light Aura */}
-                <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-amber-400/40 via-purple-500/30 to-blue-500/30 blur-2xl animate-neon-pulse -z-10" />
+            {/* Emblem & Info Box */}
+            <div className="flex flex-col items-center justify-center p-5 sm:p-6 rounded-2xl bg-slate-50/80 dark:bg-[#0d1117]/80 border border-slate-200/80 dark:border-slate-800/80 text-center">
+              <div className="relative w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center filter drop-shadow-sm">
                 {selectedBadge.icon}
               </div>
 
-              {/* Title & Category Info Below Frame */}
-              <div className="text-center mt-3 sm:mt-5 space-y-1.5 sm:space-y-2 max-w-md">
+              {/* Title & Tier Badge */}
+              <div className="mt-3.5 space-y-1.5 max-w-sm">
                 <div className="flex items-center justify-center gap-2 flex-wrap">
-                  <h3 className="text-xl sm:text-3xl font-black text-app font-outfit tracking-tight">
+                  <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-outfit">
                     {selectedBadge.title}
-                  </h3>
+                  </h4>
                   {selectedBadge.tier && (
-                    <span className={`text-[10px] sm:text-xs font-black px-2.5 py-0.5 rounded-lg shadow-xs ${selectedBadge.tierColor}`}>
+                    <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${selectedBadge.tierColor}`}>
                       {selectedBadge.tier}
                     </span>
                   )}
                 </div>
 
-                <p className="text-xs sm:text-sm font-bold text-indigo-500 dark:text-indigo-400">
+                <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
                   {selectedBadge.badgeType}
                 </p>
 
-                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-normal pt-1">
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed pt-1">
                   {selectedBadge.description}
                 </p>
               </div>
             </div>
 
-            {/* Criteria & Unlock Requirement Box */}
-            <div className="p-3.5 sm:p-5 bg-slate-50/90 dark:bg-[#0d1117]/90 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs sm:text-sm space-y-2.5">
+            {/* Unlock Requirements & Status Card */}
+            <div className="p-4 bg-slate-50/90 dark:bg-[#0d1117]/90 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl text-xs space-y-2.5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <span className="text-slate-400 font-medium">Unlock Criterion:</span>
-                <span className="font-extrabold text-app">{selectedBadge.criteria}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 text-right">{selectedBadge.criteria}</span>
               </div>
-              <div className="flex items-center justify-between border-t border-slate-200/80 dark:border-slate-800/80 pt-2.5">
+              <div className="flex items-center justify-between border-t border-slate-200/70 dark:border-slate-800/70 pt-2.5">
                 <span className="text-slate-400 font-medium">Verification Status:</span>
-                <span className={`font-extrabold flex items-center gap-1.5 ${selectedBadge.unlocked ? 'text-emerald-500' : 'text-amber-500'}`}>
+                <span className={`font-bold flex items-center gap-1.5 ${selectedBadge.unlocked ? 'text-emerald-500' : 'text-amber-500'}`}>
                   {selectedBadge.unlocked ? (
                     <>
                       <ShieldCheck size={16} /> Verified & Unlocked
@@ -530,11 +531,11 @@ export const PlatformBadges = ({ user, badges = [], badgeProgress = [], onlyUnlo
               </div>
             </div>
 
-            {/* Action Button */}
+            {/* Done Action Button */}
             <button
               type="button"
               onClick={() => setSelectedBadge(null)}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-extrabold rounded-2xl transition-all shadow-md active:scale-98 cursor-pointer"
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-extrabold rounded-xl transition-all shadow-sm cursor-pointer"
             >
               Done
             </button>
