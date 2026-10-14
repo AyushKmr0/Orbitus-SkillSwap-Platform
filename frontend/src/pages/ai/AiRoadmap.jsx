@@ -1,15 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
 import { motion } from 'framer-motion';
-import { ScrollReveal, TiltCard, MorphingBlob } from '../../components/motion/index.js';
+import MorphingBlob from '../../components/motion/MorphingBlob.jsx';
 import {
   Map,
   Compass,
-  ArrowRight,
   CheckCircle,
-  Clock,
   BookOpen,
   Sparkles,
   Trash2,
@@ -22,22 +19,15 @@ import {
   Check,
   ChevronRight,
   ChevronLeft,
-  Share2,
   BookMarked,
   Key,
-  Cpu,
   X,
   ShieldCheck,
   Bot,
   Zap,
-  Globe,
   Settings,
-  ArrowLeft,
   Trophy,
-  Award,
   CheckSquare,
-  Square,
-  Flame,
   CircleDot
 } from 'lucide-react';
 
@@ -91,7 +81,6 @@ const ZOOM_LEVELS = [0.7, 0.85, 1, 1.15];
 
 const AiRoadmap = () => {
   const { token } = useSelector((state) => state.auth);
-  const navigate = useNavigate();
 
   const [topicInput, setTopicInput] = useState('');
   const [activeRoadmap, setActiveRoadmap] = useState(null);
@@ -134,19 +123,16 @@ const AiRoadmap = () => {
       const next = { ...prev, [key]: !prev[key] };
       try {
         localStorage.setItem('orbitus_roadmap_tasks', JSON.stringify(next));
-      } catch {}
+      } catch (err) {
+        console.warn('Storage save notice:', err);
+      }
       return next;
     });
   };
 
   const mindMapContainerRef = useRef(null);
 
-  useEffect(() => {
-    fetchRoadmapsList();
-    fetchCustomKeyStatus();
-  }, [token]);
-
-  const fetchCustomKeyStatus = async () => {
+  const fetchCustomKeyStatus = useCallback(async () => {
     try {
       const res = await apiClient.get('/api/ai/custom-key');
       const isCustom = Boolean(res.data.hasCustomKey);
@@ -159,7 +145,26 @@ const AiRoadmap = () => {
     } catch (err) {
       console.error('Error fetching custom key status:', err);
     }
-  };
+  }, []);
+
+  const fetchRoadmapsList = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/api/dashboard/user');
+      const payload = res.data?.data || res.data || {};
+      const list = Array.isArray(payload.roadmaps)
+        ? payload.roadmaps
+        : (Array.isArray(payload.recentRoadmaps) ? payload.recentRoadmaps : []);
+      setRoadmapsList(list);
+      setActiveRoadmap((prev) => (list.length > 0 && !prev ? list[list.length - 1] : prev));
+    } catch (err) {
+      console.error('Error fetching roadmaps:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRoadmapsList();
+    fetchCustomKeyStatus();
+  }, [token, fetchRoadmapsList, fetchCustomKeyStatus]);
 
   const handleSaveCustomKey = async (e) => {
     e.preventDefault();
@@ -207,19 +212,6 @@ const AiRoadmap = () => {
     }
   };
 
-  const fetchRoadmapsList = async () => {
-    try {
-      const res = await apiClient.get('/api/dashboard/user');
-      const list = res.data.roadmaps || [];
-      setRoadmapsList(list);
-      if (list.length > 0 && !activeRoadmap) {
-        setActiveRoadmap(list[list.length - 1]);
-      }
-    } catch (err) {
-      console.error('Error fetching roadmaps:', err);
-    }
-  };
-
   const handleGenerateRoadmap = async (e, customTopic) => {
     if (e) e.preventDefault();
     const query = (customTopic || topicInput).trim();
@@ -231,7 +223,11 @@ const AiRoadmap = () => {
 
     try {
       const res = await apiClient.post('/api/ai/roadmap', { topic: query });
-      setActiveRoadmap(res.data.roadmap);
+      const payload = res.data?.data || res.data || {};
+      const generated = payload.roadmap || res.data?.roadmap;
+      if (generated) {
+        setActiveRoadmap(generated);
+      }
       setSelectedNodeIndex(0);
       setTopicInput('');
       fetchRoadmapsList();
@@ -305,7 +301,7 @@ const AiRoadmap = () => {
   const activeEngineObj = AI_PROVIDERS.find((p) => p.id === activeAiProvider);
 
   return (
-    <div className="page-shell flex-1 p-4 sm:p-6 lg:p-8 space-y-6 min-h-screen text-app overflow-y-auto relative">
+    <div className="page-shell flex-1 p-4 sm:p-6 lg:p-8 space-y-6 text-app overflow-y-auto relative">
       {/* Ambient Morphing Blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <MorphingBlob size={340} color="rgba(99, 102, 241, 0.07)" className="-top-24 -left-16" />

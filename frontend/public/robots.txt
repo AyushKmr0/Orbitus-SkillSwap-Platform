@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+Allow: /explore
+Allow: /login
+Allow: /register
+
+# Private and authenticated routes
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /admin-panel
+Disallow: /admin-portal
+Disallow: /chat
+Disallow: /settings
+Disallow: /bookings
+Disallow: /notifications
+Disallow: /api/
+
+Sitemap: https://orbitus-skill-swap-platform.vercel.app/sitemap.xml

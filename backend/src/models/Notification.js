@@ -14,7 +14,7 @@ const notificationSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['NewMessage', 'SessionBooked', 'SessionReminder', 'MatchRequest', 'BadgeUnlocked', 'CertificateGenerated', 'Follow', 'PostLike', 'PostComment']
+    enum: ['NewMessage', 'SessionBooked', 'SessionReminder', 'MatchRequest', 'BadgeUnlocked', 'CertificateGenerated', 'Follow', 'PostLike', 'PostComment', 'FeedbackSubmitted', 'FeedbackResponse']
   },
   content: {
     type: String,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link, useLocation } from 'react-router-dom';
 import { setActiveChats, setCurrentRoom, setMessages, removeMessageForMe, chatStart, chatFailure } from '../../features/chatSlice.js';
@@ -21,8 +21,7 @@ import {
   X,
   CheckSquare,
   Ban,
-  Plus,
-  MessageSquare
+  Plus
 } from 'lucide-react';
 
 const ChatRoom = () => {
@@ -72,9 +71,71 @@ const ChatRoom = () => {
   const imageInputRef = useRef(null);
   const documentInputRef = useRef(null);
 
+  const fetchActiveChats = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/api/messages/active');
+      const payload = res.data?.data || res.data || {};
+      const serverChats = payload.chats || res.data?.chats || [];
+      const safeChats = Array.isArray(serverChats) ? serverChats : [];
+      const hasSelectedDraft = currentRoomId && chatPartner && !safeChats.some(chat => chat.chatRoomId === currentRoomId);
+      dispatch(setActiveChats(hasSelectedDraft ? [
+        {
+          partner: chatPartner,
+          chatRoomId: currentRoomId,
+          lastMessage: {
+            content: 'Start the conversation',
+            fileType: 'none',
+            isSeen: true,
+            sender: user?._id,
+            createdAt: new Date().toISOString()
+          }
+        },
+        ...safeChats
+      ] : safeChats));
+    } catch (err) {
+      console.error('Error loading active chat partners:', err);
+    }
+  }, [currentRoomId, chatPartner, dispatch, user?._id]);
+
+  const fetchBlockedUsers = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/api/messages/blocked');
+      const payload = res.data?.data || res.data || {};
+      const list = payload.blockedUsers || res.data?.blockedUsers || [];
+      setBlockedUsers(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error('Error loading blocked chat users:', err);
+      setBlockedUsers([]);
+    }
+  }, []);
+
+  const fetchMessageLogs = useCallback(async (roomId) => {
+    dispatch(chatStart());
+    try {
+      const res = await apiClient.get(`/api/messages/${roomId}`);
+      const payload = res.data?.data || res.data || {};
+      const msgs = payload.messages || res.data?.messages || [];
+      dispatch(setMessages(Array.isArray(msgs) ? msgs : []));
+    } catch (err) {
+      dispatch(chatFailure(err.response?.data?.message || 'Error loading messages'));
+    }
+  }, [dispatch]);
+
+  const markMessagesSeen = useCallback(async (roomId) => {
+    try {
+      await apiClient.put(`/api/messages/${roomId}/seen`, {});
+      if (socket) {
+        socket.emit('mark_seen', { chatRoomId: roomId, userId: user?._id });
+      }
+      fetchActiveChats();
+    } catch (err) {
+      console.error('Error updating seen ticks:', err);
+    }
+  }, [socket, user?._id, fetchActiveChats]);
+
   useEffect(() => {
     fetchActiveChats();
-  }, [token]);
+  }, [token, fetchActiveChats]);
 
   useEffect(() => {
     if (currentRoomId) {
@@ -85,7 +146,7 @@ const ChatRoom = () => {
         setMobileShowSidebar(false);
       }
     }
-  }, [currentRoomId, socket]);
+  }, [currentRoomId, socket, location.state?.directChat, fetchMessageLogs, markMessagesSeen]);
 
   useEffect(() => {
     scrollToBottom();
@@ -106,7 +167,6 @@ const ChatRoom = () => {
           fetchMessageLogs(chatRoomId);
         }
       });
-
     }
 
     return () => {
@@ -115,62 +175,7 @@ const ChatRoom = () => {
         socket.off('messages_marked_seen');
       }
     };
-  }, [socket, chatPartner, currentRoomId]);
-
-  const fetchActiveChats = async () => {
-    try {
-      const res = await apiClient.get('/api/messages/active');
-      const serverChats = res.data.chats || [];
-      const hasSelectedDraft = currentRoomId && chatPartner && !serverChats.some(chat => chat.chatRoomId === currentRoomId);
-      dispatch(setActiveChats(hasSelectedDraft ? [
-        {
-          partner: chatPartner,
-          chatRoomId: currentRoomId,
-          lastMessage: {
-            content: 'Start the conversation',
-            fileType: 'none',
-            isSeen: true,
-            sender: user._id,
-            createdAt: new Date().toISOString()
-          }
-        },
-        ...serverChats
-      ] : serverChats));
-    } catch (err) {
-      console.error('Error loading active chat partners:', err);
-    }
-  };
-
-  const fetchBlockedUsers = async () => {
-    try {
-      const res = await apiClient.get('/api/messages/blocked');
-      setBlockedUsers(res.data.blockedUsers || []);
-    } catch (err) {
-      console.error('Error loading blocked chat users:', err);
-    }
-  };
-
-  const fetchMessageLogs = async (roomId) => {
-    dispatch(chatStart());
-    try {
-      const res = await apiClient.get(`/api/messages/${roomId}`);
-      dispatch(setMessages(res.data.messages));
-    } catch (err) {
-      dispatch(chatFailure(err.response?.data?.message || 'Error loading messages'));
-    }
-  };
-
-  const markMessagesSeen = async (roomId) => {
-    try {
-      await apiClient.put(`/api/messages/${roomId}/seen`, {});
-      if (socket) {
-        socket.emit('mark_seen', { chatRoomId: roomId, userId: user._id });
-      }
-      fetchActiveChats();
-    } catch (err) {
-      console.error('Error updating seen ticks:', err);
-    }
-  };
+  }, [socket, chatPartner, currentRoomId, fetchMessageLogs]);
 
   const handleSendMessage = (e) => {
     e.preventDefault();
@@ -852,7 +857,7 @@ const ChatRoom = () => {
                             startReply(msg);
                           }
                         }}
-                        onClick={(e) => {
+                        onClick={() => {
                           if (selectionMode) {
                             toggleMessageSelection(msg._id);
                           }

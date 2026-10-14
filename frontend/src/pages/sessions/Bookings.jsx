@@ -9,18 +9,13 @@ import {
   Video,
   CheckCircle,
   XCircle,
-  AlertCircle,
   Star,
-  ExternalLink,
-  Copy,
-  Check,
-  Link as LinkIcon,
   Play,
   Square,
   PlusCircle,
-  X,
-  MessageSquare
+  X
 } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback, Badge } from '../../components/ui/index.js';
 
 const Bookings = () => {
   const { user, token } = useSelector((state) => state.auth);
@@ -29,7 +24,6 @@ const Bookings = () => {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
-  const [copiedId, setCopiedId] = useState(null);
 
   // Meeting Link Modal State
   const [activeLinkSession, setActiveLinkSession] = useState(null);
@@ -51,14 +45,17 @@ const Bookings = () => {
   useEffect(() => {
     fetchSessionLogs();
     markNotificationsRead({ link: '/bookings' });
-  }, [token]);
+  }, [token, markNotificationsRead]);
 
   const fetchSessionLogs = async () => {
     try {
       const res = await apiClient.get('/api/sessions/history');
-      setSessions(res.data.sessions || []);
+      const payload = res.data?.data || res.data || {};
+      const list = payload.sessions || res.data?.sessions || [];
+      setSessions(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error('Error loading session histories:', err);
+      setSessions([]);
     } finally {
       setLoading(false);
     }
@@ -135,13 +132,6 @@ const Bookings = () => {
     }
   };
 
-  const handleCopyLink = (link, id) => {
-    if (!link) return;
-    navigator.clipboard.writeText(link);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
     setReviewMsg('');
@@ -202,7 +192,7 @@ const Bookings = () => {
   }
 
   return (
-    <div className="page-shell space-y-6 overflow-y-auto pb-32 sm:pb-20 animate-fade-in">
+    <div className="page-shell space-y-6 overflow-y-auto animate-fade-in">
       {/* Header bar */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-[#22242a] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div>
@@ -266,11 +256,10 @@ const Bookings = () => {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <Link to={partnerProfileUrl} className="shrink-0 relative">
-                      <img
-                        src={partner.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(partner.name || 'User')}&background=6366f1&color=fff`}
-                        alt={partner.name}
-                        className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 object-cover border border-slate-200 dark:border-slate-700 shrink-0 group-hover:scale-105 transition-transform"
-                      />
+                      <Avatar className="w-12 h-12 rounded-full border border-slate-200 dark:border-slate-700 shrink-0 group-hover:scale-105 transition-transform">
+                        <AvatarImage src={partner.profileImage} alt={partner.name} />
+                        <AvatarFallback>{partner.name?.[0]}</AvatarFallback>
+                      </Avatar>
                       {hasStartedCall && (
                         <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white dark:border-[#181d26] animate-pulse" />
                       )}
@@ -284,9 +273,9 @@ const Bookings = () => {
                         >
                           {partner.name}
                         </Link>
-                        <span className="text-[9px] font-extrabold text-muted border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded-md uppercase">
+                        <Badge variant="secondary" className="text-[9px] font-extrabold uppercase px-2 py-0.5">
                           {isMentor ? 'Learner' : 'Mentor'}
-                        </span>
+                        </Badge>
                       </div>
                       <p className="text-xs text-indigo-500 dark:text-indigo-400 font-semibold mt-0.5 truncate">
                         {session.skill?.name || 'Skill Exchange'}
@@ -295,9 +284,9 @@ const Bookings = () => {
                   </div>
 
                   {/* Status Pill */}
-                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold border ${statusStyles} uppercase shrink-0`}>
+                  <Badge variant="outline" className={`px-2.5 py-1 text-[10px] font-extrabold border ${statusStyles} uppercase shrink-0`}>
                     {status}
-                  </span>
+                  </Badge>
                 </div>
 
                 {/* Topic & Notes Section */}

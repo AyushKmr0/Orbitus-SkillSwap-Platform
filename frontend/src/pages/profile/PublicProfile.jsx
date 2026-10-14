@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -15,35 +15,47 @@ import {
   UserMinus,
   UserPlus,
   Users,
-  Video,
   Pencil,
   Share2,
   Check,
-  Award,
   Sparkles,
-  ExternalLink,
   BookOpen,
-  Heart,
   MessageCircle,
-  Clock,
   X,
   Plus,
   Shield,
   CheckCircle,
   GraduationCap,
-  Upload,
   Camera,
   Image as ImageIcon,
   ArrowLeft,
-  User,
   Trash2,
   Loader2,
   Link2,
   ArrowRight
 } from 'lucide-react';
-import { ScrollReveal, TiltCard, MorphingBlob, TextReveal, MotionBadge } from '../../components/motion/index.js';
+import ScrollReveal from '../../components/motion/ScrollReveal.jsx';
+import TiltCard from '../../components/motion/TiltCard.jsx';
 import SkillActivityHeatmap from '../../components/dashboard/SkillActivityHeatmap.jsx';
 import PlatformBadges from '../../components/dashboard/PlatformBadges.jsx';
+import {
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '../../components/ui/index.js';
+import PostLikersDialog from '../../components/common/PostLikersDialog.jsx';
+import PostCommentsModal from '../../components/common/PostCommentsModal.jsx';
+import { PulseHeart } from '../../components/common/react-bits/PulseHeart.jsx';
+import { optimizeCloudinaryUrl } from '../../lib/utils.js';
+
 
 const PublicProfile = () => {
   const { id } = useParams();
@@ -72,6 +84,10 @@ const PublicProfile = () => {
   // Like & Comment state for Activity & Posts tab
   const [postCommentDrafts, setPostCommentDrafts] = useState({});
   const [openCommentPostId, setOpenCommentPostId] = useState(null);
+  const [activeLikersPostId, setActiveLikersPostId] = useState(null);
+  const [activeCommentsPost, setActiveCommentsPost] = useState(null);
+  const [commentToDeleteTarget, setCommentToDeleteTarget] = useState(null);
+  const [deletingCommentId, setDeletingCommentId] = useState('');
 
   // Followers / Following drawer
   const [drawerType, setDrawerType] = useState(null); // null | 'followers' | 'following'
@@ -85,8 +101,8 @@ const PublicProfile = () => {
   const [bookDuration, setBookDuration] = useState(60);
   const [bookNotes, setBookNotes] = useState('');
   const [bookMeetingLink, setBookMeetingLink] = useState('');
-  const [bookLinkProvider, setBookLinkProvider] = useState('Google Meet');
-  const [bookLinkSharedBy, setBookLinkSharedBy] = useState('either');
+  const [bookLinkProvider] = useState('Google Meet');
+  const [bookLinkSharedBy] = useState('either');
   const [bookMsg, setBookMsg] = useState('');
   const [bookingLoading, setBookingLoading] = useState(false);
 
@@ -163,10 +179,92 @@ const PublicProfile = () => {
     }
   };
 
+  const fetchProfile = useCallback(async () => {
+    setLoading(true);
+    setProfileError('');
+    try {
+      const res = await apiClient.get(`/api/users/${targetUserId}`);
+      const payload = res.data?.data || res.data || {};
+      const u = payload.user || res.data?.user;
+      if (!u) {
+        setProfileUser(null);
+        setProfileError('Profile could not be found or has been removed.');
+        return;
+      }
+
+      setProfileUser(u);
+      setProfileStats(payload.stats || res.data?.stats || null);
+      setProfileBadges(payload.badges || res.data?.badges || []);
+      setProfileBadgeProgress(payload.badgeProgress || res.data?.badgeProgress || []);
+      setProfileActivityMap(payload.activityMap || res.data?.activityMap || {});
+      if (u.name) {
+        setBookTopic(`Study with ${u.name}`);
+      }
+
+      // Populate edit modal fields safely
+      setEditName(u.name || '');
+      setEditUsername(u.username || '');
+      setEditBio(u.bio || '');
+      setEditAvatar(u.profileImage || '');
+      setEditCoverImage(u.coverImage || '');
+      setEditExperienceLevel(u.experienceLevel || 'Intermediate');
+      setEditSocials({
+        linkedin: u.socialLinks?.linkedin || '',
+        github: u.socialLinks?.github || '',
+        twitter: u.socialLinks?.twitter || '',
+        website: u.socialLinks?.website || '',
+        instagram: u.socialLinks?.instagram || '',
+        youtube: u.socialLinks?.youtube || ''
+      });
+
+      const eduList = Array.isArray(u.education)
+        ? u.education
+        : (u.education ? [{ degree: typeof u.education === 'string' ? u.education : (u.education.degree || '') }] : []);
+      setEditEducation(eduList.length > 0 ? eduList : [{ degree: '', institution: '', fieldOfStudy: '', startYear: '', endYear: '' }]);
+
+      const projList = Array.isArray(u.projects) ? u.projects : [];
+      setEditProjects(projList);
+      setEditResumeUrl(u.resumeFile || '');
+    } catch (err) {
+      console.error('Error loading profile:', err);
+      setProfileUser(null);
+      setProfileError(
+        err.response?.status === 404
+          ? 'Profile not found. This user account does not exist or may have been deleted.'
+          : err.response?.data?.message || err.message || 'Unable to load profile.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [targetUserId]);
+
+  const fetchUserPosts = useCallback(async () => {
+    if (!targetUserId) return;
+    setPostsLoading(true);
+    try {
+      const res = await apiClient.get('/api/posts', {
+        params: { author: targetUserId }
+      });
+      const payload = res.data?.data || res.data || {};
+      const posts = payload.posts || res.data?.posts || [];
+      setUserPosts(Array.isArray(posts) ? posts : []);
+    } catch (err) {
+      console.error('Error fetching user activity posts:', err);
+      setUserPosts([]);
+    } finally {
+      setPostsLoading(false);
+    }
+  }, [targetUserId]);
+
   useEffect(() => {
     fetchProfile();
-    fetchUserPosts();
-  }, [id, currentUser?._id, token]);
+  }, [token, fetchProfile]);
+
+  useEffect(() => {
+    if (profileUser?._id) {
+      fetchUserPosts();
+    }
+  }, [profileUser?._id, fetchUserPosts]);
 
   // Lock background page scroll when Edit Profile Modal, Followers/Following Drawer, or All Posts Modal is open
   useEffect(() => {
@@ -193,70 +291,14 @@ const PublicProfile = () => {
     }
   }, [showEditModal, drawerType, showAllPostsModal]);
 
-  const fetchProfile = async () => {
-    setLoading(true);
-    try {
-      const res = await apiClient.get(`/api/users/${targetUserId}`);
-      const u = res.data.user;
-      setProfileUser(u);
-      setProfileStats(res.data.stats || null);
-      setProfileBadges(res.data.badges || []);
-      setProfileBadgeProgress(res.data.badgeProgress || []);
-      setProfileActivityMap(res.data.activityMap || {});
-      if (u?.name) {
-        setBookTopic(`Study with ${u.name}`);
-      }
-
-      // Populate edit modal fields
-      setEditName(u.name || '');
-      setEditUsername(u.username || '');
-      setEditBio(u.bio || '');
-      setEditAvatar(u.profileImage || '');
-      setEditCoverImage(u.coverImage || '');
-      setEditExperienceLevel(u.experienceLevel || 'Intermediate');
-      setEditSocials({
-        linkedin: u.socialLinks?.linkedin || '',
-        github: u.socialLinks?.github || '',
-        twitter: u.socialLinks?.twitter || '',
-        website: u.socialLinks?.website || '',
-        instagram: u.socialLinks?.instagram || '',
-        youtube: u.socialLinks?.youtube || ''
-      });
-
-      const eduList = Array.isArray(u.education)
-        ? u.education
-        : (u.education ? [{ degree: typeof u.education === 'string' ? u.education : (u.education.degree || '') }] : []);
-      setEditEducation(eduList.length > 0 ? eduList : [{ degree: '', institution: '', fieldOfStudy: '', startYear: '', endYear: '' }]);
-
-      const projList = Array.isArray(u.projects) ? u.projects : [];
-      setEditProjects(projList);
-      setEditResumeUrl(u.resumeFile || '');
-    } catch (err) {
-      console.error('Error loading profile:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchUserPosts = async () => {
-    setPostsLoading(true);
-    try {
-      const res = await apiClient.get('/api/posts', {
-        params: { author: targetUserId }
-      });
-      setUserPosts(res.data.posts || []);
-    } catch (err) {
-      console.error('Error fetching user activity posts:', err);
-    } finally {
-      setPostsLoading(false);
-    }
-  };
-
   const likePostInProfile = async (postId) => {
     try {
       const res = await apiClient.put(`/api/posts/${postId}/like`, {});
-      const updated = res.data.post;
+      const updated = res.data?.data?.post || res.data?.post || res.data;
       setUserPosts((prev) => prev.map((p) => (p._id === updated._id ? updated : p)));
+      if (activeCommentsPost && activeCommentsPost._id === updated._id) {
+        setActiveCommentsPost(updated);
+      }
     } catch (err) {
       console.error('Error liking post:', err);
     }
@@ -267,12 +309,79 @@ const PublicProfile = () => {
     if (!draft) return;
     try {
       const res = await apiClient.post(`/api/posts/${postId}/comments`, { content: draft });
-      const updated = res.data.post;
+      const updated = res.data?.data?.post || res.data?.post || res.data;
       setUserPosts((prev) => prev.map((p) => (p._id === updated._id ? updated : p)));
+      if (activeCommentsPost && activeCommentsPost._id === updated._id) {
+        setActiveCommentsPost(updated);
+      }
       setPostCommentDrafts((prev) => ({ ...prev, [postId]: '' }));
       setOpenCommentPostId(null);
     } catch (err) {
       console.error('Error adding comment:', err);
+    }
+  };
+
+  const handleCommentAdded = (updatedPost) => {
+    setUserPosts((prev) => prev.map((p) => (p._id === updatedPost._id ? updatedPost : p)));
+    if (activeCommentsPost && activeCommentsPost._id === updatedPost._id) {
+      setActiveCommentsPost(updatedPost);
+    }
+  };
+
+  const handleCommentDeleted = (postId, commentId, updatedPost) => {
+    if (updatedPost) {
+      setUserPosts((prev) => prev.map((p) => (p._id === updatedPost._id ? updatedPost : p)));
+      if (activeCommentsPost && activeCommentsPost._id === postId) {
+        setActiveCommentsPost(updatedPost);
+      }
+    } else {
+      setUserPosts((prev) =>
+        prev.map((p) => {
+          if (p._id !== postId) return p;
+          const filtered = (p.comments || []).filter((c) => c._id !== commentId);
+          return { ...p, comments: filtered, commentsCount: Math.max(0, filtered.length) };
+        })
+      );
+      if (activeCommentsPost && activeCommentsPost._id === postId) {
+        setActiveCommentsPost((prev) => {
+          const filtered = (prev.comments || []).filter((c) => c._id !== commentId);
+          return { ...prev, comments: filtered, commentsCount: Math.max(0, filtered.length) };
+        });
+      }
+    }
+  };
+
+  const handleDeleteCommentDirect = (postId, comment) => {
+    const post = userPosts.find((p) => p._id === postId);
+    const commentId = comment?._id || comment;
+    const isRoot = !comment?.parentCommentId && !comment?.threadRootId;
+    let repliesCount = 0;
+    if (isRoot && post) {
+      repliesCount = (post.comments || []).filter(
+        (c) => (c.threadRootId === commentId || c.parentCommentId === commentId)
+      ).length;
+    }
+    setCommentToDeleteTarget({
+      postId,
+      commentId,
+      isRootWithReplies: isRoot && repliesCount > 0,
+      repliesCount
+    });
+  };
+
+  const confirmDeleteCommentDirect = async () => {
+    if (!commentToDeleteTarget) return;
+    const { postId, commentId } = commentToDeleteTarget;
+    setDeletingCommentId(commentId);
+    try {
+      const res = await apiClient.delete(`/api/posts/${postId}/comments/${commentId}`);
+      const updatedPost = res.data?.data?.post || res.data?.post;
+      handleCommentDeleted(postId, commentId, updatedPost);
+    } catch (err) {
+      console.error('Error deleting comment:', err);
+    } finally {
+      setDeletingCommentId('');
+      setCommentToDeleteTarget(null);
     }
   };
 
@@ -469,12 +578,29 @@ const PublicProfile = () => {
 
   if (!profileUser) {
     return (
-      <div className="page-shell flex flex-col items-center justify-center min-h-[60vh] space-y-3 text-app">
-        <Users size={36} className="text-muted" />
-        <p className="text-base font-bold">Profile not found.</p>
-        <Link to="/feed" className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline">
-          Return to Daily Feed
-        </Link>
+      <div className="page-shell flex flex-col items-center justify-center min-h-[60vh] space-y-3 text-app p-4 text-center">
+        <Users size={36} className="text-muted mx-auto" />
+        <h3 className="text-base font-bold text-app">{profileError || "Profile not found."}</h3>
+        <p className="text-xs text-muted max-w-sm">
+          {profileError?.includes("deleted")
+            ? "This member may have removed their account or the link is incorrect."
+            : "Please check your network connection or browse active peers."}
+        </p>
+        <div className="flex items-center gap-3 pt-2">
+          <button
+            type="button"
+            onClick={fetchProfile}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+          >
+            Retry
+          </button>
+          <Link
+            to="/feed"
+            className="px-4 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold rounded-xl transition-all"
+          >
+            Return to Daily Feed
+          </Link>
+        </div>
       </div>
     );
   }
@@ -487,7 +613,7 @@ const PublicProfile = () => {
     : (profileUser.education ? [{ degree: profileUser.education }] : []);
 
   return (
-    <div className="page-shell w-full flex-1 overflow-y-auto min-h-screen relative z-0">
+    <div className="page-shell w-full flex-1 overflow-y-auto relative z-0">
       {/* Subtle Fixed Ambient Glow Orbs on Viewport */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
         <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-gradient-to-br from-indigo-500/18 via-purple-500/12 to-transparent blur-[120px]" />
@@ -503,9 +629,12 @@ const PublicProfile = () => {
         <div className="h-52 sm:h-64 bg-slate-200 dark:bg-slate-800 relative overflow-hidden">
           {profileUser.coverImage ? (
             <img
-              src={profileUser.coverImage}
+              src={optimizeCloudinaryUrl(profileUser.coverImage, { width: 1200, crop: 'fill' })}
               alt="Cover banner"
               className="w-full h-full object-cover"
+              width={1200}
+              height={256}
+              loading="eager"
             />
           ) : (
             <div className="absolute inset-0 bg-black/10 backdrop-blur-[1px]" />
@@ -537,11 +666,18 @@ const PublicProfile = () => {
           {/* Avatar Positioned Over Cover */}
           <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 -mt-20 sm:-mt-28 mb-4">
             <div className="relative">
-              <img
-                src={profileUser.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(profileUser.name || 'User')}&background=6366f1&color=fff`}
-                alt={profileUser.name}
-                className="w-40 h-40 sm:w-52 sm:h-52 rounded-full object-cover bg-slate-100 dark:bg-slate-800 border-4 border-white dark:border-[#22242a] shadow-2xl"
-              />
+              <Avatar className="w-40 h-40 sm:w-52 sm:h-52 rounded-full border-4 border-white dark:border-[#22242a] shadow-2xl">
+                <AvatarImage
+                  src={optimizeCloudinaryUrl(profileUser.profileImage, { width: 416, height: 416, crop: 'fill', gravity: 'face' })}
+                  alt={profileUser.name}
+                  className="object-cover"
+                  width={208}
+                  height={208}
+                />
+                <AvatarFallback className="text-4xl font-extrabold bg-indigo-100 text-indigo-700">
+                  {profileUser.name ? profileUser.name[0].toUpperCase() : 'U'}
+                </AvatarFallback>
+              </Avatar>
             </div>
 
             {/* Header Action Buttons */}
@@ -835,17 +971,39 @@ const PublicProfile = () => {
 
                       {/* Recent comments preview */}
                       {(post.comments || []).length > 0 && (
-                        <div className="space-y-1 pt-1">
+                        <div className="space-y-1.5 pt-1">
                           {(post.comments || []).slice(-2).map((comment, ci) => {
                             const ca = comment.author || comment.user || {};
+                            const commentAuthorId = (ca._id || ca.id || ca || '').toString();
+                            const postAuthorId = (post.author?._id || post.author || '').toString();
+                            const currentUserId = (currentUser?._id || currentUser?.id || '').toString();
+                            const isAdmin = (currentUser?.role || '').toLowerCase() === 'admin';
+                            const canDelete = currentUserId && (commentAuthorId === currentUserId || postAuthorId === currentUserId || isAdmin);
+
                             return (
-                              <div key={ci} className="flex items-start gap-1.5 text-[11px] bg-white dark:bg-slate-900/50 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
-                                <img
-                                  src={ca.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(ca.name || 'U')}&background=6366f1&color=fff`}
-                                  alt={ca.name}
-                                  className="w-5 h-5 rounded-full object-cover shrink-0 mt-0.5"
-                                />
-                                <span><strong className="text-app font-semibold">{ca.name || 'User'}:</strong> <span className="text-muted">{comment.content}</span></span>
+                              <div key={comment._id || ci} className="group flex items-center justify-between text-[11px] bg-white dark:bg-slate-900/50 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
+                                <div className="flex items-start gap-1.5 min-w-0 flex-1">
+                                  <img
+                                    src={ca.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(ca.name || 'U')}&background=6366f1&color=fff`}
+                                    alt={ca.name}
+                                    className="w-5 h-5 rounded-full object-cover shrink-0 mt-0.5"
+                                  />
+                                  <span className="min-w-0 break-words">
+                                    <strong className="text-app font-semibold">{ca.name || 'User'}:</strong> <span className="text-muted">{comment.content}</span>
+                                  </span>
+                                </div>
+                                {canDelete && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteCommentDirect(post._id, comment._id)}
+                                    disabled={deletingCommentId === comment._id}
+                                    className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors opacity-70 group-hover:opacity-100 shrink-0 ml-1.5 cursor-pointer"
+                                    title="Delete this comment"
+                                    aria-label="Delete comment"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                )}
                               </div>
                             );
                           })}
@@ -881,21 +1039,37 @@ const PublicProfile = () => {
                       <div className="flex items-center justify-between text-[11px] text-muted pt-1 border-t border-slate-100 dark:border-slate-800">
                         <span>{new Date(post.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                         <div className="flex items-center gap-3">
+                          {/* Like toggle & Liker count button */}
+                          <PulseHeart
+                            liked={liked}
+                            count={post.likes?.length || 0}
+                            onToggle={() => likePostInProfile(post._id)}
+                            onCountClick={() => setActiveLikersPostId(post._id)}
+                            ariaLabel="Like post"
+                            countAriaLabel="View who liked this post"
+                            size={14}
+                          />
+
+                          {/* Full Comments Modal Trigger */}
                           <button
                             type="button"
-                            onClick={() => likePostInProfile(post._id)}
-                            className={`flex items-center gap-1 transition-colors ${liked ? 'text-rose-500 font-bold' : 'text-muted hover:text-rose-500'}`}
-                          >
-                            <Heart size={13} fill={liked ? 'currentColor' : 'none'} />
-                            <span>{post.likes?.length || 0}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setOpenCommentPostId(isCommentOpen ? null : post._id)}
-                            className={`flex items-center gap-1 transition-colors ${isCommentOpen ? 'text-indigo-500 font-bold' : 'text-muted hover:text-indigo-500'}`}
+                            onClick={() => setActiveCommentsPost(post)}
+                            className="flex items-center gap-1 transition-colors text-muted hover:text-indigo-500 cursor-pointer"
+                            title="Open full comments view"
                           >
                             <MessageCircle size={13} />
                             <span>{post.comments?.length || 0}</span>
+                          </button>
+
+                          {/* Inline comment toggle */}
+                          <button
+                            type="button"
+                            onClick={() => setOpenCommentPostId(isCommentOpen ? null : post._id)}
+                            className={`text-[11px] px-2 py-0.5 rounded-md transition-colors ${
+                              isCommentOpen ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 font-semibold' : 'text-slate-400 hover:text-indigo-600'
+                            }`}
+                          >
+                            {isCommentOpen ? 'Close' : 'Reply'}
                           </button>
                         </div>
                       </div>
@@ -926,6 +1100,7 @@ const PublicProfile = () => {
                 user={profileUser}
                 stats={profileStats}
                 activityMap={profileActivityMap}
+                timeZone={profileUser?.timezone || 'Asia/Kolkata'}
               />
               <PlatformBadges
                 user={profileUser}
@@ -1381,7 +1556,9 @@ const PublicProfile = () => {
                                 setDrawerUsers(prev => prev.map(x =>
                                   x._id === u._id ? { ...x, isFollowing: res.data.user?.isFollowing } : x
                                 ));
-                              } catch {}
+                              } catch (err) {
+                                console.warn('Follow update notice:', err);
+                              }
                             }}
                             className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors shrink-0 ${
                               u.isFollowing
@@ -1924,17 +2101,39 @@ const PublicProfile = () => {
 
                       {/* Recent comments preview */}
                       {(post.comments || []).length > 0 && (
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
                           {(post.comments || []).slice(-3).map((comment, ci) => {
                             const ca = comment.author || comment.user || {};
+                            const commentAuthorId = (ca._id || ca.id || ca || '').toString();
+                            const postAuthorId = (post.author?._id || post.author || '').toString();
+                            const currentUserId = (currentUser?._id || currentUser?.id || '').toString();
+                            const isAdmin = (currentUser?.role || '').toLowerCase() === 'admin';
+                            const canDelete = currentUserId && (commentAuthorId === currentUserId || postAuthorId === currentUserId || isAdmin);
+
                             return (
-                              <div key={ci} className="flex items-start gap-1.5 text-[11px] bg-white dark:bg-slate-900/50 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
-                                <img
-                                  src={ca.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(ca.name || 'U')}&background=6366f1&color=fff`}
-                                  alt={ca.name}
-                                  className="w-5 h-5 rounded-full object-cover shrink-0 mt-0.5"
-                                />
-                                <span><strong className="text-app font-semibold">{ca.name || 'User'}:</strong> <span className="text-muted">{comment.content}</span></span>
+                              <div key={comment._id || ci} className="group flex items-center justify-between text-[11px] bg-white dark:bg-slate-900/50 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
+                                <div className="flex items-start gap-1.5 min-w-0 flex-1">
+                                  <img
+                                    src={ca.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(ca.name || 'U')}&background=6366f1&color=fff`}
+                                    alt={ca.name}
+                                    className="w-5 h-5 rounded-full object-cover shrink-0 mt-0.5"
+                                  />
+                                  <span className="min-w-0 break-words">
+                                    <strong className="text-app font-semibold">{ca.name || 'User'}:</strong> <span className="text-muted">{comment.content}</span>
+                                  </span>
+                                </div>
+                                {canDelete && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteCommentDirect(post._id, comment)}
+                                    disabled={deletingCommentId === comment._id}
+                                    className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors opacity-70 group-hover:opacity-100 shrink-0 ml-1.5 cursor-pointer"
+                                    title="Delete this comment"
+                                    aria-label="Delete comment"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                )}
                               </div>
                             );
                           })}
@@ -1976,21 +2175,37 @@ const PublicProfile = () => {
                           })}
                         </span>
                         <div className="flex items-center gap-3">
+                          {/* Like toggle & Liker count button */}
+                          <PulseHeart
+                            liked={liked}
+                            count={post.likes?.length || 0}
+                            onToggle={() => likePostInProfile(post._id)}
+                            onCountClick={() => setActiveLikersPostId(post._id)}
+                            ariaLabel="Like post"
+                            countAriaLabel="View who liked this post"
+                            size={14}
+                          />
+
+                          {/* Full Comments Modal Trigger */}
                           <button
                             type="button"
-                            onClick={() => likePostInProfile(post._id)}
-                            className={`flex items-center gap-1 transition-colors ${liked ? 'text-rose-500 font-bold' : 'text-muted hover:text-rose-500'}`}
-                          >
-                            <Heart size={13} fill={liked ? 'currentColor' : 'none'} />
-                            <span>{post.likes?.length || 0}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setOpenCommentPostId(isCommentOpen ? null : post._id)}
-                            className={`flex items-center gap-1 transition-colors ${isCommentOpen ? 'text-indigo-500 font-bold' : 'text-muted hover:text-indigo-500'}`}
+                            onClick={() => setActiveCommentsPost(post)}
+                            className="flex items-center gap-1 transition-colors text-muted hover:text-indigo-500 cursor-pointer"
+                            title="Open full comments view"
                           >
                             <MessageCircle size={13} />
                             <span>{post.comments?.length || 0}</span>
+                          </button>
+
+                          {/* Inline comment toggle */}
+                          <button
+                            type="button"
+                            onClick={() => setOpenCommentPostId(isCommentOpen ? null : post._id)}
+                            className={`text-[11px] px-2 py-0.5 rounded-md transition-colors ${
+                              isCommentOpen ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 font-semibold' : 'text-slate-400 hover:text-indigo-600'
+                            }`}
+                          >
+                            {isCommentOpen ? 'Close' : 'Reply'}
                           </button>
                         </div>
                       </div>
@@ -2003,6 +2218,57 @@ const PublicProfile = () => {
           </div>,
           document.body
         )}
+
+      {/* Post Likers Modal */}
+      <PostLikersDialog
+        postId={activeLikersPostId}
+        isOpen={Boolean(activeLikersPostId)}
+        onClose={() => setActiveLikersPostId(null)}
+      />
+
+      {/* Post Full Comments Modal */}
+      <PostCommentsModal
+        post={activeCommentsPost}
+        isOpen={Boolean(activeCommentsPost)}
+        onClose={() => setActiveCommentsPost(null)}
+        currentUser={currentUser}
+        onCommentAdded={handleCommentAdded}
+        onCommentDeleted={handleCommentDeleted}
+        onCommentEdited={handleCommentAdded}
+      />
+
+      {/* Accessible Direct Comment Delete AlertDialog */}
+      <AlertDialog open={Boolean(commentToDeleteTarget)} onOpenChange={(open) => !open && setCommentToDeleteTarget(null)}>
+        <AlertDialogContent className="max-w-sm rounded-2xl bg-white dark:bg-[#181d26] border border-slate-200 dark:border-slate-800 p-6 shadow-2xl">
+          <AlertDialogHeader className="space-y-2">
+            <AlertDialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
+              {commentToDeleteTarget?.isRootWithReplies ? 'Delete Discussion Thread?' : 'Delete Comment?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              {commentToDeleteTarget?.isRootWithReplies
+                ? `This comment has ${commentToDeleteTarget.repliesCount} ${
+                    commentToDeleteTarget.repliesCount === 1 ? 'reply' : 'replies'
+                  }. Deleting it will permanently remove the entire discussion thread. Are you sure?`
+                : 'Are you sure you want to permanently delete this comment? This action cannot be undone.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex gap-2 sm:justify-end pt-4">
+            <AlertDialogCancel
+              onClick={() => setCommentToDeleteTarget(null)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-0"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteCommentDirect}
+              disabled={Boolean(deletingCommentId)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 text-white shadow-sm border-0"
+            >
+              {deletingCommentId ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

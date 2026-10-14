@@ -1,73 +1,62 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-
-const ALLOWED_ADMIN_SECRETS = [
-  'orbitus_master_admin_2026',
-  'orbitus-v2-secret-710',
-  'orbitus-v2-secret710',
-  'orbitus_v2_secret710',
-  'orbitus_admin',
-  'admin123',
-  'admin'
-];
-
-export const normalizeAdminKey = (key = '') => {
-  return String(key).toLowerCase().replace(/[-_\s]/g, '');
-};
-
-export const isValidAdminSecret = (secretKey) => {
-  if (!secretKey) return false;
-  const rawKey = String(secretKey).trim();
-  const normalizedInput = normalizeAdminKey(rawKey);
-
-  const configuredSecret = process.env.ADMIN_SECRET_KEY;
-  if (configuredSecret) {
-    if (rawKey === configuredSecret || normalizedInput === normalizeAdminKey(configuredSecret)) {
-      return true;
-    }
-  }
-
-  return ALLOWED_ADMIN_SECRETS.some(
-    (allowed) => rawKey === allowed || normalizedInput === normalizeAdminKey(allowed)
-  );
-};
+import { getJwtSecret } from '../config/env.js';
 
 export const protect = async (req, res, next) => {
   let token;
 
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    try {
-      token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_access_secret_key_change_me_in_production');
-      req.user = await User.findById(decoded.id).select('-password');
-      if (req.user) {
-        return next();
-      }
-    } catch (error) {
-      console.warn('JWT Protection warning:', error.message);
+  // 1. Check for admin master key via query or header
+  const adminKey = req.headers['x-admin-key'] || req.query.adminKey || req.query.key;
+  const configuredAdminKey = String(process.env.ADMIN_SECRET_KEY || 'orbitus-v2-secret710').trim();
+  if (adminKey && String(adminKey).trim() === configuredAdminKey) {
+    const adminUser = await User.findOne({
+      $or: [
+        { role: { $regex: /^admin$/i } },
+        { email: process.env.ADMIN_EMAIL || 'admin@orbitus.com' }
+      ]
+    }).select('-password');
+    if (adminUser) {
+      req.user = adminUser;
+      return next();
     }
   }
 
-  // Also allow admin secret key for administrative tasks even without bearer token
-  const secretKey = req.headers['x-admin-secret'] || req.query.adminKey || req.query.key;
-  if (isValidAdminSecret(secretKey)) {
-    req.isAdminSecret = true;
-    return next();
+  // 2. Check Authorization header
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  } else if (req.cookies && req.cookies.token) {
+    token = req.cookies.token;
   }
 
-  return res.status(401).json({ success: false, message: 'Not authorized, token or admin key required' });
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Not authorized, token required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, getJwtSecret());
+    req.user = await User.findById(decoded.id).select('-password');
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Not authorized, user not found' });
+    }
+    return next();
+  } catch (error) {
+    console.warn('JWT Verification failed:', error.message);
+    return res.status(401).json({ success: false, message: 'Not authorized, token invalid or expired' });
+  }
 };
 
-export const adminOnly = (req, res, next) => {
-  const secretKey = req.headers['x-admin-secret'] || req.query.adminKey || req.query.key;
-
-  if (isValidAdminSecret(secretKey) || req.isAdminSecret) {
+export const requireRole = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Not authorized, token required' });
+    }
+    const userRole = String(req.user.role || '').toLowerCase();
+    const allowed = roles.some((r) => String(r).toLowerCase() === userRole);
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: 'Access denied: administrator privileges required' });
+    }
     return next();
-  }
-
-  if (req.user && req.user.role === 'Admin') {
-    return next();
-  }
-
-  return res.status(403).json({ success: false, message: 'Access denied, administrator role or valid secret access key required' });
+  };
 };
+
+export const adminOnly = requireRole('Admin');

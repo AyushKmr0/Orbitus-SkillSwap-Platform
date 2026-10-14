@@ -1,100 +1,252 @@
-import React, { useState, useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux";
+import React, { useState, useEffect, useRef } from "react";
+import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
-import { updateProfileSuccess } from "../../features/authSlice.js";
-import { TiltCard, ScrollReveal, TextReveal, MorphingBlob } from "../../components/motion/index.js";
+import ScrollReveal from "../../components/motion/ScrollReveal.jsx";
 import apiClient, { API_BASE_URL } from "../../services/apiClient.js";
 import {
 	Trophy,
 	BookOpen,
-	Calendar,
 	Hourglass,
-	Sparkles,
-	Award,
-	Edit2,
 	CheckCircle,
-	Briefcase,
-	ExternalLink,
-	ChevronRight,
-	TrendingUp,
-	Plus,
-	Trash2,
 	FileText,
-	Lock,
-	BadgeCheck,
 	QrCode,
-	ArrowRight
+	ArrowRight,
+	Flame,
+	Award
 } from "lucide-react";
-import { Printer, Copy, Check, Eye, X } from "lucide-react";
 import SkillActivityHeatmap from "../../components/dashboard/SkillActivityHeatmap.jsx";
-import PlatformBadges from "../../components/dashboard/PlatformBadges.jsx";
-import { Bar } from "react-chartjs-2";
-import {
-	Chart as ChartJS,
-	CategoryScale,
-	LinearScale,
-	BarElement,
-	Title,
-	Tooltip,
-	Legend,
-} from "chart.js";
+import { Avatar, AvatarImage, AvatarFallback, Badge } from "../../components/ui/index.js";
+import { optimizeCloudinaryUrl } from "../../lib/utils.js";
 
-ChartJS.register(
-	CategoryScale,
-	LinearScale,
-	BarElement,
-	Title,
-	Tooltip,
-	Legend,
-);
+const PlatformBadges = React.lazy(() => import("../../components/dashboard/PlatformBadges.jsx"));
+const ActivityBarChart = React.lazy(() => import("../../components/dashboard/ActivityBarChart.jsx"));
+
 
 const UserDashboard = () => {
 	const { user, token } = useSelector((state) => state.auth);
-	const dispatch = useDispatch();
 
 	const [dashboardData, setDashboardData] = useState(null);
 	const [loading, setLoading] = useState(true);
-	const [matchingSuggestions, setMatchingSuggestions] = useState({
-		mentors: [],
-		learners: [],
-	});
+	const [fetchError, setFetchError] = useState(null);
+	const [progressViewMode, setProgressViewMode] = useState('heatmap');
 
-  const [selectedCertificate, setSelectedCertificate] = useState(null);
-  const [copiedCertId, setCopiedCertId] = useState(null);
-  const [progressViewMode, setProgressViewMode] = useState('heatmap');
+	const isMountedRef = useRef(true);
+	const abortControllerRef = useRef(null);
+	const requestIdRef = useRef(0);
+	const userRef = useRef(user);
+	userRef.current = user;
+
+	const formatDashboardError = (err) => {
+		if (!err) return "Unable to load learning metrics. Please try again.";
+		if (err.code === "ERR_NETWORK" || !err.response) {
+			return "Unable to connect to the Orbitus backend service. Please check your network or verify the backend is running.";
+		}
+		const status = err.response?.status;
+		if (status === 401) {
+			return "Your session has expired. Please sign in again to access your dashboard.";
+		}
+		if (status === 403) {
+			return "You do not have permission to view these dashboard metrics.";
+		}
+		if (status === 404) {
+			return "User profile or metrics could not be found. Please check your account.";
+		}
+		if (status >= 500) {
+			return "The dashboard service encountered an internal error. Please try again in a few moments.";
+		}
+		return err.response?.data?.message || err.message || "Failed to load dashboard metrics. Please try again.";
+	};
+
+	const normalizeDashboardPayload = (rawResponse, fallbackUser) => {
+		if (!rawResponse || typeof rawResponse !== "object") {
+			throw new Error("The learning metrics service did not return valid data.");
+		}
+
+		const payload = rawResponse.data || rawResponse;
+		if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+			throw new Error("The learning metrics service returned an unexpected response format.");
+		}
+
+		const currentUser = payload.user || fallbackUser;
+		if (!currentUser || (!payload.stats && !payload.metrics && !payload.user)) {
+			throw new Error("The learning metrics service did not return complete user metrics.");
+		}
+
+		const rawStats = payload.stats || payload.metrics || {};
+
+		const points = Number(
+			payload.user?.points ??
+			rawStats.points ??
+			currentUser?.points ??
+			0
+		);
+
+		const followersCount = Number(
+			rawStats.followersCount ??
+			currentUser?.followersCount ??
+			(currentUser?.followers?.length ?? 0)
+		);
+
+		const followingCount = Number(
+			rawStats.followingCount ??
+			currentUser?.followingCount ??
+			(currentUser?.following?.length ?? 0)
+		);
+
+		const certificates = Array.isArray(payload.certificates)
+			? payload.certificates
+			: (Array.isArray(payload.recentCertificates) ? payload.recentCertificates : []);
+
+		const roadmaps = Array.isArray(payload.roadmaps)
+			? payload.roadmaps
+			: (Array.isArray(payload.recentRoadmaps) ? payload.recentRoadmaps : []);
+
+		const stats = {
+			points,
+			completedSessions: Number(rawStats.completedSessions ?? rawStats.totalExchanges ?? 0),
+			learningHours: Number(rawStats.learningHours ?? 0),
+			certificatesEarned: Number(rawStats.certificatesEarned ?? rawStats.certificatesCount ?? certificates.length),
+			activeRoadmaps: Number(rawStats.activeRoadmaps ?? rawStats.roadmapsCount ?? roadmaps.length),
+			badgesUnlocked: Number(rawStats.badgesUnlocked ?? (Array.isArray(payload.badges) ? payload.badges.length : 0)),
+			followersCount,
+			followingCount,
+			totalExchanges: Number(rawStats.totalExchanges ?? rawStats.completedSessions ?? 0)
+		};
+
+		const rawCharts = payload.charts || {};
+		const rawChart = payload.chart || {};
+		const rawActivityMap = payload.activityHeatmap || payload.charts?.activityMap || payload.activityMap || {};
+		const charts = {
+			labels: rawCharts.labels || rawChart.labels || ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+			mentorData: rawCharts.mentorData || rawChart.mentorSessions || [0, 0, 0, 0, 0, 0],
+			learnerData: rawCharts.learnerData || rawChart.learnerSessions || [0, 0, 0, 0, 0, 0],
+			activityMap: rawActivityMap
+		};
+
+		return {
+			user: currentUser,
+			stats,
+			badges: Array.isArray(payload.badges) ? payload.badges : [],
+			badgeProgress: Array.isArray(payload.badgeProgress) ? payload.badgeProgress : [],
+			certificates,
+			roadmaps,
+			charts,
+			activityHeatmap: rawActivityMap,
+			timezone: payload.timezone || currentUser?.timezone || 'Asia/Kolkata'
+		};
+	};
 
 	useEffect(() => {
-		fetchDashboardStats();
-		fetchAiSuggestions();
-	}, [token]);
+		isMountedRef.current = true;
+		const currentId = ++requestIdRef.current;
+		const controller = new AbortController();
+		abortControllerRef.current = controller;
+
+		const loadData = async () => {
+			setLoading(true);
+			setFetchError(null);
+			try {
+				const res = await apiClient.get("/api/dashboard/user", {
+					signal: controller.signal,
+					bypassDedupe: true
+				});
+				if (!isMountedRef.current || requestIdRef.current !== currentId) return;
+				const normalized = normalizeDashboardPayload(res.data, userRef.current);
+				setDashboardData(normalized);
+			} catch (err) {
+				if (
+					err.name === "CanceledError" ||
+					err.name === "AbortError" ||
+					!isMountedRef.current ||
+					requestIdRef.current !== currentId
+				) {
+					return;
+				}
+				console.error("Error fetching dashboard stats:", err);
+				setFetchError(formatDashboardError(err));
+			} finally {
+				if (isMountedRef.current && requestIdRef.current === currentId) {
+					setLoading(false);
+				}
+			}
+		};
+
+		loadData();
+
+		return () => {
+			isMountedRef.current = false;
+			controller.abort();
+		};
+	}, [token, user?._id]);
 
 	const fetchDashboardStats = async () => {
+		const currentId = ++requestIdRef.current;
+		if (abortControllerRef.current) {
+			abortControllerRef.current.abort();
+		}
+		const controller = new AbortController();
+		abortControllerRef.current = controller;
+
+		setLoading(true);
+		setFetchError(null);
 		try {
-			const res = await apiClient.get("/api/dashboard/user");
-			setDashboardData(res.data);
+			const res = await apiClient.get("/api/dashboard/user", {
+				signal: controller.signal,
+				bypassDedupe: true
+			});
+			if (!isMountedRef.current || requestIdRef.current !== currentId) return;
+			const normalized = normalizeDashboardPayload(res.data, userRef.current);
+			setDashboardData(normalized);
 		} catch (err) {
+			if (
+				err.name === "CanceledError" ||
+				err.name === "AbortError" ||
+				!isMountedRef.current ||
+				requestIdRef.current !== currentId
+			) {
+				return;
+			}
 			console.error("Error fetching dashboard stats:", err);
+			setFetchError(formatDashboardError(err));
 		} finally {
-			setLoading(false);
+			if (isMountedRef.current && requestIdRef.current === currentId) {
+				setLoading(false);
+			}
 		}
 	};
 
-	const fetchAiSuggestions = async () => {
-		try {
-			const res = await apiClient.get("/api/ai/match");
-			setMatchingSuggestions(res.data);
-		} catch (err) {
-			console.error("Error fetching AI suggestions:", err);
-		}
-	};
-
-	if (loading || !dashboardData) {
+	if (loading) {
 		return (
 			<div className="page-shell flex flex-col justify-center items-center h-screen text-app">
 				<div className="w-12 h-12 rounded-full border-4 border-blue-500/20 border-t-blue-500 animate-spin" />
 				<span className="text-sm font-medium text-muted mt-3">
 					Compiling learning metrics...
 				</span>
+			</div>
+		);
+	}
+
+	if (fetchError || !dashboardData) {
+		return (
+			<div className="page-shell flex flex-col justify-center items-center h-screen text-app p-4 text-center">
+				<div className="p-6 bg-red-500/10 border border-red-500/20 rounded-3xl max-w-md w-full space-y-4">
+					<div className="w-12 h-12 rounded-2xl bg-red-500/15 text-red-500 flex items-center justify-center mx-auto">
+						<Flame size={24} />
+					</div>
+					<div>
+						<h3 className="text-base font-bold text-app font-outfit">Unable to load dashboard</h3>
+						<p className="text-xs text-muted mt-1 leading-relaxed">
+							{fetchError || "The learning metrics service did not return valid data. Please try again."}
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={fetchDashboardStats}
+						className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-98 cursor-pointer"
+					>
+						Retry Loading
+					</button>
+				</div>
 			</div>
 		);
 	}
@@ -106,19 +258,15 @@ const UserDashboard = () => {
 		certificates = [],
 		roadmaps,
 		charts,
+		activityHeatmap = {},
+		timezone = 'Asia/Kolkata',
 	} = dashboardData;
-	const currentUser = dashboardData.user || user;
-	const followersCount = dashboardData.stats?.followersCount ?? currentUser.followersCount ?? 0;
-	const followingCount = dashboardData.stats?.followingCount ?? currentUser.followingCount ?? 0;
+	const currentUser = dashboardData.user || user || {};
+	const followersCount = stats?.followersCount ?? currentUser.followersCount ?? 0;
+	const followingCount = stats?.followingCount ?? currentUser.followingCount ?? 0;
 
-	const usernameAvailableAt = user.usernameChangeAvailableAt
-		? new Date(user.usernameChangeAvailableAt)
-		: null;
-	const usernameLocked =
-		usernameAvailableAt && usernameAvailableAt.getTime() > Date.now();
 	const getCertificateVerifyUrl = (certificate) =>
 		`${API_BASE_URL}/api/certificates/verify/${certificate.uniqueId}`;
-	const resumeViewUrl = `${API_BASE_URL}/api/users/${user._id}/resume`;
 
 	// Bar Chart configuration (ultra responsive)
 	const chartData = {
@@ -185,7 +333,7 @@ const UserDashboard = () => {
 				{/* Cover Banner */}
 				<div
 					className="h-36 sm:h-44 w-full bg-slate-200 dark:bg-slate-800 relative bg-cover bg-center"
-					style={currentUser.coverImage ? { backgroundImage: `url(${currentUser.coverImage})` } : {}}
+					style={currentUser.coverImage ? { backgroundImage: `url(${optimizeCloudinaryUrl(currentUser.coverImage, { width: 1200, crop: 'fill' })})` } : {}}
 				>
 					<div className="absolute inset-0 bg-black/5 dark:bg-black/20" />
 				</div>
@@ -195,11 +343,18 @@ const UserDashboard = () => {
 					<div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
 						<div className="flex items-end gap-3 sm:gap-5 min-w-0">
 							<Link to={`/profile/${currentUser.username || currentUser._id}`} className="group relative -mt-12 sm:-mt-16 shrink-0 z-20">
-								<img
-									src={currentUser.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=4f46e5&color=fff`}
-									alt={currentUser.name || "Member"}
-									className="w-24 h-24 sm:w-36 sm:h-36 rounded-full bg-slate-100 dark:bg-slate-800 shadow-2xl border-4 border-white dark:border-[#22242a] object-cover group-hover:scale-105 transition-transform"
-								/>
+								<Avatar className="w-24 h-24 sm:w-36 sm:h-36 rounded-full bg-slate-100 dark:bg-slate-800 shadow-2xl border-4 border-white dark:border-[#22242a] group-hover:scale-105 transition-transform">
+									<AvatarImage
+										src={optimizeCloudinaryUrl(currentUser.profileImage, { width: 288, height: 288, crop: 'fill', gravity: 'face' })}
+										alt={currentUser.name || "Member"}
+										className="object-cover"
+										width={144}
+										height={144}
+									/>
+									<AvatarFallback className="text-xl sm:text-2xl font-bold">
+										{currentUser.name ? currentUser.name[0].toUpperCase() : 'U'}
+									</AvatarFallback>
+								</Avatar>
 							</Link>
 							<div className="min-w-0 flex-1 pt-1 sm:pt-0 sm:mb-1">
 								<div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -212,9 +367,9 @@ const UserDashboard = () => {
 										• {currentUser.experienceLevel || 'Learner'}
 									</span>
 									{currentUser.role === 'Admin' && (
-										<span className="text-[9px] sm:text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
+										<Badge variant="outline" className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10">
 											Admin
-										</span>
+										</Badge>
 									)}
 								</div>
 								<p className="text-xs sm:text-sm text-muted font-mono truncate mt-0.5">
@@ -299,16 +454,16 @@ const UserDashboard = () => {
 									<span className="text-xs text-muted font-semibold">
 										{card.label}
 									</span>
-									<h3 className="text-2xl font-bold text-app tracking-tight mt-1">
+									<h2 className="text-2xl font-bold text-app tracking-tight mt-1">
 										{card.value}
-									</h3>
+									</h2>
 								</div>
 								<div
 									className={`p-2.5 rounded-xl border ${card.color}`}>
 									<Icon size={20} />
 								</div>
 							</div>
-							<span className="text-[10px] text-slate-500 mt-4 leading-none truncate">
+							<span className="text-xs text-slate-500 dark:text-slate-400 mt-4 leading-none truncate">
 								{card.sub}
 							</span>
 						</div>
@@ -326,9 +481,9 @@ const UserDashboard = () => {
 						<div className="glass-panel p-6 rounded-3xl space-y-4 flex-1 flex flex-col justify-between">
 							<div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
 								<div>
-									<h3 className="font-bold text-lg text-app font-outfit">
+									<h2 className="font-bold text-lg text-app font-outfit">
 										Learning Exchange Progress
-									</h3>
+									</h2>
 									<p className="text-xs text-slate-400">
 										Timelines tracking hours exchanged
 									</p>
@@ -340,11 +495,16 @@ const UserDashboard = () => {
 							</div>
 							<div className="w-full min-h-[220px] flex items-center justify-center pt-1">
 								{progressViewMode === 'heatmap' ? (
-									<SkillActivityHeatmap user={currentUser} stats={stats} activityMap={charts?.activityMap || {}} />
+									<SkillActivityHeatmap
+										user={currentUser}
+										stats={stats}
+										activityMap={activityHeatmap || charts?.activityMap || {}}
+										timeZone={timezone || currentUser?.timezone || 'Asia/Kolkata'}
+									/>
 								) : (
-									<div className="w-full h-full">
-										<Bar data={chartData} options={{ ...chartOptions, maintainAspectRatio: false }} />
-									</div>
+									<React.Suspense fallback={<div className="w-full h-48 flex items-center justify-center text-xs text-muted">Loading chart...</div>}>
+										<ActivityBarChart chartData={chartData} chartOptions={chartOptions} />
+									</React.Suspense>
 								)}
 							</div>
 						</div>
@@ -353,9 +513,9 @@ const UserDashboard = () => {
 					{/* Right Column - Active Roadmaps Card */}
 					<div className="flex flex-col min-w-0">
 						<div className="glass-panel p-6 rounded-3xl space-y-4 flex-1 flex flex-col justify-between h-full">
-							<h3 className="font-bold text-lg text-app font-outfit">
+							<h2 className="font-bold text-lg text-app font-outfit">
 								My AI Learning Roadmaps
-							</h3>
+							</h2>
 							{roadmaps.length === 0 ? (
 								<div className="flex-1 flex items-center justify-center p-6 text-center text-slate-500 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-xs">
 									No active roadmap tracking yet. Go to AI Roadmap in the sidebar to generate one!
@@ -399,7 +559,15 @@ const UserDashboard = () => {
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
 					{/* Left Column - Platform Badges Locker */}
 					<div className="lg:col-span-2 flex flex-col min-w-0">
-						<PlatformBadges user={currentUser} badges={badges} badgeProgress={badgeProgress} className="flex-1" />
+						<React.Suspense
+							fallback={
+								<div className="glass-panel p-6 rounded-3xl flex items-center justify-center min-h-[220px]">
+									<div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+								</div>
+							}
+						>
+							<PlatformBadges user={currentUser} badges={badges} badgeProgress={badgeProgress} className="flex-1" />
+						</React.Suspense>
 					</div>
 
 					{/* Right Column - Certificates Card */}
@@ -410,8 +578,13 @@ const UserDashboard = () => {
 								Certificates ({certificates.length})
 							</h3>
 							{certificates.length === 0 ? (
-								<div className="flex-1 flex items-center justify-center p-6 text-center text-slate-500 text-xs border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-									Complete a 60+ minute learning session to generate a verified skill certificate.
+								<div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+									<Award size={28} className="text-slate-300 dark:text-slate-700" />
+									<div>
+										<p className="text-xs font-semibold text-app">Earn your first certificate</p>
+										<p className="text-[10px] text-muted mt-0.5">Complete a 60+ min session as mentor or learner.</p>
+									</div>
+									<Link to="/bookings" className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-colors">Book a Session</Link>
 								</div>
 							) : (
 								<div className="flex-1 overflow-y-auto scrollbar-none space-y-3 pr-1 max-h-[300px]">

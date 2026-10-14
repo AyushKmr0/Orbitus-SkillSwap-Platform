@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+~|}{[]:;?><';
 
@@ -15,7 +15,7 @@ export const TextScramble = ({
   const [displayText, setDisplayText] = useState(text);
   const [isAnimating, setIsAnimating] = useState(false);
 
-  const startScramble = () => {
+  const startScramble = useCallback(() => {
     if (isAnimating) return;
     setIsAnimating(true);
     let iteration = 0;
@@ -41,13 +41,13 @@ export const TextScramble = ({
 
       iteration += 1 / 2;
     }, speed);
-  };
+  }, [isAnimating, text, speed]);
 
   useEffect(() => {
     if (!scrambleOnHover) {
       startScramble();
     }
-  }, [text]);
+  }, [scrambleOnHover, startScramble]);
 
   return (
     <span

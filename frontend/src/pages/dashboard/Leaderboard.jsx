@@ -1,37 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
-import { Trophy, Award, TrendingUp, HelpCircle, Star, UserCheck } from 'lucide-react';
+import { Trophy, Award, Medal, Zap, Lightbulb } from 'lucide-react';
+import RubberSegment from '../../components/common/react-bits/RubberSegment.jsx';
+import BorderGlow from '../../components/common/react-bits/BorderGlow.jsx';
+import { Avatar, AvatarImage, AvatarFallback, Badge } from '../../components/ui/index.js';
 
 const Leaderboard = () => {
   const { token, user: authUser } = useSelector((state) => state.auth);
   const navigate = useNavigate();
-  
+
   const [boardList, setBoardList] = useState([]);
   const [currentUserRank, setCurrentUserRank] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [timelineFilter, setTimelineFilter] = useState('All-Time'); // Weekly, Monthly, All-Time
+  const [timelineFilter, setTimelineFilter] = useState('All-Time');
 
-  useEffect(() => {
-    fetchLeaderboardList(timelineFilter);
-  }, [token]);
-
-  const fetchLeaderboardList = async (timeline) => {
+  const fetchLeaderboardList = useCallback(async (timeline) => {
     setLoading(true);
     try {
       const activeTimeline = (timeline || timelineFilter).toLowerCase();
       const res = await apiClient.get('/api/dashboard/leaderboard', {
         params: { timeframe: activeTimeline }
       });
-      setBoardList(res.data.leaderboard || []);
-      setCurrentUserRank(res.data.currentUserRank || null);
+      const payload = res.data?.data || res.data || {};
+      const board = payload.leaderboard || res.data?.leaderboard || [];
+      setBoardList(Array.isArray(board) ? board : []);
+      setCurrentUserRank(payload.currentUserRank || res.data?.currentUserRank || null);
     } catch (err) {
       console.error('Error fetching leaderboard logs:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [timelineFilter]);
+
+  useEffect(() => {
+    fetchLeaderboardList(timelineFilter);
+  }, [token, timelineFilter, fetchLeaderboardList]);
 
   const handleTimelineChange = (timeline) => {
     setTimelineFilter(timeline);
@@ -47,7 +52,6 @@ const Leaderboard = () => {
     );
   }
 
-  // Generate top 3 podium users if list has enough elements
   const podium = boardList.slice(0, 3);
   const bodyList = boardList.slice(3);
 
@@ -58,7 +62,7 @@ const Leaderboard = () => {
   };
 
   return (
-    <div className="page-shell flex-1 p-6 lg:p-8 space-y-8 min-h-screen text-app overflow-y-auto animate-fade-in">
+    <div className="page-shell flex-1 p-4 sm:p-6 lg:p-8 space-y-6 text-app overflow-y-auto animate-fade-in">
       {/* Brand Header banner */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-[#22242a] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm backdrop-blur-md">
         <div className="flex items-center gap-3">
@@ -71,63 +75,62 @@ const Leaderboard = () => {
           </div>
         </div>
 
-        {/* Timeline toggler */}
-        <div className="flex gap-1.5 bg-slate-100 dark:bg-slate-900 p-1.5 border border-slate-200 dark:border-slate-800 rounded-2xl self-stretch md:self-auto justify-center">
-          {['Weekly', 'Monthly', 'All-Time'].map((timeline) => (
-            <button
-              key={timeline}
-              onClick={() => handleTimelineChange(timeline)}
-              className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                timelineFilter === timeline
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                  : 'text-muted hover:text-app'
-              }`}
-            >
-              {timeline}
-            </button>
-          ))}
-        </div>
+        {/* Timeline toggler with RubberSegment */}
+        <RubberSegment
+          options={[
+            { value: 'Weekly', label: 'This Week' },
+            { value: 'Monthly', label: 'This Month' },
+            { value: 'All-Time', label: 'All Time' }
+          ]}
+          value={timelineFilter}
+          onChange={handleTimelineChange}
+          ariaLabel="Filter leaderboard by timeframe"
+        />
       </div>
 
-
-      {/* Podium Display Ranks 1, 2, 3 */}
+      {/* Top 3 Podium Cards */}
       {podium.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto pt-4 pb-2">
-          
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto items-end">
           {/* Rank 2 - Silver Medal */}
           {podium[1] && (
             <div
               onClick={() => goToProfile(podium[1])}
               className="bg-white dark:bg-[#22242a] p-6 rounded-3xl flex flex-col items-center justify-center text-center border border-slate-200 dark:border-slate-800 relative overflow-hidden order-2 md:order-1 h-fit md:mt-8 shadow-sm cursor-pointer hover:border-slate-400 dark:hover:border-slate-600 interactive-card animate-card-enter stagger-2 transition-all"
             >
-              <span className="text-3xl mb-2">🥈</span>
-              <img
-                src={podium[1].profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(podium[1].name)}&background=4f46e5&color=fff`}
-                alt={podium[1].name}
-                className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 object-cover"
-              />
+              <Medal className="w-8 h-8 text-slate-400 mb-2" />
+              <Avatar className="w-16 h-16 rounded-full border border-slate-200 dark:border-slate-700">
+                <AvatarImage src={podium[1].profileImage} alt={podium[1].name} />
+                <AvatarFallback>{podium[1].name?.[0]}</AvatarFallback>
+              </Avatar>
               <h3 className="font-extrabold text-sm text-app mt-3 font-outfit leading-none">{podium[1].name}</h3>
               <span className="text-[10px] text-muted mt-1">Rank #2 in Platform</span>
-              <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-3 font-mono">🏆 {podium[1].points} pts</p>
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-3 font-mono flex items-center justify-center gap-1">
+                <Zap size={14} className="text-indigo-500" /> {podium[1].points} pts
+              </p>
             </div>
           )}
 
-          {/* Rank 1 - Gold Medal */}
+          {/* Rank 1 - Gold Medal with BorderGlow */}
           {podium[0] && (
-            <div
-              onClick={() => goToProfile(podium[0])}
-              className="bg-white dark:bg-[#22242a] p-8 rounded-3xl flex flex-col items-center justify-center text-center border-2 border-amber-400/40 relative overflow-hidden order-1 md:order-2 shadow-xl shadow-amber-500/5 cursor-pointer hover:border-amber-400 interactive-card animate-card-enter stagger-1 transition-all"
-            >
-              <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 rounded-full blur-xl" />
-              <span className="text-4xl mb-2">🥇</span>
-              <img
-                src={podium[0].profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(podium[0].name)}&background=f59e0b&color=fff`}
-                alt={podium[0].name}
-                className="w-20 h-20 rounded-full bg-slate-100 dark:bg-slate-850 border-2 border-amber-400 shadow-2xl object-cover"
-              />
-              <h3 className="font-extrabold text-base text-app mt-3 font-outfit leading-none">{podium[0].name}</h3>
-              <span className="text-xs text-muted mt-1.5">Grand Champion</span>
-              <p className="text-base font-extrabold text-amber-500 mt-4 font-mono">🏆 {podium[0].points} pts</p>
+            <div className="order-1 md:order-2">
+              <BorderGlow glowColor="rgba(245, 158, 11, 0.35)" borderColor="rgba(245, 158, 11, 0.5)">
+                <div
+                  onClick={() => goToProfile(podium[0])}
+                  className="bg-white dark:bg-[#22242a] p-8 rounded-3xl flex flex-col items-center justify-center text-center relative overflow-hidden shadow-xl shadow-amber-500/5 cursor-pointer hover:border-amber-400 interactive-card animate-card-enter stagger-1 transition-all"
+                >
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 rounded-full blur-xl" />
+                  <Trophy className="w-10 h-10 text-amber-500 mb-2 drop-shadow-sm" />
+                  <Avatar className="w-20 h-20 rounded-full border-2 border-amber-400 shadow-2xl">
+                    <AvatarImage src={podium[0].profileImage} alt={podium[0].name} />
+                    <AvatarFallback className="text-lg bg-amber-100 text-amber-700">{podium[0].name?.[0]}</AvatarFallback>
+                  </Avatar>
+                  <h3 className="font-extrabold text-base text-app mt-3 font-outfit leading-none">{podium[0].name}</h3>
+                  <span className="text-xs text-muted mt-1.5">Grand Champion</span>
+                  <p className="text-base font-extrabold text-amber-500 mt-4 font-mono flex items-center justify-center gap-1">
+                    <Zap size={16} className="text-amber-500" /> {podium[0].points} pts
+                  </p>
+                </div>
+              </BorderGlow>
             </div>
           )}
 
@@ -137,18 +140,18 @@ const Leaderboard = () => {
               onClick={() => goToProfile(podium[2])}
               className="bg-white dark:bg-[#22242a] p-6 rounded-3xl flex flex-col items-center justify-center text-center border border-slate-200 dark:border-slate-800 relative overflow-hidden order-3 md:order-3 h-fit md:mt-12 shadow-sm cursor-pointer hover:border-slate-400 dark:hover:border-slate-600 interactive-card animate-card-enter stagger-3 transition-all"
             >
-              <span className="text-3xl mb-2">🥉</span>
-              <img
-                src={podium[2].profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(podium[2].name)}&background=ea580c&color=fff`}
-                alt={podium[2].name}
-                className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 object-cover"
-              />
+              <Medal className="w-8 h-8 text-amber-700 dark:text-amber-600 mb-2" />
+              <Avatar className="w-16 h-16 rounded-full border border-slate-200 dark:border-slate-700">
+                <AvatarImage src={podium[2].profileImage} alt={podium[2].name} />
+                <AvatarFallback>{podium[2].name?.[0]}</AvatarFallback>
+              </Avatar>
               <h3 className="font-extrabold text-sm text-app mt-3 font-outfit leading-none">{podium[2].name}</h3>
               <span className="text-[10px] text-muted mt-1">Rank #3 in Platform</span>
-              <p className="text-sm font-bold text-orange-400 mt-3 font-mono">🏆 {podium[2].points} pts</p>
+              <p className="text-sm font-bold text-orange-400 mt-3 font-mono flex items-center justify-center gap-1">
+                <Zap size={14} className="text-orange-400" /> {podium[2].points} pts
+              </p>
             </div>
           )}
-
         </div>
       )}
 
@@ -161,7 +164,6 @@ const Leaderboard = () => {
           <span className="text-xs text-muted">{boardList.length} Ranked Members</span>
         </div>
 
-        {/* Score list — max 12 entries so podium(3) + list(12) = 15 total */}
         {bodyList.length === 0 ? (
           <p className="text-xs text-muted text-center py-6">Exceed 3 users to list detailed rankings.</p>
         ) : (
@@ -182,27 +184,28 @@ const Leaderboard = () => {
                 >
                   <div className="flex items-center gap-3.5">
                     <span className="font-mono font-bold text-xs text-muted w-6 text-center">#{currentRank}</span>
-                    <img
-                      src={userObj.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(userObj.name)}&background=4f46e5&color=fff`}
-                      alt={userObj.name}
-                      className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-800 object-cover"
-                    />
+                    <Avatar className="w-9 h-9 rounded-full">
+                      <AvatarImage src={userObj.profileImage} alt={userObj.name} />
+                      <AvatarFallback>{userObj.name?.[0]}</AvatarFallback>
+                    </Avatar>
                     <div>
                       <div className="flex items-center gap-1.5">
                         <h4 className="font-bold text-xs text-app">{userObj.name}</h4>
                         {isCurrentUser && (
-                          <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-indigo-600 text-white">YOU</span>
+                          <Badge variant="default" className="text-[9px] font-black uppercase px-1.5 py-0">YOU</Badge>
                         )}
                       </div>
                       <p className="text-[10px] text-muted">{userObj.experienceLevel || 'Learner'}</p>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-amber-500 font-mono">🏆 {userObj.points} pts</span>
+                  <span className="text-xs font-bold text-amber-500 font-mono flex items-center gap-1">
+                    <Zap size={13} className="text-amber-500" /> {userObj.points} pts
+                  </span>
                 </div>
               );
             })}
 
-            {/* If current user is outside the top 15, append at the very bottom */}
+            {/* If current user is outside the top 15, append at the bottom */}
             {currentUserRank && !currentUserRank.isInTopList && (
               <div className="mt-3 pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-800">
                 <div
@@ -213,20 +216,21 @@ const Leaderboard = () => {
                     <span className="font-mono font-bold text-xs text-indigo-600 dark:text-indigo-400 w-6 text-center">
                       #{currentUserRank.rank}
                     </span>
-                    <img
-                      src={currentUserRank.user?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUserRank.user?.name || 'User')}&background=4f46e5&color=fff`}
-                      alt="You"
-                      className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-800 object-cover"
-                    />
+                    <Avatar className="w-9 h-9 rounded-full">
+                      <AvatarImage src={currentUserRank.user?.profileImage} alt="You" />
+                      <AvatarFallback>{currentUserRank.user?.name?.[0] || 'Y'}</AvatarFallback>
+                    </Avatar>
                     <div>
                       <div className="flex items-center gap-1.5">
                         <h4 className="font-bold text-xs text-app">{currentUserRank.user?.name || 'You'}</h4>
-                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-indigo-600 text-white">YOU</span>
+                        <Badge variant="default" className="text-[9px] font-black uppercase px-1.5 py-0">YOU</Badge>
                       </div>
                       <p className="text-[10px] text-muted">{currentUserRank.user?.experienceLevel || 'Member'}</p>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-amber-500 font-mono">🏆 {currentUserRank.points} pts</span>
+                  <span className="text-xs font-bold text-amber-500 font-mono flex items-center gap-1">
+                    <Zap size={13} className="text-amber-500" /> {currentUserRank.points} pts
+                  </span>
                 </div>
               </div>
             )}
@@ -234,29 +238,34 @@ const Leaderboard = () => {
         )}
       </div>
 
-
       {/* Gamification Points Rules */}
       <div className="max-w-4xl mx-auto bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 p-6 rounded-3xl space-y-4 shadow-sm">
         <h3 className="font-bold text-sm text-app font-outfit flex items-center gap-2">
-          💡 Scoreboard Mechanics
+          <Lightbulb size={16} className="text-amber-500" /> Scoreboard Mechanics
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-muted">
-          <div className="px-4 py-8 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
-            <span className="text-lg font-bold text-indigo-500 dark:text-indigo-400">+50 Points</span>
-            <h4 className="font-bold text-app mt-1">60+ Minute Session Completed</h4>
-            <p className="text-[10px] text-muted mt-1">Awarded to mentors when an accepted video classroom session is marked complete.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs text-muted">
+          <div className="px-4 py-6 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+            <span className="text-lg font-bold text-indigo-500 dark:text-indigo-400">+50 / +25 Pts</span>
+            <h4 className="font-bold text-app mt-1">Completed Session</h4>
+            <p className="text-[10px] text-muted mt-1">Mentor earns +50 pts and Learner earns +25 pts upon verified session completion. One award per session (duplicate-protected).</p>
           </div>
-          <div className="px-4 py-8 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+          <div className="px-4 py-6 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
             <span className="text-lg font-bold text-purple-500 dark:text-purple-400">+20 Points</span>
-            <h4 className="font-bold text-app mt-1">Help Others / Resources</h4>
-            <p className="text-[10px] text-muted mt-1">Earned when users share images, PDFs, notes, or booklets in chat.</p>
+            <h4 className="font-bold text-app mt-1">Resource Share</h4>
+            <p className="text-[10px] text-muted mt-1">Earned by sharing a file or study resource in group chat. Capped at 1 reward per user per calendar day.</p>
           </div>
-          <div className="px-4 py-8 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+          <div className="px-4 py-6 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
             <span className="text-lg font-bold text-amber-500 dark:text-amber-400">+10 Points</span>
-            <h4 className="font-bold text-app mt-1">Daily Platform Login</h4>
-            <p className="text-[10px] text-muted mt-1">Automated streak bonus points on first daily login.</p>
+            <h4 className="font-bold text-app mt-1">Daily Login</h4>
+            <p className="text-[10px] text-muted mt-1">Streak bonus on the first login of each calendar day. Awarded once per day (duplicate-protected by unique index).</p>
+          </div>
+          <div className="px-4 py-6 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+            <span className="text-lg font-bold text-emerald-500 dark:text-emerald-400">+5 Points</span>
+            <h4 className="font-bold text-app mt-1">Community Post</h4>
+            <p className="text-[10px] text-muted mt-1">Earned once per post published to the daily feed. One award per post (duplicate-protected by post ID).</p>
           </div>
         </div>
+        <p className="text-[10px] text-muted pt-1">Weekly / Monthly filters show points earned from activity in that period. All-Time shows cumulative stored points.</p>
       </div>
     </div>
   );

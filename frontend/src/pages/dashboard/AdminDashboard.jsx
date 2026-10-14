@@ -1,60 +1,96 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
-import { authSuccess, updateProfileSuccess } from '../../features/authSlice.js';
+import { authSuccess } from '../../features/authSlice.js';
 import {
   Shield,
   Users,
-  Compass,
   FileCheck,
   Star,
   Plus,
   CheckCircle,
   Database,
-  Edit2,
   Trash2,
   X,
   Search,
   MessageSquare,
+  Eye,
   Radio,
   Send,
   Lock,
-  Key,
   BarChart3,
-  Layers,
-  ArrowRight
+  Layers
 } from 'lucide-react';
-import { Doughnut, Bar } from 'react-chartjs-2';
 import {
-  Chart as ChartJS,
-  ArcElement,
-  Tooltip as ChartTooltip,
-  Legend as ChartLegend,
-  CategoryScale,
-  LinearScale,
-  BarElement
-} from 'chart.js';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '../../components/ui/dialog.jsx';
 
-ChartJS.register(ArcElement, ChartTooltip, ChartLegend, CategoryScale, LinearScale, BarElement);
-
-const DEFAULT_SECRET_KEY = 'orbitus_master_admin_2026';
+const AdminOverviewCharts = React.lazy(() => import('../../components/dashboard/AdminOverviewCharts.jsx'));
 
 const AdminDashboard = () => {
-  const { user, token } = useSelector((state) => state.auth);
+  const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Authentication via URL secret or admin role
-  const urlKey = searchParams.get('key') || '';
-  const [adminKey, setAdminKey] = useState(() => localStorage.getItem('orbitus_admin_key') || urlKey);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [passkeyInput, setPasskeyInput] = useState('');
-  const [authError, setAuthError] = useState('');
+  const userRoleLower = String(user?.role || '').trim().toLowerCase();
+  const isAdmin = userRoleLower === 'admin';
+  const [dataError, setDataError] = useState(null);
+
+  // Master key verification states
+  const [masterKeyInput, setMasterKeyInput] = useState('');
+  const [verifyingKey, setVerifyingKey] = useState(false);
+  const [keyErrorMsg, setKeyErrorMsg] = useState('');
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const urlKey = searchParams.get('key') || searchParams.get('adminKey');
+    if (urlKey && !isAdmin) {
+      setMasterKeyInput(urlKey);
+      setVerifyingKey(true);
+      setKeyErrorMsg('');
+      apiClient
+        .post('/api/auth/verify-admin-key', { key: urlKey })
+        .then((res) => {
+          const data = res.data?.data || res.data;
+          dispatch(authSuccess(data));
+          setVerifyingKey(false);
+        })
+        .catch((err) => {
+          setVerifyingKey(false);
+          setKeyErrorMsg(err.response?.data?.message || 'Invalid administrator master key');
+        });
+    }
+  }, [isAdmin, dispatch]);
+
+  const handleUnlockWithKey = async (e) => {
+    e?.preventDefault?.();
+    const keyToTest = (masterKeyInput || '').trim();
+    if (!keyToTest) return;
+
+    setVerifyingKey(true);
+    setKeyErrorMsg('');
+    try {
+      const res = await apiClient.post('/api/auth/verify-admin-key', { key: keyToTest });
+      const data = res.data?.data || res.data;
+      dispatch(authSuccess(data));
+      setVerifyingKey(false);
+      showAdminToast('Master admin key verified successfully!');
+    } catch (err) {
+      setVerifyingKey(false);
+      setKeyErrorMsg(err.response?.data?.message || 'Invalid administrator master key');
+    }
+  };
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'users', 'groups', 'posts', 'skills', 'broadcast'
+  const [activeTab, setActiveTab] = useState(() => (
+    new URLSearchParams(window.location.search).get('tab') === 'feedbacks' ? 'feedbacks' : 'overview'
+  ));
 
   // Data states
   const [adminStats, setAdminStats] = useState(null);
@@ -97,126 +133,71 @@ const AdminDashboard = () => {
   const [feedbacksList, setFeedbacksList] = useState([]);
   const [feedbackStatusFilter, setFeedbackStatusFilter] = useState('all');
   const [unreadFeedbackCount, setUnreadFeedbackCount] = useState(0);
+  const [selectedFeedback, setSelectedFeedback] = useState(null);
+  const [feedbackReplyDraft, setFeedbackReplyDraft] = useState('');
+  const [feedbackReplySaving, setFeedbackReplySaving] = useState(false);
 
-  useEffect(() => {
-    const verifyAccess = async () => {
-      // 1. If currently logged in user has Admin role in DB/JWT
-      if (user?.role === 'Admin') {
-        setIsAuthenticated(true);
-        setLoading(false);
-        return;
-      }
-
-      // 2. Check if passkey provided via URL or cached in localStorage
-      const candidateKey = urlKey || adminKey;
-      if (candidateKey) {
-        try {
-          const res = await apiClient.post('/api/auth/admin-login', { secretKey: candidateKey }, {
-            headers: { 'x-admin-secret': candidateKey }
-          });
-          if (res.data?.token && res.data?.user) {
-            setAdminKey(candidateKey);
-            localStorage.setItem('orbitus_admin_key', candidateKey);
-            dispatch(authSuccess({ accessToken: res.data.token, user: res.data.user }));
-            setIsAuthenticated(true);
-            setAuthError('');
-            setLoading(false);
-            return;
-          }
-        } catch (err) {
-          console.warn('Admin passkey verification failed:', err.response?.data?.message || err.message);
-          setIsAuthenticated(false);
-          setAuthError('Invalid or expired admin secret key.');
-          localStorage.removeItem('orbitus_admin_key');
-        }
-      } else {
-        setIsAuthenticated(false);
-      }
-      setLoading(false);
-    };
-
-    verifyAccess();
-  }, [user, urlKey]);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadDashboardData();
-    }
-  }, [isAuthenticated, activeTab, skillRequestStatusFilter, feedbackStatusFilter]);
-
-  const getAdminHeaders = () => {
-    const headers = {};
-    if (adminKey) headers['x-admin-secret'] = adminKey;
-    return headers;
-  };
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     setLoading(true);
+    setDataError(null);
     try {
       if (activeTab === 'overview') {
-        const res = await apiClient.get('/api/dashboard/admin', { headers: getAdminHeaders() });
-        setAdminStats(res.data);
+        const res = await apiClient.get('/api/dashboard/admin');
+        setAdminStats(res.data?.data || res.data || {});
       } else if (activeTab === 'users') {
         const res = await apiClient.get('/api/dashboard/admin/users', {
-          headers: getAdminHeaders(),
-          params: { search: userSearch, role: userRoleFilter }
+          params: {
+            search: userSearch?.trim() || undefined,
+            role: userRoleFilter !== 'All' ? userRoleFilter : undefined
+          }
         });
-        setUsersList(res.data.users || []);
+        const p = res.data?.data || res.data || {};
+        const list = p.users || res.data?.users || [];
+        setUsersList(Array.isArray(list) ? list : []);
       } else if (activeTab === 'groups') {
-        const res = await apiClient.get('/api/dashboard/admin/groups', { headers: getAdminHeaders() });
-        setGroupsList(res.data.groups || []);
+        const res = await apiClient.get('/api/dashboard/admin/groups');
+        const p = res.data?.data || res.data || {};
+        const list = p.groups || res.data?.groups || [];
+        setGroupsList(Array.isArray(list) ? list : []);
       } else if (activeTab === 'posts') {
-        const res = await apiClient.get('/api/dashboard/admin/posts', { headers: getAdminHeaders() });
-        setPostsList(res.data.posts || []);
+        const res = await apiClient.get('/api/dashboard/admin/posts');
+        const p = res.data?.data || res.data || {};
+        const list = p.posts || res.data?.posts || [];
+        setPostsList(Array.isArray(list) ? list : []);
       } else if (activeTab === 'skills') {
         const res = await apiClient.get('/api/skills');
-        setSkills(res.data.skills || []);
+        const p = res.data?.data || res.data || {};
+        const list = p.skills || res.data?.skills || [];
+        setSkills(Array.isArray(list) ? list : []);
       } else if (activeTab === 'skill-requests') {
         const res = await apiClient.get('/api/skills/requests', {
-          headers: getAdminHeaders(),
           params: { status: skillRequestStatusFilter !== 'all' ? skillRequestStatusFilter : undefined }
         });
-        setSkillRequests(res.data.requests || []);
+        const p = res.data?.data || res.data || {};
+        const list = p.requests || res.data?.requests || [];
+        setSkillRequests(Array.isArray(list) ? list : []);
       } else if (activeTab === 'feedbacks') {
         const res = await apiClient.get('/api/feedback/admin', {
-          headers: getAdminHeaders(),
           params: { status: feedbackStatusFilter !== 'all' ? feedbackStatusFilter : undefined }
         });
-        setFeedbacksList(res.data.feedbacks || []);
-        setUnreadFeedbackCount(res.data.unreadCount || 0);
+        const p = res.data?.data || res.data || {};
+        const list = p.feedbacks || res.data?.feedbacks || [];
+        setFeedbacksList(Array.isArray(list) ? list : []);
+        setUnreadFeedbackCount(p.unreadCount ?? res.data?.unreadCount ?? 0);
       }
     } catch (err) {
       console.error('Admin fetch error:', err);
+      setDataError(err.response?.data?.message || 'Failed to retrieve admin telemetry data.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab, userSearch, userRoleFilter, skillRequestStatusFilter, feedbackStatusFilter]);
 
-  const handleManualAuth = async (e) => {
-    e.preventDefault();
-    const candidate = passkeyInput.trim();
-    if (!candidate) return;
-
-    setLoading(true);
-    setAuthError('');
-    try {
-      const res = await apiClient.post('/api/auth/admin-login', { secretKey: candidate }, {
-        headers: { 'x-admin-secret': candidate }
-      });
-      if (res.data?.token && res.data?.user) {
-        localStorage.setItem('orbitus_admin_key', candidate);
-        setAdminKey(candidate);
-        dispatch(authSuccess({ accessToken: res.data.token, user: res.data.user }));
-        setIsAuthenticated(true);
-        setAuthError('');
-      }
-    } catch (err) {
-      setAuthError(err.response?.data?.message || 'Access denied: Invalid administrator secret passkey.');
-      setIsAuthenticated(false);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (isAdmin) {
+      loadDashboardData();
     }
-  };
+  }, [isAdmin, loadDashboardData]);
 
   const handlePromoteDemoteUser = async (userId, currentRole) => {
     const nextRole = currentRole === 'Admin' ? 'User' : 'Admin';
@@ -225,8 +206,7 @@ const AdminDashboard = () => {
     try {
       await apiClient.put(
         `/api/dashboard/admin/users/${userId}/role`,
-        { role: nextRole },
-        { headers: getAdminHeaders() }
+        { role: nextRole }
       );
       setStatusMsg(`User role updated to ${nextRole}`);
       setTimeout(() => setStatusMsg(''), 3000);
@@ -239,7 +219,7 @@ const AdminDashboard = () => {
   const handleDeleteUser = async (userId) => {
     if (!window.confirm('Delete this user and all associated data permanently?')) return;
     try {
-      await apiClient.delete(`/api/dashboard/admin/users/${userId}`, { headers: getAdminHeaders() });
+      await apiClient.delete(`/api/dashboard/admin/users/${userId}`);
       setStatusMsg('User account removed.');
       setTimeout(() => setStatusMsg(''), 3000);
       loadDashboardData();
@@ -251,7 +231,7 @@ const AdminDashboard = () => {
   const handleDeleteGroup = async (groupId) => {
     if (!window.confirm('Delete this study group permanently?')) return;
     try {
-      await apiClient.delete(`/api/dashboard/admin/groups/${groupId}`, { headers: getAdminHeaders() });
+      await apiClient.delete(`/api/dashboard/admin/groups/${groupId}`);
       setStatusMsg('Group deleted.');
       setTimeout(() => setStatusMsg(''), 3000);
       loadDashboardData();
@@ -263,7 +243,7 @@ const AdminDashboard = () => {
   const handleDeletePost = async (postId) => {
     if (!window.confirm('Delete this community post permanently?')) return;
     try {
-      await apiClient.delete(`/api/dashboard/admin/posts/${postId}`, { headers: getAdminHeaders() });
+      await apiClient.delete(`/api/dashboard/admin/posts/${postId}`);
       setStatusMsg('Post removed.');
       setTimeout(() => setStatusMsg(''), 3000);
       loadDashboardData();
@@ -284,8 +264,7 @@ const AdminDashboard = () => {
           category: newSkillCategory,
           description: newSkillDesc.trim(),
           tags: newSkillTags.split(',').map((t) => t.trim()).filter(Boolean)
-        },
-        { headers: getAdminHeaders() }
+        }
       );
 
       setNewSkillName('');
@@ -302,7 +281,7 @@ const AdminDashboard = () => {
   const handleDeleteSkill = async (skillId) => {
     if (!window.confirm('Delete this skill from platform?')) return;
     try {
-      await apiClient.delete(`/api/skills/${skillId}`, { headers: getAdminHeaders() });
+      await apiClient.delete(`/api/skills/${skillId}`);
       loadDashboardData();
     } catch (err) {
       showAdminToast(err.response?.data?.message || 'Could not delete skill');
@@ -313,8 +292,7 @@ const AdminDashboard = () => {
     try {
       const res = await apiClient.put(
         `/api/skills/requests/${requestId}/approve`,
-        {},
-        { headers: getAdminHeaders() }
+        {}
       );
       setStatusMsg(res.data.message || 'Course request approved and added to catalog!');
       setTimeout(() => setStatusMsg(''), 3000);
@@ -330,8 +308,7 @@ const AdminDashboard = () => {
     try {
       const res = await apiClient.put(
         `/api/skills/requests/${requestId}/reject`,
-        { adminFeedback: reason },
-        { headers: getAdminHeaders() }
+        { adminFeedback: reason }
       );
       setStatusMsg(res.data.message || 'Course request rejected.');
       setTimeout(() => setStatusMsg(''), 3000);
@@ -352,8 +329,7 @@ const AdminDashboard = () => {
         {
           title: broadcastTitle.trim(),
           content: broadcastContent.trim()
-        },
-        { headers: getAdminHeaders() }
+        }
       );
 
       setStatusMsg(res.data.message || 'Broadcast dispatched!');
@@ -371,8 +347,7 @@ const AdminDashboard = () => {
     try {
       await apiClient.put(
         `/api/feedback/admin/${feedbackId}/status`,
-        { status },
-        { headers: getAdminHeaders() }
+        { status }
       );
       setStatusMsg(`Feedback marked as ${status}.`);
       setTimeout(() => setStatusMsg(''), 3000);
@@ -382,27 +357,49 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleAddAdminFeedbackNote = async (feedbackId) => {
-    const note = window.prompt('Enter admin response note for user:');
-    if (note === null) return;
+  const openFeedbackDialog = (feedback) => {
+    setSelectedFeedback(feedback);
+    setFeedbackReplyDraft(feedback.adminNotes || '');
+  };
+
+  const handleSaveFeedbackReply = async () => {
+    const reply = feedbackReplyDraft.trim();
+    if (!selectedFeedback || !reply || feedbackReplySaving) return;
+
+    setFeedbackReplySaving(true);
     try {
-      await apiClient.put(
-        `/api/feedback/admin/${feedbackId}/status`,
-        { adminNotes: note, status: 'reviewed' },
-        { headers: getAdminHeaders() }
+      const res = await apiClient.put(
+        `/api/feedback/admin/${selectedFeedback._id}/status`,
+        { adminNotes: reply, status: 'reviewed' }
       );
-      setStatusMsg('Admin note saved and marked reviewed.');
+      const savedFeedback = res.data?.data?.feedback || res.data?.feedback;
+      const updatedFeedback = {
+        ...selectedFeedback,
+        ...(savedFeedback || {}),
+        user: selectedFeedback.user,
+        adminNotes: reply,
+        status: savedFeedback?.status || 'reviewed'
+      };
+      setFeedbacksList((current) => current.map((item) => (
+        item._id === updatedFeedback._id ? updatedFeedback : item
+      )));
+      setSelectedFeedback(updatedFeedback);
+      if (selectedFeedback.status === 'unread') {
+        setUnreadFeedbackCount((count) => Math.max(0, count - 1));
+      }
+      setStatusMsg('Response sent. The user can read it in Settings → Feedback & Support.');
       setTimeout(() => setStatusMsg(''), 3000);
-      loadDashboardData();
     } catch (err) {
-      showAdminToast(err.response?.data?.message || 'Failed to save admin note');
+      showAdminToast(err.response?.data?.message || 'Failed to send feedback response');
+    } finally {
+      setFeedbackReplySaving(false);
     }
   };
 
   const handleDeleteFeedback = async (feedbackId) => {
     if (!window.confirm('Delete this user feedback permanently?')) return;
     try {
-      await apiClient.delete(`/api/feedback/admin/${feedbackId}`, { headers: getAdminHeaders() });
+      await apiClient.delete(`/api/feedback/admin/${feedbackId}`);
       setStatusMsg('Feedback removed.');
       setTimeout(() => setStatusMsg(''), 3000);
       loadDashboardData();
@@ -411,58 +408,80 @@ const AdminDashboard = () => {
     }
   };
 
-  // URL Secret Passkey Gate
-  if (!isAuthenticated) {
+  // Administrator Account Required Gate
+  if (!isAdmin) {
     return (
       <div className="page-shell flex-1 p-4 sm:p-8 flex flex-col justify-center items-center min-h-[75vh] text-app">
-        <div className="w-full max-w-md bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl text-app relative overflow-hidden">
-          <div className="text-center space-y-2">
-            <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 mx-auto flex items-center justify-center">
-              <Key size={26} />
-            </div>
-            <h2 className="text-xl font-extrabold text-app font-outfit">Administrator Portal</h2>
-            <p className="text-xs text-muted leading-relaxed">
-              Enter your administrative passkey or access via your secret URL token to unlock platform controls.
-            </p>
+        <div className="w-full max-w-md bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl text-app text-center relative overflow-hidden">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center">
+            <Lock size={26} />
           </div>
+          <h2 className="text-xl font-extrabold text-app font-outfit">Administrator Account Required</h2>
+          <p className="text-xs text-muted leading-relaxed">
+            You must be logged in with an authorized Administrator account or unlock with the Master Admin Key.
+          </p>
 
-          {authError && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs rounded-xl text-center font-medium">
-              {authError}
-            </div>
-          )}
-
-          <form onSubmit={handleManualAuth} className="space-y-4 text-xs">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-extrabold text-muted uppercase tracking-wider">Secret Key</label>
+          <form onSubmit={handleUnlockWithKey} className="space-y-3 pt-2 text-left">
+            <div>
+              <label className="block text-[11px] font-bold text-muted mb-1">
+                Admin Master Secret Key
+              </label>
               <input
                 type="password"
-                required
-                placeholder="Enter admin secret passkey..."
-                value={passkeyInput}
-                onChange={(e) => setPasskeyInput(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-[#0f1117] border border-slate-200 dark:border-slate-800 rounded-2xl text-app outline-none focus:border-indigo-500 font-mono text-sm shadow-xs"
+                placeholder="Enter master key (e.g. orbitus-v2-secret710)..."
+                value={masterKeyInput}
+                onChange={(e) => setMasterKeyInput(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-app text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
               />
             </div>
-
+            {keyErrorMsg && (
+              <p className="text-[11px] font-semibold text-rose-500">{keyErrorMsg}</p>
+            )}
             <button
               type="submit"
-              className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold transition-all shadow-md active:scale-98 cursor-pointer"
+              disabled={verifyingKey || !masterKeyInput.trim()}
+              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-bold transition-all shadow-md active:scale-98 cursor-pointer text-xs flex items-center justify-center gap-2"
             >
-              Verify & Enter Console
+              {verifyingKey ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Verifying Master Key...</span>
+                </>
+              ) : (
+                'Unlock Admin Console'
+              )}
             </button>
           </form>
 
-          <p className="text-[11px] text-muted text-center">
-            Tip: You can bookmark <code className="text-indigo-600 dark:text-indigo-400 font-bold">/admin-portal?key={DEFAULT_SECRET_KEY}</code> for direct access.
-          </p>
+          <div className="relative flex py-1 items-center">
+            <div className="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
+            <span className="flex-shrink mx-3 text-[10px] uppercase font-bold text-slate-400">or login</span>
+            <div className="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('/login?redirect=/admin')}
+              className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-app rounded-xl font-bold transition-all cursor-pointer text-xs"
+            >
+              Log In as Administrator
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard')}
+              className="w-full py-2.5 text-muted hover:text-app rounded-xl font-medium transition-all cursor-pointer text-xs"
+            >
+              Return to User Dashboard
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="page-shell flex-1 p-4 sm:p-6 lg:p-8 space-y-6 min-h-screen text-app overflow-y-auto">
+    <div className="page-shell flex-1 p-4 sm:p-6 lg:p-8 space-y-6 text-app overflow-y-auto">
       {/* Admin Hero Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-violet-700 text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden">
         <div className="absolute -right-12 -bottom-12 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none" />
@@ -535,17 +554,39 @@ const AdminDashboard = () => {
       {/* Tab 1: Overview & Charts */}
       {activeTab === 'overview' && (
         <div className="space-y-6 animate-fade-in">
+          {loading && !adminStats && (
+            <div className="flex h-64 w-full items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-xs font-semibold text-muted">Loading telemetry metrics...</p>
+              </div>
+            </div>
+          )}
+
+          {dataError && !adminStats && (
+            <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-center space-y-3">
+              <p className="text-sm font-bold text-red-600 dark:text-red-400">{dataError}</p>
+              <button
+                type="button"
+                onClick={loadDashboardData}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           {adminStats && (
             <>
               {/* Stat Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
                 {[
-                  { label: 'Total Users', value: adminStats.stats.totalUsers, icon: Users, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-950/40' },
-                  { label: 'Active Users', value: adminStats.stats.activeUsers, icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40' },
-                  { label: 'Study Sessions', value: adminStats.stats.totalSessions, icon: FileCheck, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-950/40' },
-                  { label: 'Platform Skills', value: adminStats.stats.totalSkills, icon: Database, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40' },
-                  { label: 'Reviews Posted', value: adminStats.stats.totalReviews, icon: Star, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/40' },
-                  { label: 'Admins', value: adminStats.stats.adminCount, icon: Shield, color: 'text-sky-600 dark:text-sky-400', bg: 'bg-sky-50 dark:bg-sky-950/40' }
+                  { label: 'Total Users', value: adminStats.stats?.totalUsers ?? 0, icon: Users, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-950/40' },
+                  { label: 'Active Users', value: adminStats.stats?.activeUsers ?? 0, icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40' },
+                  { label: 'Study Sessions', value: adminStats.stats?.totalSessions ?? 0, icon: FileCheck, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-950/40' },
+                  { label: 'Platform Skills', value: adminStats.stats?.totalSkills ?? 0, icon: Database, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40' },
+                  { label: 'Reviews Posted', value: adminStats.stats?.totalReviews ?? 0, icon: Star, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/40' },
+                  { label: 'Admins', value: adminStats.stats?.adminCount ?? 0, icon: Shield, color: 'text-sky-600 dark:text-sky-400', bg: 'bg-sky-50 dark:bg-sky-950/40' }
                 ].map((s, idx) => {
                   const Icon = s.icon;
                   return (
@@ -562,53 +603,9 @@ const AdminDashboard = () => {
                 })}
               </div>
 
-              {/* Chart breakdown */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 space-y-4 shadow-sm">
-                  <h3 className="font-bold text-sm text-app font-outfit flex items-center gap-2">
-                    <BarChart3 size={16} className="text-indigo-600 dark:text-indigo-400" />
-                    Session Status Breakdown
-                  </h3>
-                  <div className="h-64 flex items-center justify-center">
-                    <Doughnut
-                      data={{
-                        labels: adminStats.charts.sessionsBreakdown.labels,
-                        datasets: [
-                          {
-                            data: adminStats.charts.sessionsBreakdown.data,
-                            backgroundColor: ['#10b981', '#f59e0b', '#6366f1', '#ef4444'],
-                            borderWidth: 0
-                          }
-                        ]
-                      }}
-                      options={{ responsive: true, maintainAspectRatio: false }}
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 space-y-4 shadow-sm">
-                  <h3 className="font-bold text-sm text-app font-outfit flex items-center gap-2">
-                    <Database size={16} className="text-purple-600 dark:text-purple-400" />
-                    Skills Category Share
-                  </h3>
-                  <div className="h-64 flex items-center justify-center">
-                    <Bar
-                      data={{
-                        labels: adminStats.charts.skillsBreakdown.labels,
-                        datasets: [
-                          {
-                            label: 'Skills Count',
-                            data: adminStats.charts.skillsBreakdown.data,
-                            backgroundColor: '#6366f1',
-                            borderRadius: 8
-                          }
-                        ]
-                      }}
-                      options={{ responsive: true, maintainAspectRatio: false }}
-                    />
-                  </div>
-                </div>
-              </div>
+              <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />}>
+                <AdminOverviewCharts adminStats={adminStats} />
+              </Suspense>
             </>
           )}
         </div>
@@ -697,13 +694,13 @@ const AdminDashboard = () => {
                     </div>
 
                     {/* Message */}
-                    <p className="text-xs text-muted leading-relaxed whitespace-pre-line bg-slate-50 dark:bg-[#12161f] p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <p className="text-xs text-muted leading-relaxed whitespace-pre-line line-clamp-4 bg-slate-50 dark:bg-[#12161f] p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
                       {fb.message}
                     </p>
 
                     {/* Admin Note if any */}
                     {fb.adminNotes && (
-                      <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] text-indigo-600 dark:text-indigo-300">
+                      <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] text-indigo-600 dark:text-indigo-300 whitespace-pre-line line-clamp-2">
                         <span className="font-bold">Your Response:</span> {fb.adminNotes}
                       </div>
                     )}
@@ -718,11 +715,19 @@ const AdminDashboard = () => {
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => handleAddAdminFeedbackNote(fb._id)}
-                        className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-app font-semibold transition-colors cursor-pointer"
-                        title="Add admin response note"
+                        onClick={() => openFeedbackDialog(fb)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-app font-semibold transition-colors cursor-pointer"
+                        title="Read the full feedback"
                       >
-                        Respond
+                        <Eye size={13} /> View
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openFeedbackDialog(fb)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-colors cursor-pointer"
+                        title="Read and respond to feedback"
+                      >
+                        <Send size={12} /> {fb.adminNotes ? 'Edit reply' : 'Respond'}
                       </button>
                       {fb.status !== 'resolved' && (
                         <button
@@ -1223,6 +1228,92 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+
+      <Dialog open={Boolean(selectedFeedback)} onOpenChange={(open) => !open && setSelectedFeedback(null)}>
+        {selectedFeedback && (
+          <DialogContent className="w-[calc(100%-2rem)] max-w-2xl max-h-[88vh] overflow-y-auto rounded-2xl p-5 sm:p-7 text-app">
+            <DialogHeader className="pr-8">
+              <DialogTitle className="text-left">{selectedFeedback.subject || 'Feedback details'}</DialogTitle>
+              <DialogDescription className="text-left">
+                Review the complete submission and send a response visible to the user in Settings.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#12161f] p-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-app">{selectedFeedback.user?.name || 'Anonymous'}</p>
+                  <p className="truncate text-xs text-muted">
+                    {[selectedFeedback.user?.email, selectedFeedback.user?.username && `@${selectedFeedback.user.username}`].filter(Boolean).join(' · ') || 'User details unavailable'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 text-muted">{selectedFeedback.category}</span>
+                  <span className="text-amber-500" aria-label={`${selectedFeedback.rating || 5} out of 5 stars`}>
+                    {'★'.repeat(selectedFeedback.rating || 5)}{'☆'.repeat(Math.max(0, 5 - (selectedFeedback.rating || 5)))}
+                  </span>
+                </div>
+              </div>
+
+              <section aria-labelledby="feedback-message-title" className="space-y-2">
+                <h4 id="feedback-message-title" className="text-xs font-bold uppercase text-muted">Full feedback</h4>
+                <div className="max-h-56 overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#12161f] p-4 text-sm leading-relaxed text-app">
+                  {selectedFeedback.message}
+                </div>
+                <p className="text-[11px] text-muted">
+                  Submitted {new Date(selectedFeedback.createdAt).toLocaleString()} · Status: {selectedFeedback.status}
+                </p>
+              </section>
+
+              {selectedFeedback.adminNotes && (
+                <section aria-labelledby="previous-response-title" className="space-y-2">
+                  <h4 id="previous-response-title" className="text-xs font-bold uppercase text-muted">Previous response</h4>
+                  <div className="whitespace-pre-wrap break-words rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/30 p-4 text-sm leading-relaxed text-app">
+                    {selectedFeedback.adminNotes}
+                  </div>
+                </section>
+              )}
+
+              <section className="space-y-2">
+                <label htmlFor="feedback-admin-reply" className="text-xs font-bold text-app">
+                  {selectedFeedback.adminNotes ? 'Edit your response' : 'Write a response'}
+                </label>
+                <textarea
+                  id="feedback-admin-reply"
+                  value={feedbackReplyDraft}
+                  onChange={(event) => setFeedbackReplyDraft(event.target.value.slice(0, 2000))}
+                  rows={6}
+                  maxLength={2000}
+                  placeholder="Write a clear, helpful response. You can use multiple paragraphs."
+                  className="w-full resize-y rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#12161f] p-3 text-sm leading-relaxed text-app placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                />
+                <div className="flex items-center justify-between gap-3 text-[11px] text-muted">
+                  <span>The user can read this under Settings → Feedback &amp; Support.</span>
+                  <span className="shrink-0">{feedbackReplyDraft.length}/2000</span>
+                </div>
+              </section>
+            </div>
+
+            <DialogFooter className="gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedFeedback(null)}
+                className="h-10 rounded-lg border border-slate-200 dark:border-slate-700 px-4 text-sm font-semibold text-app hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveFeedbackReply}
+                disabled={feedbackReplySaving || !feedbackReplyDraft.trim()}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Send size={14} /> {feedbackReplySaving ? 'Sending…' : 'Send response'}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 };

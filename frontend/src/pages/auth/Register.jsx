@@ -5,6 +5,7 @@ import { authSuccess } from '../../features/authSlice.js';
 import { GitBranch, UserPlus, User, Mail, Lock, ShieldAlert, CheckCircle2, Eye, EyeOff, AtSign } from 'lucide-react';
 import { apiPath } from '../../config/env.js';
 import apiClient from '../../services/apiClient.js';
+import BrandLogo from '../../components/common/BrandLogo.jsx';
 
 const Register = () => {
   const [name, setName] = useState('');
@@ -69,10 +70,10 @@ const Register = () => {
           <aside className="hidden border-r bg-slate-50 p-8 dark:bg-[#151922] lg:flex lg:flex-col lg:justify-between" style={{ borderColor: 'var(--app-border)' }}>
             <div>
               <div className="mb-6 flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl bg-white shadow-xs">
-                <img src="/favicon.svg" alt="Orbitus" className="h-full w-full object-contain p-2" />
+                <BrandLogo size={48} className="h-full w-full object-contain p-1" />
               </div>
               <h1 className="text-2xl font-bold tracking-tight text-app">Build your Orbitus profile</h1>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Where Skills Connect</p>
+              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">Where Skills Connect</p>
               <p className="mt-3 max-w-sm text-xs leading-relaxed text-muted">
                 Add your account first, then use the catalog to define what you teach and what you want to learn.
               </p>

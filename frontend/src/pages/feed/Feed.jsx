@@ -1,33 +1,45 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
 import {
   Globe,
-  Heart,
   MessageCircle,
   MoreVertical,
   Pencil,
   Send,
   Share2,
   Trash2,
-  UserRound,
   Users,
   X,
-  UserPlus,
-  UserCheck,
   Calendar,
   Sparkles,
   Award,
   BookOpen,
   ArrowRight,
-  RefreshCw,
   Copy
 } from 'lucide-react';
 import { useSocket } from '../../context/SocketContext.jsx';
-import { motion } from 'framer-motion';
-import { TiltCard, ScrollReveal, Marquee, MorphingBlob } from '../../components/motion/index.js';
+import Marquee from '../../components/motion/Marquee.jsx';
+import MorphingBlob from '../../components/motion/MorphingBlob.jsx';
+import {
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+  Badge,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '../../components/ui/index.js';
+import PostLikersDialog from '../../components/common/PostLikersDialog.jsx';
+import PostCommentsModal from '../../components/common/PostCommentsModal.jsx';
+import { PulseHeart } from '../../components/common/react-bits/PulseHeart.jsx';
 
 const MAX_POST_LENGTH = 2000;
 const PREVIEW_LENGTH = 360;
@@ -58,6 +70,10 @@ const Feed = () => {
   const [isComposerSticky, setIsComposerSticky] = useState(false);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
   const [copiedPostId, setCopiedPostId] = useState('');
+  const [activeLikersPostId, setActiveLikersPostId] = useState(null);
+  const [activeCommentsPost, setActiveCommentsPost] = useState(null);
+  const [commentToDeleteTarget, setCommentToDeleteTarget] = useState(null);
+  const [deletingCommentId, setDeletingCommentId] = useState('');
   const lastScrollY = useRef(0);
   const pageShellRef = useRef(null);
   const closeMenuTimerRef = useRef(null);
@@ -116,40 +132,7 @@ const Feed = () => {
   const [sidebarGroups, setSidebarGroups] = useState([]);
   const [sidebarLoading, setSidebarLoading] = useState(true);
 
-  // Fetch posts whenever feedScope or token changes
-  useEffect(() => {
-    fetchPosts();
-  }, [token, feedScope]);
-
-  // Fetch sidebar widgets & active chats once on load, and auto-refresh silently every 10 mins
-  useEffect(() => {
-    fetchActiveChats();
-    fetchSidebarWidgets();
-
-    const refreshInterval = setInterval(() => {
-      fetchPosts(true);
-      fetchSidebarWidgets(true);
-    }, 10 * 60 * 1000);
-
-    return () => clearInterval(refreshInterval);
-  }, [token]);
-
-  // Seamless infinite scroll observer: auto-fetches next 20 posts as user scrolls down
-  useEffect(() => {
-    if (!sentinelRef.current) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
-          loadMorePosts();
-        }
-      },
-      { rootMargin: '350px' }
-    );
-    observer.observe(sentinelRef.current);
-    return () => observer.disconnect();
-  }, [hasMore, loadingMore, loading, page, feedScope]);
-
-  const fetchPosts = async (isBackground = false) => {
+  const fetchPosts = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
     try {
       const res = await apiClient.get('/api/posts', {
@@ -164,9 +147,9 @@ const Feed = () => {
     } finally {
       if (!isBackground) setLoading(false);
     }
-  };
+  }, [feedScope]);
 
-  const loadMorePosts = async () => {
+  const loadMorePosts = useCallback(async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
@@ -191,7 +174,40 @@ const Feed = () => {
     } finally {
       setLoadingMore(false);
     }
-  };
+  }, [loadingMore, hasMore, page, feedScope]);
+
+  // Fetch posts whenever feedScope or token changes
+  useEffect(() => {
+    fetchPosts();
+  }, [token, fetchPosts]);
+
+  // Fetch sidebar widgets & active chats once on load, and auto-refresh silently every 10 mins
+  useEffect(() => {
+    fetchActiveChats();
+    fetchSidebarWidgets();
+
+    const refreshInterval = setInterval(() => {
+      fetchPosts(true);
+      fetchSidebarWidgets(true);
+    }, 10 * 60 * 1000);
+
+    return () => clearInterval(refreshInterval);
+  }, [token, fetchPosts]);
+
+  // Seamless infinite scroll observer: auto-fetches next 20 posts as user scrolls down
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMorePosts();
+        }
+      },
+      { rootMargin: '350px' }
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, loadMorePosts]);
 
   const fetchSidebarWidgets = async (isBackground = false) => {
     if (!isBackground) setSidebarLoading(true);
@@ -324,10 +340,78 @@ const Feed = () => {
 
     try {
       const res = await apiClient.post(`/api/posts/${postId}/comments`, { content: draft });
-      replacePost(res.data.post);
+      const updatedPost = res.data?.data?.post || res.data?.post || res.data;
+      replacePost(updatedPost);
+      if (activeCommentsPost && activeCommentsPost._id === postId) {
+        setActiveCommentsPost(updatedPost);
+      }
       setCommentDrafts((prev) => ({ ...prev, [postId]: '' }));
     } catch (err) {
       console.error('Error adding comment:', err);
+    }
+  };
+
+  const handleCommentAdded = (updatedPost) => {
+    replacePost(updatedPost);
+    if (activeCommentsPost && activeCommentsPost._id === updatedPost._id) {
+      setActiveCommentsPost(updatedPost);
+    }
+  };
+
+  const handleCommentDeleted = (postId, commentId, updatedPost) => {
+    if (updatedPost) {
+      replacePost(updatedPost);
+      if (activeCommentsPost && activeCommentsPost._id === postId) {
+        setActiveCommentsPost(updatedPost);
+      }
+    } else {
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (p._id !== postId) return p;
+          const filtered = (p.comments || []).filter((c) => c._id !== commentId);
+          return { ...p, comments: filtered, commentsCount: Math.max(0, filtered.length) };
+        })
+      );
+      if (activeCommentsPost && activeCommentsPost._id === postId) {
+        setActiveCommentsPost((prev) => {
+          const filtered = (prev.comments || []).filter((c) => c._id !== commentId);
+          return { ...prev, comments: filtered, commentsCount: Math.max(0, filtered.length) };
+        });
+      }
+    }
+  };
+
+  const handleDeleteCommentDirect = (postId, comment) => {
+    const post = posts.find((p) => p._id === postId);
+    const commentId = comment?._id || comment;
+    const isRoot = !comment?.parentCommentId && !comment?.threadRootId;
+    let repliesCount = 0;
+    if (isRoot && post) {
+      repliesCount = (post.comments || []).filter(
+        (c) => (c.threadRootId === commentId || c.parentCommentId === commentId)
+      ).length;
+    }
+    setCommentToDeleteTarget({
+      postId,
+      commentId,
+      isRootWithReplies: isRoot && repliesCount > 0,
+      repliesCount
+    });
+  };
+
+  const confirmDeleteCommentDirect = async () => {
+    if (!commentToDeleteTarget) return;
+    const { postId, commentId } = commentToDeleteTarget;
+    setDeletingCommentId(commentId);
+    try {
+      const res = await apiClient.delete(`/api/posts/${postId}/comments/${commentId}`);
+      const updatedPost = res.data?.data?.post || res.data?.post;
+      handleCommentDeleted(postId, commentId, updatedPost);
+    } catch (err) {
+      console.error('Error deleting comment:', err);
+    } finally {
+      setDeletingCommentId('');
+      setCommentToDeleteTarget(null);
     }
   };
 
@@ -366,11 +450,12 @@ const Feed = () => {
           <div className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-4">
             <div className="flex items-center gap-3">
               <Link to={userProfileLink} className="hover:scale-105 transition-transform shrink-0">
-                <img
-                  src={userAvatar}
-                  alt={userName}
-                  className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 object-cover border border-slate-200 dark:border-slate-700"
-                />
+                <Avatar className="w-12 h-12 border border-slate-200 dark:border-slate-700">
+                  <AvatarImage src={userAvatar} alt={userName} />
+                  <AvatarFallback className="bg-indigo-600 text-white font-bold text-sm">
+                    {userName?.slice(0, 2).toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
               </Link>
               <div className="min-w-0">
                 <Link
@@ -380,9 +465,11 @@ const Feed = () => {
                   {userName}
                 </Link>
                 <p className="text-xs text-muted truncate">@{user?.username || 'user'}</p>
-                <p className="text-[11px] text-muted truncate mt-0.5">
-                  {user?.experienceLevel || 'Learner'}
-                </p>
+                <div className="mt-1">
+                  <Badge variant="secondary" className="text-[10px] font-semibold">
+                    {user?.experienceLevel || 'Learner'}
+                  </Badge>
+                </div>
               </div>
             </div>
 
@@ -545,7 +632,7 @@ const Feed = () => {
               <p className="text-xs text-muted">Be the first to share an update!</p>
             </div>
           ) : (
-            posts.map((post, idx) => {
+            posts.map((post) => {
               const postAuthor = post.author || {
                 _id: '',
                 name: 'Orbitus Member',
@@ -571,11 +658,15 @@ const Feed = () => {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <Link to={authorProfileUrl} className="hover:scale-105 transition-transform shrink-0">
-                        <img
-                          src={postAuthor.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(postAuthor.name || 'User')}&background=6366f1&color=fff`}
-                          alt={postAuthor.name}
-                          className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 object-cover border border-slate-200 dark:border-slate-700"
-                        />
+                        <Avatar className="w-10 h-10 border border-slate-200 dark:border-slate-700">
+                          <AvatarImage
+                            src={postAuthor.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(postAuthor.name || 'User')}&background=6366f1&color=fff`}
+                            alt={postAuthor.name}
+                          />
+                          <AvatarFallback className="bg-indigo-600 text-white font-bold text-xs">
+                            {postAuthor.name?.slice(0, 2).toUpperCase() || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
                       </Link>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
@@ -729,20 +820,23 @@ const Feed = () => {
 
                   {/* Actions Row */}
                   <div className="flex items-center gap-4 pt-2 border-t border-slate-100 dark:border-slate-800/80 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => likePost(post._id)}
-                      className={`flex items-center gap-1.5 transition-colors ${
-                        liked ? 'text-red-500 font-bold' : 'text-muted hover:text-app'
-                      }`}
-                    >
-                      <Heart size={15} fill={liked ? 'currentColor' : 'none'} />
-                      <span>{post.likes?.length || 0}</span>
-                    </button>
+                    {/* Like Action + Liker List Trigger */}
+                    <PulseHeart
+                      liked={liked}
+                      count={post.likes?.length || 0}
+                      onToggle={() => likePost(post._id)}
+                      onCountClick={() => setActiveLikersPostId(post._id)}
+                      ariaLabel="Like post"
+                      countAriaLabel="View who liked this post"
+                      size={16}
+                    />
 
+                    {/* Comment Count Trigger: Opens Full Comments View */}
                     <button
                       type="button"
-                      className="flex items-center gap-1.5 text-muted hover:text-app transition-colors"
+                      onClick={() => setActiveCommentsPost(post)}
+                      className="flex items-center gap-1.5 text-muted hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors cursor-pointer"
+                      title="Open full comments view"
                     >
                       <MessageCircle size={15} />
                       <span>{post.comments?.length || 0}</span>
@@ -760,29 +854,60 @@ const Feed = () => {
 
                   {/* Comments Section */}
                   <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800/40">
+                    {post.comments && post.comments.length > 3 && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveCommentsPost(post)}
+                        className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline block mb-1 text-left cursor-pointer"
+                      >
+                        View all {post.comments.length} comments...
+                      </button>
+                    )}
+
                     {(post.comments || []).slice(-3).map((comment, index) => {
                       const cAuthor = comment.author || comment.user || {
                         _id: '',
                         name: 'Member',
                         profileImage: ''
                       };
+                      const cAuthorId = (cAuthor._id || cAuthor || '').toString();
+                      const currentUserId = (user?._id || user?.id || '').toString();
+                      const postAuthorId = (post.author?._id || post.author || '').toString();
+                      const isAdmin = (user?.role || '').toLowerCase() === 'admin';
+                      const canDelete = cAuthorId === currentUserId || postAuthorId === currentUserId || isAdmin;
                       const cProfileUrl = cAuthor._id ? `/profile/${cAuthor._id}` : (cAuthor.username ? `/profile/${cAuthor.username}` : '#');
 
                       return (
-                        <div key={index} className="flex items-start gap-2.5 text-xs bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800/60">
-                          <Link to={cProfileUrl} className="shrink-0 mt-0.5 hover:scale-105 transition-transform" title={`View ${cAuthor.name}'s profile`}>
-                            <img
-                              src={cAuthor.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(cAuthor.name || 'User')}&background=6366f1&color=fff`}
-                              alt={cAuthor.name}
-                              className="w-6 h-6 rounded-full object-cover bg-slate-200 dark:bg-slate-700 border border-slate-200 dark:border-slate-700"
-                            />
-                          </Link>
-                          <div className="min-w-0 flex-1">
-                            <Link to={cProfileUrl} className="font-bold text-app hover:text-blue-600 dark:hover:text-blue-400 mr-1.5 inline-block">
-                              {cAuthor.name || 'User'}:
+                        <div key={comment._id || index} className="flex items-start justify-between gap-2 text-xs bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800/60 group">
+                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                            <Link to={cProfileUrl} className="shrink-0 mt-0.5 hover:scale-105 transition-transform" title={`View ${cAuthor.name}'s profile`}>
+                              <Avatar className="w-6 h-6 border border-slate-200 dark:border-slate-700">
+                                <AvatarImage src={cAuthor.profileImage} alt={cAuthor.name} />
+                                <AvatarFallback className="bg-indigo-600 text-white text-[10px] font-bold">
+                                  {cAuthor.name?.slice(0, 2).toUpperCase() || 'U'}
+                                </AvatarFallback>
+                              </Avatar>
                             </Link>
-                            <span className="text-muted-strong leading-snug break-words">{comment.content}</span>
+                            <div className="min-w-0 flex-1">
+                              <Link to={cProfileUrl} className="font-bold text-app hover:text-blue-600 dark:hover:text-blue-400 mr-1.5 inline-block">
+                                {cAuthor.name || 'User'}:
+                              </Link>
+                              <span className="text-muted-strong leading-snug break-words">{comment.content}</span>
+                            </div>
                           </div>
+
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCommentDirect(post._id, comment)}
+                              disabled={deletingCommentId === comment._id}
+                              className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors opacity-70 group-hover:opacity-100 shrink-0 cursor-pointer"
+                              title="Delete this comment"
+                              aria-label="Delete comment"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -852,11 +977,15 @@ const Feed = () => {
                     <div key={peer._id} className="flex items-center justify-between gap-2.5">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <Link to={peerProfileUrl} className="shrink-0 hover:scale-105 transition-transform">
-                          <img
-                            src={peer.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(peer.name || 'User')}&background=6366f1&color=fff`}
-                            alt={peer.name}
-                            className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 object-cover border border-slate-200 dark:border-slate-700"
-                          />
+                          <Avatar className="w-9 h-9 border border-slate-200 dark:border-slate-700">
+                            <AvatarImage
+                              src={peer.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(peer.name || 'User')}&background=6366f1&color=fff`}
+                              alt={peer.name}
+                            />
+                            <AvatarFallback className="bg-indigo-600 text-white font-bold text-xs">
+                              {peer.name?.slice(0, 2).toUpperCase() || 'U'}
+                            </AvatarFallback>
+                          </Avatar>
                         </Link>
                         <div className="min-w-0">
                           <Link
@@ -1009,50 +1138,84 @@ const Feed = () => {
         )}
 
       {/* Custom Delete Post Confirmation Modal */}
-      {postToDelete && (
-        <div
-          role="dialog"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
-          onClick={() => setPostToDelete(null)}
-        >
-          <div
-            className="w-full max-w-sm bg-white dark:bg-[#161b22] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl text-app space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold font-outfit text-app flex items-center gap-2">
-                <Trash2 size={20} className="text-red-500" /> Delete Post?
-              </h3>
-              <button
-                type="button"
-                onClick={() => setPostToDelete(null)}
-                className="text-slate-400 hover:text-app p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+      {/* Accessible Post Delete AlertDialog */}
+      <AlertDialog open={Boolean(postToDelete)} onOpenChange={(open) => !open && setPostToDelete(null)}>
+        <AlertDialogContent className="max-w-sm rounded-2xl bg-white dark:bg-[#181d26] border border-slate-200 dark:border-slate-800 p-6 shadow-2xl">
+          <AlertDialogHeader className="space-y-2">
+            <AlertDialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
+              Delete Post?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
               Are you sure you want to delete this post? This action will permanently remove it from the platform feed and your profile.
-            </p>
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setPostToDelete(null)}
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-app font-bold text-xs rounded-xl transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDeletePost}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
-              >
-                Delete Post
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex gap-2 sm:justify-end pt-4">
+            <AlertDialogCancel
+              onClick={() => setPostToDelete(null)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-0"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeletePost}
+              className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 text-white shadow-sm border-0"
+            >
+              Delete Post
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Accessible Direct Comment Delete AlertDialog */}
+      <AlertDialog open={Boolean(commentToDeleteTarget)} onOpenChange={(open) => !open && setCommentToDeleteTarget(null)}>
+        <AlertDialogContent className="max-w-sm rounded-2xl bg-white dark:bg-[#181d26] border border-slate-200 dark:border-slate-800 p-6 shadow-2xl">
+          <AlertDialogHeader className="space-y-2">
+            <AlertDialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
+              {commentToDeleteTarget?.isRootWithReplies ? 'Delete Discussion Thread?' : 'Delete Comment?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              {commentToDeleteTarget?.isRootWithReplies
+                ? `This comment has ${commentToDeleteTarget.repliesCount} ${
+                    commentToDeleteTarget.repliesCount === 1 ? 'reply' : 'replies'
+                  }. Deleting it will permanently remove the entire discussion thread. Are you sure?`
+                : 'Are you sure you want to permanently delete this comment? This action cannot be undone.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex gap-2 sm:justify-end pt-4">
+            <AlertDialogCancel
+              onClick={() => setCommentToDeleteTarget(null)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-0"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteCommentDirect}
+              disabled={Boolean(deletingCommentId)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 text-white shadow-sm border-0"
+            >
+              {deletingCommentId ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Post Likers Modal */}
+      <PostLikersDialog
+        postId={activeLikersPostId}
+        isOpen={Boolean(activeLikersPostId)}
+        onClose={() => setActiveLikersPostId(null)}
+      />
+
+      {/* Post Full Comments Modal */}
+      <PostCommentsModal
+        post={activeCommentsPost}
+        isOpen={Boolean(activeCommentsPost)}
+        onClose={() => setActiveCommentsPost(null)}
+        currentUser={user}
+        onCommentAdded={handleCommentAdded}
+        onCommentDeleted={handleCommentDeleted}
+        onCommentEdited={handleCommentAdded}
+      />
     </div>
   );
 };

@@ -1,10 +1,9 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { io } from 'socket.io-client';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { addMessage, updateMessage, updateMessageReactions, removeMessageForMe, setActiveChats } from '../features/chatSlice.js';
 import { updateProfileSuccess } from '../features/authSlice.js';
 import apiClient from '../services/apiClient.js';
-import { socketUrl } from '../config/env.js';
+import { socketUrl, backendUrl } from '../config/env.js';
 
 const SocketContext = createContext(null);
 
@@ -48,6 +47,47 @@ export const SocketProvider = ({ children }) => {
   const dispatch = useDispatch();
   const currentRoomIdRef = useRef(currentRoomId);
   const userRef = useRef(user);
+  const socketRef = useRef(null);
+
+  const fetchNotificationSummary = useCallback(async () => {
+    if (!token) return;
+
+    try {
+      const res = await apiClient.get('/api/notifications/summary');
+      const payload = res.data?.data || res.data || {};
+      setNotificationSummary({
+        totalUnread: payload.totalUnread ?? res.data?.totalUnread ?? 0,
+        byLink: payload.byLink || res.data?.byLink || {}
+      });
+    } catch (err) {
+      if (err.code === 'ERR_NETWORK' || !err.response) {
+        if (import.meta.env.DEV) {
+          console.warn('[OFFLINE NOTICE]: Backend service is unreachable at', backendUrl);
+        }
+      } else {
+        console.error('Error loading notification summary:', err);
+      }
+    }
+  }, [token]);
+
+  const fetchActiveChats = useCallback(async () => {
+    if (!token) return;
+
+    try {
+      const res = await apiClient.get('/api/messages/active');
+      const payload = res.data?.data || res.data || {};
+      const chats = payload.chats || res.data?.chats || [];
+      dispatch(setActiveChats(Array.isArray(chats) ? chats : []));
+    } catch (err) {
+      if (err.code === 'ERR_NETWORK' || !err.response) {
+        if (import.meta.env.DEV) {
+          console.warn('[OFFLINE NOTICE]: Chat notifications unreachable at', backendUrl);
+        }
+      } else {
+        console.error('Error refreshing chat notifications:', err);
+      }
+    }
+  }, [token, dispatch]);
 
   useEffect(() => {
     currentRoomIdRef.current = currentRoomId;
@@ -58,141 +98,150 @@ export const SocketProvider = ({ children }) => {
   }, [user]);
 
   useEffect(() => {
-    if (isAuthenticated && user) {
-      // Connect to Socket Server
-      const socketConn = io(socketUrl, {
-        transports: ['polling', 'websocket'],
-        reconnectionAttempts: 5,
-        timeout: 10000
-      });
+    let isCancelled = false;
+    let localSocket = null;
 
-      setSocket(socketConn);
+    if (isAuthenticated && user && token) {
+      import('socket.io-client').then(({ io }) => {
+        if (isCancelled) return;
 
-      // Bind setup user handshake with privacy presence check
-      const hideOnline = localStorage.getItem('orbitus_pref_online') === 'false';
-      if (!hideOnline) {
-        socketConn.emit('setup_user', user._id);
-      }
+        const preferredTransports = import.meta.env.VITE_SOCKET_TRANSPORTS
+          ? import.meta.env.VITE_SOCKET_TRANSPORTS.split(',').map((t) => t.trim())
+          : ['polling', 'websocket'];
 
-      // Listen to real-time message streams
-      socketConn.on('receive_private_message', (message) => {
-        playNotificationChime();
-        if (message.chatRoomId === currentRoomIdRef.current) {
-          dispatch(addMessage(message));
-          
-          // Mark seen immediately if active in the room
-          socketConn.emit('mark_seen', {
-            chatRoomId: message.chatRoomId,
-            userId: userRef.current?._id
-          });
+        // Connect to Socket Server with JWT auth
+        const socketConn = io(socketUrl, {
+          auth: { token },
+          extraHeaders: {
+            Authorization: `Bearer ${token}`
+          },
+          transports: preferredTransports,
+          reconnectionAttempts: 10,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000,
+          timeout: 10000
+        });
+
+        localSocket = socketConn;
+        socketRef.current = socketConn;
+        setSocket(socketConn);
+
+        socketConn.on('connect_error', (err) => {
+          console.warn('[SOCKET CONNECT NOTICE]: Real-time connection handshake notice:', err.message);
+        });
+
+        // Bind setup user handshake with privacy presence check
+        const hideOnline = localStorage.getItem('orbitus_pref_online') === 'false';
+        if (!hideOnline) {
+          socketConn.emit('setup_user', user._id);
         }
-        fetchActiveChats();
-      });
 
-      socketConn.on('message_updated', (message) => {
-        if (message.chatRoomId === currentRoomIdRef.current) {
-          dispatch(updateMessage(message));
-        }
-      });
+        // Listen to real-time message streams
+        socketConn.on('receive_private_message', (message) => {
+          playNotificationChime();
+          if (message.chatRoomId === currentRoomIdRef.current) {
+            dispatch(addMessage(message));
 
-      socketConn.on('message_deleted', (message) => {
-        if (message.chatRoomId === currentRoomIdRef.current) {
-          dispatch(updateMessage(message));
-        }
-      });
+            // Mark seen immediately if active in the room
+            socketConn.emit('mark_seen', {
+              chatRoomId: message.chatRoomId,
+              userId: userRef.current?._id
+            });
+          }
+          fetchActiveChats();
+        });
 
-      socketConn.on('message_deleted_for_me', (payload) => {
-        if (payload.chatRoomId === currentRoomIdRef.current) {
-          dispatch(removeMessageForMe(payload));
-        }
-      });
+        socketConn.on('message_updated', (message) => {
+          if (message.chatRoomId === currentRoomIdRef.current) {
+            dispatch(updateMessage(message));
+          }
+        });
 
-      socketConn.on('message_reaction_updated', (payload) => {
-        dispatch(updateMessageReactions(payload));
-      });
+        socketConn.on('message_deleted', (message) => {
+          if (message.chatRoomId === currentRoomIdRef.current) {
+            dispatch(updateMessage(message));
+          }
+        });
 
-      socketConn.on('points_awarded', (payload) => {
-        if (payload?.totalPoints !== undefined) {
-          dispatch(updateProfileSuccess({ ...userRef.current, points: payload.totalPoints }));
-        }
-      });
+        socketConn.on('message_deleted_for_me', (payload) => {
+          if (payload.chatRoomId === currentRoomIdRef.current) {
+            dispatch(removeMessageForMe(payload));
+          }
+        });
 
-      // Listen to real-time notification alerts
-      socketConn.on('new_notification', (notification) => {
-        const recipientId = notification?.recipient?._id || notification?.recipient || notification?.recipientId;
-        const senderId = notification?.sender?._id || notification?.sender || notification?.senderId;
-        if (!recipientId || recipientId.toString() !== userRef.current?._id?.toString()) return;
-        if (senderId && senderId.toString() === userRef.current?._id?.toString()) return;
+        socketConn.on('message_reaction_updated', (payload) => {
+          dispatch(updateMessageReactions(payload));
+        });
 
-        playNotificationChime();
-        setNotifications((prev) => [notification, ...prev]);
-        fetchNotificationSummary();
-        fetchActiveChats();
-        
-        // Show HTML5 native alert or visual pop if allowed
-        if (Notification.permission === 'granted') {
-          new window.Notification('Orbitus Notification', {
-            body: notification.content,
-            icon: '/favicon.svg'
-          });
-        }
-      });
+        socketConn.on('points_awarded', (payload) => {
+          if (payload?.totalPoints !== undefined) {
+            dispatch(updateProfileSuccess({ ...userRef.current, points: payload.totalPoints }));
+          }
+        });
 
-      // Listen to peer statuses
-      socketConn.on('online_users_list', (userIds = []) => {
-        setOnlineUsersList(
-          userIds.reduce((acc, userId) => {
-            acc[userId.toString()] = true;
-            return acc;
-          }, {})
-        );
-      });
+        // Listen to real-time notification alerts
+        socketConn.on('new_notification', (notification) => {
+          const recipientId = notification?.recipient?._id || notification?.recipient || notification?.recipientId;
+          const senderId = notification?.sender?._id || notification?.sender || notification?.senderId;
+          if (!recipientId || recipientId.toString() !== userRef.current?._id?.toString()) return;
+          if (senderId && senderId.toString() === userRef.current?._id?.toString()) return;
 
-      socketConn.on('user_status_changed', ({ userId, status }) => {
-        setOnlineUsersList((prev) => ({
-          ...prev,
-          [userId.toString()]: status === 'online'
-        }));
+          playNotificationChime();
+          setNotifications((prev) => [notification, ...prev]);
+          fetchNotificationSummary();
+          fetchActiveChats();
+
+          // Show HTML5 native alert or visual pop if allowed
+          if (Notification.permission === 'granted') {
+            new window.Notification('Orbitus Notification', {
+              body: notification.content,
+              icon: '/favicon.svg'
+            });
+          }
+        });
+
+        // Listen to peer statuses
+        socketConn.on('online_users_list', (userIds = []) => {
+          setOnlineUsersList(
+            userIds.reduce((acc, userId) => {
+              acc[userId.toString()] = true;
+              return acc;
+            }, {})
+          );
+        });
+
+        socketConn.on('user_status_changed', ({ userId, status }) => {
+          setOnlineUsersList((prev) => ({
+            ...prev,
+            [userId.toString()]: status === 'online'
+          }));
+        });
       });
 
       return () => {
-        socketConn.disconnect();
+        isCancelled = true;
+        if (localSocket) {
+          localSocket.disconnect();
+        }
+        if (socketRef.current) {
+          socketRef.current.disconnect();
+          socketRef.current = null;
+        }
+        setSocket(null);
       };
     } else {
       setNotifications([]);
       setNotificationSummary({ totalUnread: 0, byLink: {} });
-      if (socket) {
-        socket.disconnect();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
         setSocket(null);
       }
       setOnlineUsersList({});
     }
-  }, [isAuthenticated, user?._id, dispatch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user?._id, token, dispatch, fetchNotificationSummary, fetchActiveChats]);
 
-  const fetchNotificationSummary = async () => {
-    if (!token) return;
-
-    try {
-      const res = await apiClient.get('/api/notifications/summary');
-      setNotificationSummary({
-        totalUnread: res.data.totalUnread || 0,
-        byLink: res.data.byLink || {}
-      });
-    } catch (err) {
-      console.error('Error loading notification summary:', err);
-    }
-  };
-
-  const fetchActiveChats = async () => {
-    if (!token) return;
-
-    try {
-      const res = await apiClient.get('/api/messages/active');
-      dispatch(setActiveChats(res.data.chats || []));
-    } catch (err) {
-      console.error('Error refreshing chat notifications:', err);
-    }
-  };
 
   const markNotificationsRead = async (payload) => {
     if (!token) return;
@@ -212,11 +261,12 @@ export const SocketProvider = ({ children }) => {
       const intervalId = window.setInterval(() => {
         fetchNotificationSummary();
         fetchActiveChats();
-      }, 15000);
+      }, 60000);
 
       return () => window.clearInterval(intervalId);
     }
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated, token, fetchNotificationSummary, fetchActiveChats]);
+
 
   const sendMessage = (content, recipientId, fileUrl = '', fileType = 'none', replyTo = null) => {
     if (socket && user) {

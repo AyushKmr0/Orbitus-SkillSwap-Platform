@@ -368,7 +368,7 @@ export const PlatformBadges = ({ user, badges = [], badgeProgress = [], onlyUnlo
                 className={`shrink-0 w-[310px] sm:w-[340px] snap-center group relative flex flex-col items-center p-6 sm:p-7 rounded-3xl border transition-all duration-500 text-center overflow-hidden transform-gpu hover:-translate-y-2 hover:scale-[1.02] cursor-pointer ${
                   ach.unlocked
                     ? 'bg-gradient-to-b from-white via-slate-50/80 to-amber-500/10 dark:from-[#181d26] dark:via-[#161b22] dark:to-[#221c10] border-amber-500/40 hover:border-amber-400 hover:shadow-[0_22px_55px_rgba(245,158,11,0.3)]'
-                    : 'bg-white dark:bg-[#161b22] border-slate-200 dark:border-slate-800/80 hover:border-indigo-400/80 dark:hover:border-indigo-500/80 hover:shadow-[0_18px_45px_rgba(99,102,241,0.25)]'
+                    : 'bg-white dark:bg-[#181d26] border-slate-200 dark:border-slate-800/80 hover:border-indigo-400/80 dark:hover:border-indigo-500/80 hover:shadow-[0_18px_45px_rgba(99,102,241,0.25)]'
                 }`}
               >
                 {/* Metallic Light Shimmer Sweep Layer on Hover / Unlocked */}
@@ -451,47 +451,83 @@ export const PlatformBadges = ({ user, badges = [], badgeProgress = [], onlyUnlo
       {selectedBadge && (
         <div
           role="dialog"
+          aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto"
           onClick={() => setSelectedBadge(null)}
         >
           <div
-            className="w-full max-w-md sm:max-w-lg bg-white dark:bg-[#161b22] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xl text-app relative overflow-hidden space-y-4 sm:space-y-5"
+            className="w-full max-w-md bg-white dark:bg-[#181d26] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl text-app relative overflow-hidden space-y-4 sm:space-y-5"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3.5">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-500">
+            <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-3.5">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
                   <Award size={18} />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-outfit">
+                  <h3 className="text-base sm:text-lg font-bold text-app font-outfit leading-tight">
                     Badge Details
                   </h3>
-                  <p className="text-[11px] font-medium text-slate-400">
+                  <p className="text-[11px] font-medium text-muted">
                     Platform Achievement & Progress
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedBadge(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                  selectedBadge.unlocked
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                    : 'bg-slate-100 dark:bg-slate-800 text-muted border-slate-200 dark:border-slate-700'
+                }`}>
+                  {selectedBadge.unlocked ? (
+                    <>
+                      <CheckCircle size={12} /> Unlocked
+                    </>
+                  ) : (
+                    <>
+                      <Lock size={12} /> Locked
+                    </>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBadge(null)}
+                  className="text-slate-400 hover:text-app p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  aria-label="Close badge details"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             {/* Emblem & Info Box */}
-            <div className="flex flex-col items-center justify-center p-5 sm:p-6 rounded-2xl bg-slate-50/80 dark:bg-[#0d1117]/80 border border-slate-200/80 dark:border-slate-800/80 text-center">
-              <div className="relative w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center filter drop-shadow-sm">
+            <div className="flex flex-col items-center justify-center p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-[#131822] border border-slate-200/80 dark:border-slate-800 text-center relative overflow-hidden">
+              {/* High-Vibrancy Ambient Glow Aura Behind Emblem */}
+              {selectedBadge.unlocked && (
+                <div className="absolute top-1/4 w-32 h-32 rounded-full bg-gradient-to-tr from-amber-500/30 via-yellow-400/20 to-indigo-500/20 blur-2xl pointer-events-none -z-0" />
+              )}
+
+              {/* Emblem with controlled sizing and state */}
+              <div className={`relative flex items-center justify-center my-1 transition-all duration-300 z-10 [&>svg]:w-28 [&>svg]:h-28 sm:[&>svg]:w-32 sm:[&>svg]:h-32 ${
+                selectedBadge.unlocked
+                  ? 'grayscale-0 opacity-100 filter drop-shadow-[0_12px_24px_rgba(245,158,11,0.45)]'
+                  : 'grayscale opacity-60'
+              }`}>
                 {selectedBadge.icon}
+                {!selectedBadge.unlocked && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <span className="p-2.5 rounded-full bg-slate-950/85 text-slate-200 shadow-xl border border-slate-700/80 backdrop-blur-xs">
+                      <Lock size={18} />
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Title & Tier Badge */}
-              <div className="mt-3.5 space-y-1.5 max-w-sm">
+              <div className="mt-3.5 space-y-1.5 max-w-sm z-10">
                 <div className="flex items-center justify-center gap-2 flex-wrap">
-                  <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-outfit">
+                  <h4 className="text-xl sm:text-2xl font-black text-app font-outfit tracking-tight">
                     {selectedBadge.title}
                   </h4>
                   {selectedBadge.tier && (
@@ -501,41 +537,57 @@ export const PlatformBadges = ({ user, badges = [], badgeProgress = [], onlyUnlo
                   )}
                 </div>
 
-                <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
                   {selectedBadge.badgeType}
                 </p>
 
-                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed pt-1">
+                <p className="text-xs text-muted leading-relaxed pt-1">
                   {selectedBadge.description}
                 </p>
               </div>
             </div>
 
             {/* Unlock Requirements & Status Card */}
-            <div className="p-4 bg-slate-50/90 dark:bg-[#0d1117]/90 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl text-xs space-y-2.5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                <span className="text-slate-400 font-medium">Unlock Criterion:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200 text-right">{selectedBadge.criteria}</span>
-              </div>
-              <div className="flex items-center justify-between border-t border-slate-200/70 dark:border-slate-800/70 pt-2.5">
-                <span className="text-slate-400 font-medium">Verification Status:</span>
-                <span className={`font-bold flex items-center gap-1.5 ${selectedBadge.unlocked ? 'text-emerald-500' : 'text-amber-500'}`}>
-                  {selectedBadge.unlocked ? (
-                    <>
-                      <ShieldCheck size={16} /> Verified & Unlocked
-                    </>
-                  ) : (
-                    `In Progress (${selectedBadge.progress}% Completed)`
-                  )}
+            <div className="p-4 bg-slate-50/70 dark:bg-[#131822] border border-slate-200/80 dark:border-slate-800 rounded-2xl text-xs space-y-3">
+              <div>
+                <span className="text-[10px] font-bold text-muted uppercase tracking-wider block mb-1">
+                  Unlock Criterion
                 </span>
+                <p className="font-semibold text-app text-xs sm:text-[13px] leading-snug">
+                  {selectedBadge.criteria}
+                </p>
               </div>
+
+              {selectedBadge.unlocked ? (
+                <div className="flex items-center justify-between border-t border-slate-200/70 dark:border-slate-800 pt-3">
+                  <span className="text-muted font-medium">Verification Status:</span>
+                  <span className="font-bold flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                    <ShieldCheck size={15} /> Verified & Unlocked
+                  </span>
+                </div>
+              ) : (
+                <div className="space-y-2 border-t border-slate-200/70 dark:border-slate-800 pt-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted font-medium">Progress</span>
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                      {selectedBadge.progress}% Completed
+                    </span>
+                  </div>
+                  <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
+                      style={{ width: `${selectedBadge.progress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Done Action Button */}
             <button
               type="button"
               onClick={() => setSelectedBadge(null)}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-extrabold rounded-xl transition-all shadow-sm cursor-pointer"
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
             >
               Done
             </button>

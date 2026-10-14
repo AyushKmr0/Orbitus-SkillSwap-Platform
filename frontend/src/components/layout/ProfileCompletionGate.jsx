@@ -7,7 +7,7 @@ import { AtSign, CheckCircle2, Sparkles, UserPen, X } from 'lucide-react';
 const profileIsComplete = (user) => Boolean(user?.profileComplete || (user?.username && user?.bio && user?.interests?.length));
 
 const ProfileCompletionGate = () => {
-  const { user, token } = useSelector((state) => state.auth);
+  const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
@@ -17,7 +17,8 @@ const ProfileCompletionGate = () => {
   const [error, setError] = useState('');
   const [dismissed, setDismissed] = useState(false);
 
-  const shouldShow = useMemo(() => user && !profileIsComplete(user), [user]);
+  const isAdmin = String(user?.role || '').trim().toLowerCase() === 'admin';
+  const shouldShow = useMemo(() => user && !isAdmin && !profileIsComplete(user), [user, isAdmin]);
 
   useEffect(() => {
     if (!user) return;
@@ -44,7 +45,9 @@ const ProfileCompletionGate = () => {
         experienceLevel,
         interests: interests.split(',').map(item => item.trim()).filter(Boolean)
       });
-      dispatch(updateProfileSuccess(res.data.user));
+      const payload = res.data?.data || res.data || {};
+      const updatedUser = payload.user || res.data?.user;
+      if (updatedUser) dispatch(updateProfileSuccess(updatedUser));
     } catch (err) {
       setError(err.response?.data?.message || 'Profile update failed. Please try again.');
     } finally {

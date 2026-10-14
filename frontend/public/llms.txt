@@ -1,0 +1,15 @@
+# Orbitus SkillSwap Platform
+
+> Orbitus is a collaborative peer-to-peer skill exchange platform connecting learners and mentors worldwide with AI-powered roadmaps, live chat rooms, verified skill certificates, and gamified achievements.
+
+## Public Resources
+- [Homepage](https://orbitus-skill-swap-platform.vercel.app/): Main platform overview, exchange features, and community stats.
+- [Explore Skills](https://orbitus-skill-swap-platform.vercel.app/explore): Browse certifiable skills across Technology, Languages, Design, Business, and Science.
+- [User Registration](https://orbitus-skill-swap-platform.vercel.app/register): Create an account to start exchanging skills.
+- [User Login](https://orbitus-skill-swap-platform.vercel.app/login): Access existing profile, dashboard, and active learning sessions.
+
+## Key Capabilities
+- **Direct Skill Swaps**: Teach what you know, learn what you want without monetary exchange.
+- **AI Learning Curriculums**: Auto-generate personalized multi-stage roadmaps for any target skill.
+- **Verified Certificates**: Earn tamper-proof digital certificates validated by peer exchange mentors.
+- **Contribution Heatmap**: Track continuous learning and teaching activity across rolling 53-week windows.

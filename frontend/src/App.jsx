@@ -1,8 +1,15 @@
 import React, { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { ProtectedRoute } from './components/layout/RouteGuard.jsx';
-import Sidebar from './components/layout/Sidebar.jsx';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { ProtectedRoute, AdminRoute } from './components/layout/RouteGuard.jsx';
+import AppShadcnSidebar from './components/layout/AppShadcnSidebar.jsx';
 import ProfileCompletionGate from './components/layout/ProfileCompletionGate.jsx';
+import ErrorBoundary from './components/common/ErrorBoundary.jsx';
+
+const AdminRedirect = () => {
+  const location = useLocation();
+  return <Navigate to={`/admin${location.search}`} replace />;
+};
+
 
 // Core auth pages loaded directly for instant login flow
 import Login from './pages/auth/Login.jsx';
@@ -10,6 +17,7 @@ import Register from './pages/auth/Register.jsx';
 import AuthCallback from './pages/auth/AuthCallback.jsx';
 
 // Lazy-loaded pages for code-splitting and faster bundle load times
+const LandingPage = lazy(() => import('./pages/landing/LandingPage.jsx'));
 const UserDashboard = lazy(() => import('./pages/dashboard/UserDashboard.jsx'));
 const AdminDashboard = lazy(() => import('./pages/dashboard/AdminDashboard.jsx'));
 const SkillCatalog = lazy(() => import('./pages/skills/SkillCatalog.jsx'));
@@ -34,73 +42,83 @@ const PageLoader = () => (
   </div>
 );
 
-// Layout Wrapper inside Dashboard to preserve Sidebar navigation
+// Layout Wrapper inside Dashboard (toggleable between top nav trial and classic sidebar)
 const DashboardLayout = () => {
+  const routesContent = (
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="dashboard" element={<UserDashboard />} />
+        <Route path="skills" element={<SkillCatalog />} />
+        <Route path="chat" element={<ChatRoom />} />
+        <Route path="feed" element={<Feed />} />
+        <Route path="notifications" element={<Notifications />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="bookings" element={<Bookings />} />
+
+        {/* Instagram-style Suggested Users */}
+        <Route path="suggested-users" element={<SuggestedUsers />} />
+        <Route path="ai-match" element={<SuggestedUsers />} />
+
+        {/* Public & Private Study Groups */}
+        <Route path="groups" element={<Groups />} />
+        <Route path="groups/:id" element={<GroupDetail />} />
+
+        <Route path="roadmap" element={<AiRoadmap />} />
+        <Route path="leaderboard" element={<Leaderboard />} />
+        <Route path="profile" element={<PublicProfile />} />
+        <Route path="profile/:id" element={<PublicProfile />} />
+
+        {/* Admin Console routes protected by AdminRoute */}
+        <Route element={<AdminRoute />}>
+          <Route path="admin" element={<AdminDashboard />} />
+          <Route path="admin/*" element={<AdminDashboard />} />
+          <Route path="admin-portal" element={<AdminRedirect />} />
+          <Route path="admin-panel" element={<AdminRedirect />} />
+          <Route path="admin-panel/*" element={<AdminRedirect />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </Suspense>
+  );
+
   return (
-    <div className="app-shell flex flex-col lg:flex-row h-[100dvh] max-h-[100dvh] overflow-hidden font-sans">
-      <Sidebar />
-      <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden pt-16 lg:pt-0">
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<UserDashboard />} />
-            <Route path="skills" element={<SkillCatalog />} />
-            <Route path="chat" element={<ChatRoom />} />
-            <Route path="feed" element={<Feed />} />
-            <Route path="notifications" element={<Notifications />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="bookings" element={<Bookings />} />
-            
-            {/* Instagram-style Suggested Users */}
-            <Route path="suggested-users" element={<SuggestedUsers />} />
-            <Route path="ai-match" element={<SuggestedUsers />} />
-            
-            {/* Public & Private Study Groups */}
-            <Route path="groups" element={<Groups />} />
-            <Route path="groups/:id" element={<GroupDetail />} />
-            
-            <Route path="roadmap" element={<AiRoadmap />} />
-            <Route path="leaderboard" element={<Leaderboard />} />
-            <Route path="profile" element={<PublicProfile />} />
-            <Route path="profile/:id" element={<PublicProfile />} />
-            
-            {/* Admin routes inside layout */}
-            <Route path="admin" element={<AdminDashboard />} />
-            <Route path="admin/*" element={<AdminDashboard />} />
-            <Route path="admin-portal" element={<AdminDashboard />} />
-            <Route path="admin-panel" element={<AdminDashboard />} />
-            <Route path="admin-panel/*" element={<AdminDashboard />} />
-            
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </Suspense>
-      </div>
+    <AppShadcnSidebar>
+      {routesContent}
       <ProfileCompletionGate />
-    </div>
+    </AppShadcnSidebar>
   );
 };
 
 function App() {
   return (
-    <Suspense fallback={<PageLoader />}>
-      <Routes>
-        {/* Public Pages */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
+    <ErrorBoundary>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* Public Home / Landing Page */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/explore" element={<SkillCatalog />} />
 
-        {/* Direct Secret URL access for Admin Console */}
-        <Route path="/admin-portal" element={<AdminDashboard />} />
+          {/* Core Auth Pages */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
 
-        {/* Protected Pages wrapped in Layout */}
-        <Route element={<ProtectedRoute />}>
-          <Route path="/*" element={<DashboardLayout />} />
-        </Route>
+          {/* Top-Level Admin Route Aliases redirect into authenticated layout */}
+          <Route path="/admin-portal" element={<AdminRedirect />} />
+          <Route path="/admin-panel" element={<AdminRedirect />} />
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </Suspense>
+          {/* Protected Pages wrapped in Layout */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/*" element={<DashboardLayout />} />
+          </Route>
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 

@@ -24,7 +24,7 @@ const AuthCallback = () => {
         user: JSON.parse(encodedUser)
       }));
       navigate('/dashboard', { replace: true });
-    } catch (error) {
+    } catch {
       dispatch(authFailure('Social login response was invalid.'));
       navigate('/login', { replace: true });
     }

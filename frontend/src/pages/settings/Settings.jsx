@@ -11,9 +11,7 @@ import {
   Bell,
   Shield,
   Download,
-  Check,
   Sparkles,
-  HelpCircle,
   CheckCircle,
   Clock,
   Volume2,
@@ -21,10 +19,12 @@ import {
   Eye,
   CheckCheck,
   RefreshCw,
-  FolderDown
+  FolderDown,
+  X
 } from 'lucide-react';
 import { playNotificationChime } from '../../context/SocketContext.jsx';
 import { logout } from '../../features/authSlice.js';
+import BellToggle from '../../components/common/react-bits/BellToggle.jsx';
 
 const SETTING_TABS = [
   { id: 'feedback', label: 'Feedback & Support', icon: MessageSquare },
@@ -89,7 +89,9 @@ const Settings = () => {
     setLoadingFeedbacks(true);
     try {
       const res = await apiClient.get('/api/feedback/my');
-      setMyFeedbacks(res.data.feedbacks || []);
+      const payload = res.data?.data || res.data || {};
+      const list = payload.feedbacks || res.data?.feedbacks || [];
+      setMyFeedbacks(Array.isArray(list) ? list : []);
     } catch {
       // Non-blocking
     } finally {
@@ -471,13 +473,14 @@ const Settings = () => {
                       className="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-[11px] font-bold hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors shadow-xs"
                       title="Test Audio Tone"
                     >
-                      🔊 Test Sound
+                      <Volume2 size={12} className="inline mr-1" /> Test Tone
                     </button>
                     <input
                       type="checkbox"
                       checked={notifSound}
                       onChange={(e) => handleToggleSound(e.target.checked)}
                       className="w-5 h-5 accent-indigo-600 rounded cursor-pointer"
+                      aria-label="Toggle chat sound effects"
                     />
                   </div>
                 </div>
@@ -490,11 +493,10 @@ const Settings = () => {
                     </p>
                     <p className="text-muted text-[11px]">Receive email notifications when peers request or confirm swap sessions.</p>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={emailAlerts}
-                    onChange={(e) => handleToggleEmail(e.target.checked)}
-                    className="w-5 h-5 accent-indigo-600 rounded cursor-pointer"
+                  <BellToggle
+                    enabled={emailAlerts}
+                    onChange={(val) => handleToggleEmail(val)}
+                    ariaLabel="Toggle email alerts for sessions"
                   />
                 </div>
 

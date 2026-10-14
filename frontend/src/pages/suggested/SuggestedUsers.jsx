@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
@@ -12,14 +12,9 @@ import {
   MessageSquare,
   Calendar,
   Clock,
-  Sparkles,
-  Link as LinkIcon,
   Video,
   X,
-  CheckCircle,
-  ExternalLink,
-  BookOpen,
-  ArrowLeft
+  CheckCircle
 } from 'lucide-react';
 
 const SuggestedUsers = () => {
@@ -32,7 +27,6 @@ const SuggestedUsers = () => {
   const [isFading, setIsFading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'not_following'
-  const [msg, setMsg] = useState('');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -52,33 +46,7 @@ const SuggestedUsers = () => {
   const [bookingSuccess, setBookingSuccess] = useState('');
   const [bookingError, setBookingError] = useState('');
 
-  useEffect(() => {
-    fetchSuggestedUsers();
-
-    // Cyclic smooth refresh: loops back to page 1 and fetches fresh peers every 10 minutes
-    const interval = setInterval(() => {
-      fetchSuggestedUsers(true);
-    }, 10 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [token]);
-
-  // Seamless infinite scroll observer: auto-fetches next 20 peers as user scrolls down
-  useEffect(() => {
-    if (!sentinelRef.current) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
-          loadMoreUsers();
-        }
-      },
-      { rootMargin: '300px' }
-    );
-    observer.observe(sentinelRef.current);
-    return () => observer.disconnect();
-  }, [hasMore, loadingMore, loading, page]);
-
-  const fetchSuggestedUsers = async (isBackground = false) => {
+  const fetchSuggestedUsers = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
     try {
       const res = await apiClient.get('/api/users/suggested', {
@@ -105,10 +73,9 @@ const SuggestedUsers = () => {
     } finally {
       if (!isBackground) setLoading(false);
     }
-  };
+  }, []);
 
-
-  const loadMoreUsers = async () => {
+  const loadMoreUsers = useCallback(async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
@@ -133,7 +100,33 @@ const SuggestedUsers = () => {
     } finally {
       setLoadingMore(false);
     }
-  };
+  }, [loadingMore, hasMore, page]);
+
+  useEffect(() => {
+    fetchSuggestedUsers();
+
+    // Cyclic smooth refresh: loops back to page 1 and fetches fresh peers every 10 minutes
+    const interval = setInterval(() => {
+      fetchSuggestedUsers(true);
+    }, 10 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [token, fetchSuggestedUsers]);
+
+  // Seamless infinite scroll observer: auto-fetches next 20 peers as user scrolls down
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMoreUsers();
+        }
+      },
+      { rootMargin: '300px' }
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, loadMoreUsers]);
 
   const handleToggleFollow = async (targetUserId) => {
     try {
@@ -248,7 +241,7 @@ const SuggestedUsers = () => {
   }, [bookingPartner]);
 
   return (
-    <div className="page-shell space-y-6 overflow-y-auto pb-32 sm:pb-20 animate-fade-in">
+    <div className="page-shell space-y-6 overflow-y-auto animate-fade-in">
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-[#22242a] p-5 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-start gap-3.5">

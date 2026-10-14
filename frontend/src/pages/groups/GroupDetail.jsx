@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
@@ -6,9 +6,9 @@ import { useSocket } from '../../context/SocketContext.jsx';
 import { setCurrentRoom, upsertActiveChat } from '../../features/chatSlice.js';
 import {
   Users, Send, Video, Pin, MoreVertical, Shield, Trash2, Reply, Copy,
-  Check, X, Lock, Globe, Settings, UserCheck, UserX, ExternalLink,
+  Check, X, Lock, Settings, UserX, ExternalLink,
   ChevronLeft, ChevronDown, Plus, Smile, Pencil, Image as ImageIcon, FileText,
-  Download, Search, Info, Link2, UserPlus, LogOut, ChevronRight,
+  Search, Info, Link2, UserPlus, LogOut, ChevronRight,
   Share2, CheckCheck, Camera, AlertTriangle, Upload, Loader2, Ban,
   MessageSquare, CheckSquare
 } from 'lucide-react';
@@ -47,11 +47,11 @@ const GroupDetail = () => {
   const { socket } = useSocket();
 
   const [group, setGroup] = useState(null);
+  const [groupError, setGroupError] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [typedMessage, setTypedMessage] = useState('');
   const [replyTarget, setReplyTarget] = useState(null);
-  const [copiedLink, setCopiedLink] = useState(false);
   const [openMsgMenuId, setOpenMsgMenuId] = useState('');
   const [menuPlacement, setMenuPlacement] = useState('down');
   const [activeReactionMsgId, setActiveReactionMsgId] = useState(null);
@@ -219,20 +219,73 @@ const GroupDetail = () => {
     swipingBubbleRef.current = null;
   };
 
-  useEffect(() => {
-    fetchGroupData();
-    fetchMessages();
-    fetchJoinedGroups();
+  const fetchGroupData = useCallback(async () => {
+    setGroupError('');
+    try {
+      const res = await apiClient.get(`/api/groups/${id}`);
+      const payload = res.data?.data || res.data || {};
+      const g = payload.group || res.data?.group;
+      if (!g) {
+        setGroup(null);
+        setGroupError('Group not found or has been removed.');
+        return;
+      }
+
+      setGroup(g);
+      setEditName(g.name || '');
+      setEditDesc(g.description || '');
+      setEditImage(g.image || '');
+      setEditCategory(g.category || 'General Learning');
+      setEditPrivacy(g.privacy || 'public');
+      setEditTags((g.tags || []).join(', '));
+      setMeetingLinkInput(g.meetingLink || '');
+      setMeetingProviderInput(g.meetingLinkProvider || 'Google Meet');
+    } catch (err) {
+      console.error('Fetch group error:', err);
+      setGroup(null);
+      setGroupError(
+        err.response?.status === 404
+          ? 'Group not found or has been removed.'
+          : err.response?.data?.message || err.message || 'Failed to load group details.'
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
-  const fetchJoinedGroups = async () => {
+  const fetchMessages = useCallback(async () => {
+    try {
+      const res = await apiClient.get(`/api/groups/${id}/messages`);
+      const payload = res.data?.data || res.data || {};
+      const rawMsgs = payload.messages || res.data?.messages || [];
+      setMessages(Array.isArray(rawMsgs) ? rawMsgs : []);
+    } catch (err) {
+      console.error('Fetch group messages error:', err);
+      setMessages([]);
+    }
+  }, [id]);
+
+  const fetchJoinedGroups = useCallback(async () => {
     try {
       const res = await apiClient.get('/api/groups?filter=joined');
-      setJoinedGroups(res.data.groups || []);
+      const payload = res.data?.data || res.data || {};
+      const rawGroups = payload.groups || res.data?.groups || [];
+      setJoinedGroups(Array.isArray(rawGroups) ? rawGroups : []);
     } catch (err) {
       console.error('Fetch joined groups error:', err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchGroupData();
+    fetchJoinedGroups();
+  }, [id, fetchGroupData, fetchJoinedGroups]);
+
+  useEffect(() => {
+    if (group?._id && group.isMember) {
+      fetchMessages();
+    }
+  }, [group?._id, group?.isMember, fetchMessages]);
 
   const [hiddenDeletedMsgIds, setHiddenDeletedMsgIds] = useState(() => {
     try {
@@ -248,7 +301,9 @@ const GroupDetail = () => {
       const next = [...new Set([...prev, msgId])];
       try {
         localStorage.setItem(`orbitus_hidden_group_msgs_${id}`, JSON.stringify(next));
-      } catch {}
+      } catch (err) {
+        console.warn('Storage write notice:', err);
+      }
       return next;
     });
     setMessages((prev) => prev.filter((m) => m._id !== msgId));
@@ -304,34 +359,6 @@ const GroupDetail = () => {
     navigate('/chat');
   };
 
-  const fetchGroupData = async () => {
-    try {
-      const res = await apiClient.get(`/api/groups/${id}`);
-      const g = res.data.group;
-      setGroup(g);
-      setEditName(g.name || '');
-      setEditDesc(g.description || '');
-      setEditImage(g.image || '');
-      setEditCategory(g.category || 'General Learning');
-      setEditPrivacy(g.privacy || 'public');
-      setEditTags((g.tags || []).join(', '));
-      setMeetingLinkInput(g.meetingLink || '');
-      setMeetingProviderInput(g.meetingLinkProvider || 'Google Meet');
-    } catch (err) {
-      console.error('Fetch group error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchMessages = async () => {
-    try {
-      const res = await apiClient.get(`/api/groups/${id}/messages`);
-      setMessages(res.data.messages || []);
-    } catch (err) {
-      console.error('Fetch group messages error:', err);
-    }
-  };
 
   const handleFileUpload = async (file) => {
     if (!file) return;
@@ -409,7 +436,7 @@ const GroupDetail = () => {
       socket.off('group_message_removed', onDeleted);
       socket.off('group_message_reaction_updated', onReaction);
     };
-  }, [socket, id]);
+  }, [socket, id, fetchGroupData]);
 
   useEffect(() => { scrollToBottom(); }, [messages]);
 
@@ -590,12 +617,6 @@ const GroupDetail = () => {
     });
   };
 
-  const copyCallLink = () => {
-    if (!group?.meetingLink) return;
-    navigator.clipboard.writeText(group.meetingLink);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
-  };
 
   const copyInviteLink = () => {
     const url = `${window.location.origin}/groups/${group._id}?inviteCode=${group.inviteCode || ''}`;
@@ -691,10 +712,21 @@ const GroupDetail = () => {
 
   if (!group) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center h-screen page-shell text-app gap-3">
+      <div className="flex-1 flex flex-col items-center justify-center h-screen page-shell text-app gap-3 p-4 text-center">
         <Users size={40} className="text-muted" />
-        <p className="font-bold text-base">Group not found or has been deleted.</p>
-        <Link to="/groups" className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline">Browse Groups</Link>
+        <p className="font-bold text-base">{groupError || "Group not found or has been deleted."}</p>
+        <div className="flex items-center gap-3 pt-1">
+          <button
+            type="button"
+            onClick={fetchGroupData}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+          >
+            Retry
+          </button>
+          <Link to="/groups" className="px-4 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold rounded-xl transition-all">
+            Browse Groups
+          </Link>
+        </div>
       </div>
     );
   }
@@ -748,10 +780,7 @@ const GroupDetail = () => {
 
   const pinnedMsg = messages.find((m) => m.isPinned && !m.deletedAt);
   const mediaMessages = messages.filter((m) => m.fileUrl && !m.deletedAt);
-  const sharedLinks = messages.flatMap((m) => {
-    if (m.deletedAt) return [];
-    return (m.content || '').match(/(https?:\/\/[^\s]+)/g) || [];
-  });
+
 
   const filteredSidebarGroups = joinedGroups.filter((g) =>
     !sidebarSearch.trim() || g.name.toLowerCase().includes(sidebarSearch.toLowerCase())
@@ -865,59 +894,60 @@ const GroupDetail = () => {
       <div className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-[#1a1c22]">
 
         {/* Chat Header */}
-        <div className="flex items-center justify-between px-2.5 sm:px-5 h-12 sm:h-16 bg-white dark:bg-[#22242a] border-b border-slate-200 dark:border-slate-800 shrink-0 sticky top-0 z-20">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="flex items-center justify-between px-2 sm:px-4 h-14 sm:h-16 bg-white dark:bg-[#22242a] border-b border-slate-200 dark:border-slate-800 shrink-0 sticky top-0 z-20">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1 mr-2">
             <Link
               to="/groups"
               title="Back to Groups"
-              className="p-1 sm:p-1.5 rounded-lg sm:rounded-xl text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-0.5 shrink-0"
+              className="min-w-[44px] min-h-[44px] rounded-xl text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-center shrink-0"
             >
-              <ChevronLeft size={18} />
-              <span className="hidden sm:inline text-xs font-semibold">Back</span>
+              <ChevronLeft size={22} />
             </Link>
             <button
               onClick={() => setShowGroupInfo((v) => !v)}
-              className="flex items-center gap-2 sm:gap-3 min-w-0 hover:opacity-80 transition-opacity"
+              className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 hover:opacity-80 transition-opacity text-left"
             >
               {group.image ? (
                 <img
                   src={group.image}
                   alt={group.name}
-                  className="w-8 h-8 sm:w-11 sm:h-11 rounded-full object-cover shrink-0 bg-slate-200 dark:bg-slate-700"
+                  className="w-9 h-9 sm:w-11 sm:h-11 rounded-full object-cover shrink-0 bg-slate-200 dark:bg-slate-700"
                 />
               ) : (
-                <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-full flex items-center justify-center font-bold text-white bg-gradient-to-tr from-indigo-600 to-violet-500 uppercase select-none text-xs sm:text-base shrink-0">
+                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center font-bold text-white bg-gradient-to-tr from-indigo-600 to-violet-500 uppercase select-none text-xs sm:text-base shrink-0">
                   {group.name?.trim()?.[0]?.toUpperCase() || 'G'}
                 </div>
               )}
-              <div className="text-left min-w-0">
-                <h2 className="font-bold text-xs sm:text-lg text-app truncate">{group.name}</h2>
-                <p className="text-[10px] sm:text-xs text-muted">Group · {group.members?.length || 0} members</p>
+              <div className="min-w-0 flex-1">
+                <h2 className="font-bold text-sm sm:text-base text-app truncate">{group.name}</h2>
+                <p className="text-[11px] sm:text-xs text-muted truncate">Group · {group.members?.length || 0} members</p>
               </div>
             </button>
           </div>
 
-          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             {group.meetingLink ? (
               <a href={group.meetingLink} target="_blank" rel="noreferrer"
-                className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] sm:text-xs font-semibold transition-all"
+                className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all"
               >
-                <Video size={13} /><span className="hidden sm:inline">Join Call</span>
+                <Video size={16} /><span className="hidden sm:inline">Join Call</span>
               </a>
             ) : isAdmin && (
               <button onClick={() => setShowMeetingModal(true)}
-                className="p-1 sm:p-1.5 rounded-lg text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 title="Set meeting link"
-              ><Video size={16} /></button>
+              ><Video size={19} /></button>
             )}
             <button
               onClick={() => setShowInChatSearch((v) => !v)}
-              className={`p-1 sm:p-1.5 rounded-lg transition-colors ${showInChatSearch ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30' : 'text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-            ><Search size={16} /></button>
+              className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-colors ${showInChatSearch ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30' : 'text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+              title="Search messages"
+            ><Search size={19} /></button>
             <button
               onClick={() => setShowGroupInfo((v) => !v)}
-              className={`p-1 sm:p-1.5 rounded-lg transition-colors ${showGroupInfo ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30' : 'text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-            ><Info size={16} /></button>
+              className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-colors ${showGroupInfo ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30' : 'text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+              title="Group info"
+            ><Info size={19} /></button>
           </div>
         </div>
 
@@ -1046,7 +1076,7 @@ const GroupDetail = () => {
                       setReplyTarget(msg);
                     }
                   }}
-                  onClick={(e) => {
+                  onClick={() => {
                     if (selectionMode) {
                       toggleSelectMessage(msg._id);
                     }
@@ -1417,14 +1447,16 @@ const GroupDetail = () => {
           <input type="file" ref={documentInputRef} accept=".pdf,.doc,.docx,.txt" className="hidden" onChange={(e) => handleFileUpload(e.target.files[0])} />
           <input type="file" ref={groupImgFileInputRef} accept="image/*" className="hidden" onChange={handleGroupImgUpload} />
 
-          <form onSubmit={handleSendMessage} className="flex items-center gap-1.5 sm:gap-2.5">
+          <form onSubmit={handleSendMessage} className="flex items-center gap-1.5 sm:gap-2">
             <button type="button" onClick={() => setShowAttachMenu((v) => !v)}
-              className="p-1.5 sm:p-2.5 rounded-full text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0">
-              <Plus size={18} />
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+              title="Attach media">
+              <Plus size={22} />
             </button>
             <button type="button" onClick={() => setShowEmojiPicker((v) => !v)}
-              className="p-1.5 sm:p-2.5 rounded-full text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0">
-              <Smile size={18} />
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+              title="Insert emoji">
+              <Smile size={22} />
             </button>
             <input
               ref={chatInputRef}
@@ -1433,11 +1465,12 @@ const GroupDetail = () => {
               value={typedMessage}
               disabled={uploadingFile}
               onChange={(e) => setTypedMessage(e.target.value)}
-              className="flex-1 bg-slate-100 dark:bg-slate-800 text-app placeholder:text-muted rounded-xl px-3 py-1.5 sm:py-3 text-xs sm:text-[15px] outline-none border-none focus:ring-1 focus:ring-indigo-500 transition-all"
+              className="flex-1 min-w-0 bg-slate-100 dark:bg-slate-800 text-app placeholder:text-muted rounded-xl px-3.5 py-2.5 sm:py-3 text-sm sm:text-[15px] outline-none border-none focus:ring-1 focus:ring-indigo-500 transition-all"
             />
             <button type="submit" disabled={!typedMessage.trim() || uploadingFile}
-              className="p-2 sm:p-3 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 transition-all shadow-sm shrink-0">
-              <Send size={15} />
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 transition-all shadow-sm shrink-0"
+              title="Send message">
+              <Send size={18} />
             </button>
           </form>
         </div>
@@ -1457,13 +1490,13 @@ const GroupDetail = () => {
             {/* Header */}
             <div className="flex items-center justify-between px-4 h-14 border-b border-slate-200 dark:border-slate-800 shrink-0 bg-white dark:bg-[#22242a]">
               <div className="flex items-center gap-3">
-                <button onClick={() => setShowGroupInfo(false)} className="p-1 rounded-lg text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800">
+                <button onClick={() => setShowGroupInfo(false)} className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800">
                   <ChevronLeft size={20} />
                 </button>
                 <h3 className="font-bold text-base text-app">Group info</h3>
               </div>
-              <button onClick={() => setShowGroupInfo(false)} className="p-1 rounded-lg text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800">
-                <X size={18} />
+              <button onClick={() => setShowGroupInfo(false)} className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800">
+                <X size={20} />
               </button>
             </div>
 
@@ -1513,14 +1546,14 @@ const GroupDetail = () => {
               {/* Action buttons */}
               <div className="flex items-center justify-center gap-6 pt-2">
                 <button onClick={() => setShowAddMemberModal(true)} className="flex flex-col items-center gap-1 group">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950/30 transition-colors border border-slate-200 dark:border-slate-700">
-                    <UserPlus size={17} />
+                  <div className="w-11 h-11 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950/30 transition-colors border border-slate-200 dark:border-slate-700">
+                    <UserPlus size={19} />
                   </div>
                   <span className="text-[11px] text-muted">Add</span>
                 </button>
                 <button onClick={() => { setShowGroupInfo(false); setShowInChatSearch(true); }} className="flex flex-col items-center gap-1 group">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950/30 transition-colors border border-slate-200 dark:border-slate-700">
-                    <Search size={17} />
+                  <div className="w-11 h-11 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950/30 transition-colors border border-slate-200 dark:border-slate-700">
+                    <Search size={19} />
                   </div>
                   <span className="text-[11px] text-muted">Search</span>
                 </button>
@@ -1627,7 +1660,7 @@ const GroupDetail = () => {
                 />
               </div>
               <div className="divide-y divide-slate-100 dark:divide-slate-800/80 border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-900/30">
-                {filteredMembers.map((m) => {
+                {filteredMembers.map((m, idx) => {
                   const memberId = (m?._id || m?.user?._id)?.toString();
                   const memberName = m?.name || m?.user?.name || 'Member';
                   const memberImg = m?.profileImage || m?.user?.profileImage;
@@ -1638,7 +1671,7 @@ const GroupDetail = () => {
 
                   return (
                     <div
-                      key={memberId || Math.random()}
+                      key={memberId || `member-${idx}`}
                       className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors group relative"
                     >
                       <button

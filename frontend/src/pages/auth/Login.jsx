@@ -5,6 +5,7 @@ import { authStart, authSuccess, authFailure, clearAuthError } from '../../featu
 import { GitBranch, LogIn, Mail, Lock, ShieldAlert, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { apiPath } from '../../config/env.js';
 import apiClient from '../../services/apiClient.js';
+import BrandLogo from '../../components/common/BrandLogo.jsx';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -21,15 +22,46 @@ const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const dispatch = useDispatch();
-  const { loading, error, isAuthenticated } = useSelector((state) => state.auth);
+  const { loading, error, isAuthenticated, user } = useSelector((state) => state.auth);
   const oauthError = searchParams.get('error');
+  const redirectTarget = searchParams.get('redirect');
 
   useEffect(() => {
     dispatch(clearAuthError());
     if (isAuthenticated) {
-      navigate('/dashboard');
+      if (redirectTarget && redirectTarget.startsWith('/')) {
+        navigate(redirectTarget, { replace: true });
+      } else {
+        const isAdmin = String(user?.role || '').trim().toLowerCase() === 'admin';
+        navigate(isAdmin ? '/admin' : '/dashboard', { replace: true });
+      }
     }
-  }, [isAuthenticated, navigate, dispatch]);
+  }, [isAuthenticated, user, redirectTarget, navigate, dispatch]);
+
+  useEffect(() => {
+    const key = searchParams.get('key') || searchParams.get('adminKey');
+    let effectiveKey = key;
+    if (!effectiveKey && redirectTarget) {
+      try {
+        const parsed = new URL(redirectTarget, 'http://localhost');
+        effectiveKey = parsed.searchParams.get('key') || parsed.searchParams.get('adminKey');
+      } catch {
+        // ignore
+      }
+    }
+    if (effectiveKey) {
+      apiClient
+        .post('/api/auth/verify-admin-key', { key: effectiveKey })
+        .then((res) => {
+          const data = res.data?.data || res.data;
+          dispatch(authSuccess(data));
+          navigate('/admin', { replace: true });
+        })
+        .catch(() => {
+          // invalid key, stay on login
+        });
+    }
+  }, [searchParams, redirectTarget, dispatch, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,7 +71,12 @@ const Login = () => {
     try {
       const res = await apiClient.post('/api/auth/login', { email, password });
       dispatch(authSuccess(res.data));
-      navigate('/dashboard');
+      const loggedUser = res.data?.user || res.data;
+      const isAdmin = String(loggedUser?.role || '').trim().toLowerCase() === 'admin';
+      const target = (redirectTarget && redirectTarget.startsWith('/'))
+        ? redirectTarget
+        : (isAdmin ? '/admin' : '/dashboard');
+      navigate(target, { replace: true });
     } catch (err) {
       dispatch(authFailure(err.response?.data?.message || 'Login failed. Please check credentials.'));
     }
@@ -85,10 +122,10 @@ const Login = () => {
           <aside className="hidden border-r bg-slate-50 p-10 dark:bg-[#151922] lg:flex lg:flex-col lg:justify-between" style={{ borderColor: 'var(--app-border)' }}>
             <div>
               <div className="mb-8 flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg bg-white">
-                <img src="/favicon.svg" alt="Orbitus" className="h-full w-full object-contain" />
+                <BrandLogo size={56} className="h-full w-full object-contain" />
               </div>
               <h1 className="text-3xl font-bold tracking-tight text-app">Orbitus</h1>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Where Skills Connect</p>
+              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">Where Skills Connect</p>
               <p className="mt-3 max-w-sm text-sm leading-6 text-muted">
                 Manage skill exchanges, AI matches, sessions, roadmaps and resume assets from one focused workspace.
               </p>
@@ -96,7 +133,7 @@ const Login = () => {
             <div className="grid gap-3 text-sm text-muted-strong">
               {['Verified mentor matching', 'Session and chat workflow', 'AI resume and roadmap tools'].map((item) => (
                 <div key={item} className="flex items-center gap-2">
-                  <CheckCircle2 size={16} className="text-emerald-600" />
+                  <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400" />
                   <span>{item}</span>
                 </div>
               ))}

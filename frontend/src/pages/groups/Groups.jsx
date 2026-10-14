@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
@@ -14,11 +14,7 @@ import {
   CheckCircle,
   X,
   Compass,
-  Sparkles,
-  BookOpen,
-  ArrowLeft,
   Upload,
-  Camera,
   Loader2,
   RefreshCw
 } from 'lucide-react';
@@ -36,7 +32,7 @@ const CATEGORIES = [
 ];
 
 const Groups = () => {
-  const { user, token } = useSelector((state) => state.auth);
+  const { token } = useSelector((state) => state.auth);
   const navigate = useNavigate();
 
   const [groups, setGroups] = useState([]);
@@ -45,7 +41,6 @@ const Groups = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [filterTab, setFilterTab] = useState('all'); // 'all', 'joined', 'admin'
   const [msg, setMsg] = useState('');
-  const [isFading, setIsFading] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -63,52 +58,7 @@ const Groups = () => {
   const [newGroupTags, setNewGroupTags] = useState('');
   const [createSubmitting, setCreateSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetchGroups();
-
-    // Cyclic smooth refresh: every 10 minutes, silently refreshes from 1st page
-    const interval = setInterval(() => {
-      fetchGroups(true);
-    }, 10 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [token, selectedCategory, filterTab]);
-
-  // Seamless infinite scroll observer: auto-fetches next 20 groups as user scrolls down
-  useEffect(() => {
-    if (!sentinelRef.current) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
-          loadMoreGroups();
-        }
-      },
-      { rootMargin: '300px' }
-    );
-    observer.observe(sentinelRef.current);
-    return () => observer.disconnect();
-  }, [hasMore, loadingMore, loading, page, selectedCategory, filterTab, searchQuery]);
-
-  useEffect(() => {
-    if (showCreateModal) {
-      const originalBodyOverflow = document.body.style.overflow;
-      const originalHtmlOverflow = document.documentElement.style.overflow;
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
-
-      const pageShell = document.querySelector('.page-shell');
-      const originalShellOverflow = pageShell ? pageShell.style.overflow : '';
-      if (pageShell) pageShell.style.overflow = 'hidden';
-
-      return () => {
-        document.body.style.overflow = originalBodyOverflow;
-        document.documentElement.style.overflow = originalHtmlOverflow;
-        if (pageShell) pageShell.style.overflow = originalShellOverflow;
-      };
-    }
-  }, [showCreateModal]);
-
-  const fetchGroups = async (isBackground = false) => {
+  const fetchGroups = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
     try {
       const res = await apiClient.get('/api/groups', {
@@ -131,10 +81,9 @@ const Groups = () => {
     } finally {
       if (!isBackground) setLoading(false);
     }
-  };
+  }, [selectedCategory, filterTab, searchQuery]);
 
-
-  const loadMoreGroups = async () => {
+  const loadMoreGroups = useCallback(async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
@@ -165,7 +114,52 @@ const Groups = () => {
     } finally {
       setLoadingMore(false);
     }
-  };
+  }, [loadingMore, hasMore, page, selectedCategory, filterTab, searchQuery]);
+
+  useEffect(() => {
+    fetchGroups();
+
+    // Cyclic smooth refresh: every 10 minutes, silently refreshes from 1st page
+    const interval = setInterval(() => {
+      fetchGroups(true);
+    }, 10 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [token, fetchGroups]);
+
+  // Seamless infinite scroll observer: auto-fetches next 20 groups as user scrolls down
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMoreGroups();
+        }
+      },
+      { rootMargin: '300px' }
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, loadMoreGroups]);
+
+  useEffect(() => {
+    if (showCreateModal) {
+      const originalBodyOverflow = document.body.style.overflow;
+      const originalHtmlOverflow = document.documentElement.style.overflow;
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+
+      const pageShell = document.querySelector('.page-shell');
+      const originalShellOverflow = pageShell ? pageShell.style.overflow : '';
+      if (pageShell) pageShell.style.overflow = 'hidden';
+
+      return () => {
+        document.body.style.overflow = originalBodyOverflow;
+        document.documentElement.style.overflow = originalHtmlOverflow;
+        if (pageShell) pageShell.style.overflow = originalShellOverflow;
+      };
+    }
+  }, [showCreateModal]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -233,7 +227,7 @@ const Groups = () => {
     }
   };
 
-  const handleJoinGroup = async (e, groupId, privacy) => {
+  const handleJoinGroup = async (e, groupId) => {
     e.stopPropagation();
     try {
       const res = await apiClient.post(`/api/groups/${groupId}/join`);
@@ -263,7 +257,7 @@ const Groups = () => {
   };
 
   return (
-    <div className="page-shell flex-1 p-4 sm:p-6 lg:p-8 pb-32 sm:pb-20 space-y-6 min-h-screen text-app overflow-y-auto animate-fade-in">
+    <div className="page-shell flex-1 p-4 sm:p-6 lg:p-8 space-y-6 text-app overflow-y-auto animate-fade-in">
       {/* Banner */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-[#22242a] p-5 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-start gap-3.5">
@@ -284,7 +278,7 @@ const Groups = () => {
           <button
             type="button"
             onClick={() => fetchGroups()}
-            disabled={loading || isFading}
+            disabled={loading}
             className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-muted hover:text-app rounded-2xl border border-slate-200 dark:border-slate-700 transition-colors"
             title="Refresh groups"
           >

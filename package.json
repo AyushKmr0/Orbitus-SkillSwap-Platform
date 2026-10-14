@@ -1,0 +1,21 @@
+{
+  "name": "orbitus-skill-swap-platform",
+  "version": "2.0.0",
+  "private": true,
+  "description": "AI Powered Skill Exchange & Learning Platform",
+  "scripts": {
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build:frontend": "npm run build --prefix frontend",
+    "lint:frontend": "npm run lint --prefix frontend",
+    "lint:backend": "npm run lint --prefix backend",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "test:backend": "npm run test --prefix backend",
+    "test": "npm run test:backend",
+    "seed": "npm run seed --prefix backend",
+    "verify": "npm run lint && npm run test && npm run build:frontend"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

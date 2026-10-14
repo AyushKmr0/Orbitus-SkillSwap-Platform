@@ -169,6 +169,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['gemini', 'openai', 'groq', 'claude', 'default'],
     default: 'default'
+  },
+  timezone: {
+    type: String,
+    default: 'Asia/Kolkata'
   }
 }, {
   timestamps: true

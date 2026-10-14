@@ -37,7 +37,37 @@ const postSchema = new mongoose.Schema({
       type: String,
       required: true,
       trim: true,
-      maxlength: 600
+      maxlength: 1000
+    },
+    parentCommentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null
+    },
+    threadRootId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null
+    },
+    replyToCommentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null
+    },
+    replyTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    likes: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }],
+    likesCount: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    editedAt: {
+      type: Date,
+      default: null
     },
     createdAt: {
       type: Date,

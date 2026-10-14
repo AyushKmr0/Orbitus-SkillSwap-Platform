@@ -1,7 +1,28 @@
 import { createSlice } from '@reduxjs/toolkit';
 
-const initialUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || 'null') : null;
-const initialToken = typeof window !== 'undefined' ? localStorage.getItem('accessToken') || '' : '';
+function getInitialAuth() {
+  if (typeof window === 'undefined') {
+    return { user: null, token: '' };
+  }
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const e2eToken = urlParams.get('__e2e_token');
+    const e2eUser = urlParams.get('__e2e_user');
+    if (e2eToken && e2eUser) {
+      const parsedUser = JSON.parse(decodeURIComponent(e2eUser));
+      localStorage.setItem('accessToken', e2eToken);
+      localStorage.setItem('user', JSON.stringify(parsedUser));
+      return { user: parsedUser, token: e2eToken };
+    }
+  } catch {
+    // ignore
+  }
+  const user = JSON.parse(localStorage.getItem('user') || 'null');
+  const token = localStorage.getItem('accessToken') || '';
+  return { user, token };
+}
+
+const { user: initialUser, token: initialToken } = getInitialAuth();
 
 const authSlice = createSlice({
   name: 'auth',
@@ -18,14 +39,17 @@ const authSlice = createSlice({
       state.error = null;
     },
     authSuccess: (state, action) => {
+      const payload = action.payload?.data || action.payload || {};
+      const token = payload.accessToken || action.payload?.accessToken || action.payload?.token || '';
+      const user = payload.user || action.payload?.user || state.user;
       state.loading = false;
-      state.token = action.payload.accessToken;
-      state.user = action.payload.user || state.user;
-      state.isAuthenticated = !!state.user;
+      state.token = token;
+      state.user = user;
+      state.isAuthenticated = !!user && !!token;
       
-      localStorage.setItem('accessToken', action.payload.accessToken);
-      if (action.payload.user) {
-        localStorage.setItem('user', JSON.stringify(action.payload.user));
+      if (token) localStorage.setItem('accessToken', token);
+      if (user) {
+        localStorage.setItem('user', JSON.stringify(user));
       }
     },
     updateAccessToken: (state, action) => {

@@ -1,15 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { updateProfileSuccess } from '../../features/authSlice.js';
 import apiClient from '../../services/apiClient.js';
-import { Search, Plus, Check, ChevronRight, Award, HelpCircle, X, BookPlus, Send, Sparkles } from 'lucide-react';
+import { Search, Plus, Check, X, BookPlus, Send } from 'lucide-react';
+import { useDocumentHead } from '../../hooks/useDocumentHead.js';
 
 const SkillCatalog = () => {
   const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  useDocumentHead({
+    title: 'Explore Skills Catalog - Orbitus',
+    description: 'Discover certifiable skills in Programming, Languages, Design, Business, and Science. Exchange knowledge peer-to-peer on Orbitus.',
+    canonical: 'https://orbitus-skill-swap-platform.vercel.app/explore',
+    structuredData: {
+      '@context': 'https://schema.org',
+      '@type': 'ItemList',
+      name: 'Orbitus Skills Catalog',
+      description: 'Peer-to-peer certifiable skills available for mutual exchange on Orbitus.'
+    }
+  });
+
 
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [skillsError, setSkillsError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [msg, setMsg] = useState('');
@@ -43,11 +60,9 @@ const SkillCatalog = () => {
     'General Learning'
   ];
 
-  useEffect(() => {
-    fetchSkills();
-  }, [selectedCategory, searchQuery]);
-
-  const fetchSkills = async () => {
+  const fetchSkills = useCallback(async () => {
+    setLoading(true);
+    setSkillsError('');
     try {
       const res = await apiClient.get('/api/skills', {
         params: {
@@ -55,19 +70,36 @@ const SkillCatalog = () => {
           search: searchQuery || undefined
         }
       });
-      setSkills(res.data.skills);
+      const payload = res.data?.data || res.data || {};
+      const rawSkills = payload.skills || res.data?.skills || [];
+      if (Array.isArray(rawSkills)) {
+        setSkills(rawSkills);
+      } else {
+        setSkills([]);
+        setSkillsError('Received an unexpected skills data format.');
+      }
     } catch (err) {
       console.error('Error fetching skills list:', err);
+      setSkills([]);
+      setSkillsError(err.response?.data?.message || err.message || 'Failed to load skills catalog.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCategory, searchQuery]);
+
+  useEffect(() => {
+    fetchSkills();
+  }, [fetchSkills]);
 
   const handleToggleTeaches = async (skillId, isAdded) => {
+    if (!user) {
+      navigate('/login?redirect=/explore');
+      return;
+    }
     if (isAdded) {
       // Remove
-      const updatedTeaches = user.skillsTeach.filter(s => s.skill._id.toString() !== skillId.toString());
-      updateProfileSkills(updatedTeaches, user.skillsLearn);
+      const updatedTeaches = (user.skillsTeach || []).filter(s => s.skill._id.toString() !== skillId.toString());
+      updateProfileSkills(updatedTeaches, user.skillsLearn || []);
     } else {
       // Open level modal
       setActiveSkillModal({ skillId, type: 'teach' });
@@ -76,10 +108,14 @@ const SkillCatalog = () => {
   };
 
   const handleToggleLearns = async (skillId, isAdded) => {
+    if (!user) {
+      navigate('/login?redirect=/explore');
+      return;
+    }
     if (isAdded) {
       // Remove
-      const updatedLearns = user.skillsLearn.filter(s => s.skill._id.toString() !== skillId.toString());
-      updateProfileSkills(user.skillsTeach, updatedLearns);
+      const updatedLearns = (user.skillsLearn || []).filter(s => s.skill._id.toString() !== skillId.toString());
+      updateProfileSkills(user.skillsTeach || [], updatedLearns);
     } else {
       // Open level modal
       setActiveSkillModal({ skillId, type: 'learn' });
@@ -240,6 +276,17 @@ const SkillCatalog = () => {
           <div className="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
           <span className="text-xs text-muted">Indexing catalog catalog...</span>
         </div>
+      ) : skillsError ? (
+        <div className="text-center py-16 text-muted border border-dashed border-red-300 dark:border-red-900/50 bg-red-500/5 rounded-3xl p-6 space-y-3">
+          <p className="text-xs text-red-500 font-bold">{skillsError}</p>
+          <button
+            type="button"
+            onClick={fetchSkills}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+          >
+            Retry Loading
+          </button>
+        </div>
       ) : skills.length === 0 ? (
         <div className="text-center py-20 text-muted border border-dashed border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-[#22242a]/50 rounded-3xl">
           No skills found matching this category or keyword.
@@ -374,7 +421,7 @@ const SkillCatalog = () => {
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
                 <h3 className="font-extrabold text-app text-base flex items-center gap-2">
-                  <BookPlus size={18} className="text-blue-600" />
+                  <BookPlus size={18} className="text-blue-600 dark:text-blue-400" />
                   Propose a Skill
                 </h3>
                 <p className="text-xs text-muted mt-0.5">

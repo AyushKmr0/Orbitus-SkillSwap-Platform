@@ -7,7 +7,7 @@ if (backendUrl) {
   axios.defaults.baseURL = backendUrl;
 }
 
-export const API_BASE_URL = backendUrl || 'https://orbitus-skillswap-platform.onrender.com';
+export const API_BASE_URL = backendUrl || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://orbitus-skillswap-platform.onrender.com');
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -30,12 +30,15 @@ apiClient.interceptors.request.use((config) => {
     };
   }
 
-  const adminKey = localStorage.getItem('orbitus_admin_key');
-  if (adminKey && !config.headers?.['x-admin-secret']) {
-    config.headers = {
-      ...config.headers,
-      'x-admin-secret': adminKey
-    };
+  if (typeof window !== 'undefined') {
+    const searchParams = new URLSearchParams(window.location.search);
+    const key = searchParams.get('key') || searchParams.get('adminKey');
+    if (key && !config.headers?.['x-admin-key']) {
+      config.headers = {
+        ...config.headers,
+        'x-admin-key': key
+      };
+    }
   }
 
   return config;
@@ -44,7 +47,7 @@ apiClient.interceptors.request.use((config) => {
 // Deduplicate concurrent GET requests to prevent redundant network calls
 const originalGet = apiClient.get;
 apiClient.get = function (url, config = {}) {
-  if (config.bypassDedupe || config.responseType === 'blob') {
+  if (config.bypassDedupe || config.signal || config.responseType === 'blob') {
     return originalGet.call(this, url, config);
   }
   const cacheKey = `${url}?${JSON.stringify(config.params || {})}`;

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { Bell, CheckCheck } from 'lucide-react';
@@ -14,7 +14,9 @@ const notificationLabels = {
   SessionReminder: 'session reminder',
   MatchRequest: 'match request',
   BadgeUnlocked: 'badge unlocked',
-  CertificateGenerated: 'certificate ready'
+  CertificateGenerated: 'certificate ready',
+  FeedbackSubmitted: 'submitted feedback',
+  FeedbackResponse: 'responded to your feedback'
 };
 
 const Notifications = () => {
@@ -24,25 +26,27 @@ const Notifications = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const isVisibleNotification = (item) => {
+  const isVisibleNotification = useCallback((item) => {
     const senderId = item.sender?._id || item.sender;
     return !senderId || senderId.toString() !== user?._id?.toString();
-  };
+  }, [user?._id]);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       const res = await apiClient.get('/api/notifications');
-      setItems((res.data.notifications || []).filter(isVisibleNotification));
+      const payload = res.data?.data || res.data || {};
+      const list = payload.notifications || res.data?.notifications || [];
+      setItems((Array.isArray(list) ? list : []).filter(isVisibleNotification));
     } catch (err) {
       console.error('Error loading notifications:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [isVisibleNotification]);
 
   useEffect(() => {
     fetchNotifications();
-  }, [user?._id]);
+  }, [fetchNotifications]);
 
   useEffect(() => {
     if (!notifications.length) return;
@@ -55,7 +59,7 @@ const Notifications = () => {
 
       return freshItems.length ? [...freshItems, ...prev] : prev;
     });
-  }, [notifications, user?._id]);
+  }, [notifications, isVisibleNotification]);
 
   const markAllRead = async () => {
     await markNotificationsRead({});
