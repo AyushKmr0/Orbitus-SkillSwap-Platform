@@ -98,7 +98,6 @@ function App() {
         <Routes>
           {/* Public Home / Landing Page */}
           <Route path="/" element={<LandingPage />} />
-          <Route path="/explore" element={<SkillCatalog />} />
 
           {/* Core Auth Pages */}
           <Route path="/login" element={<Login />} />
@@ -111,6 +110,7 @@ function App() {
 
           {/* Protected Pages wrapped in Layout */}
           <Route element={<ProtectedRoute />}>
+            <Route path="/explore" element={<SkillCatalog />} />
             <Route path="/*" element={<DashboardLayout />} />
           </Route>
 

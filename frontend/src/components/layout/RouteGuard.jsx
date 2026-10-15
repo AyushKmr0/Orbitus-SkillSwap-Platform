@@ -8,13 +8,13 @@ import { authSuccess } from '../../features/authSlice.js';
 export const isAdminUser = (user) => String(user?.role || '').trim().toLowerCase() === 'admin';
 
 export const ProtectedRoute = ({ redirectPath = '/login' }) => {
-  const { isAuthenticated, token } = useSelector((state) => state.auth);
+  const { isAuthenticated } = useSelector((state) => state.auth);
   const location = useLocation();
 
   const searchParams = new URLSearchParams(location.search);
   const hasAdminKey = !!(searchParams.get('key') || searchParams.get('adminKey'));
 
-  if (!isAuthenticated && !token && !hasAdminKey) {
+  if (!isAuthenticated && !hasAdminKey) {
     const redirect = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`${redirectPath}?redirect=${redirect}`} replace />;
   }
