@@ -227,14 +227,32 @@ const ChatRoom = () => {
   const swipingBubbleRef = useRef(null);
   const lastTapTimeRef = useRef({});
   const hasVibratedRef = useRef(false);
+  const messageHoldTimerRef = useRef(null);
+  const longPressTriggeredRef = useRef(false);
+
+  const clearMessageHold = () => {
+    if (messageHoldTimerRef.current) {
+      clearTimeout(messageHoldTimerRef.current);
+      messageHoldTimerRef.current = null;
+    }
+  };
 
   const handleBubbleTouchStart = (e, msg) => {
     if (msg.deletedAt) return;
+    clearMessageHold();
+    longPressTriggeredRef.current = false;
     touchStartXRef.current = e.touches[0].clientX;
     touchStartYRef.current = e.touches[0].clientY;
     isSwipingRef.current = false;
     hasVibratedRef.current = false;
     swipingBubbleRef.current = e.currentTarget;
+    messageHoldTimerRef.current = setTimeout(() => {
+      if (!isSwipingRef.current) {
+        longPressTriggeredRef.current = true;
+        setActiveReactionMsgId(msg._id);
+        navigator?.vibrate?.(20);
+      }
+    }, 520);
   };
 
   const handleBubbleTouchMove = (e, msg) => {
@@ -243,6 +261,7 @@ const ChatRoom = () => {
     const currentY = e.touches[0].clientY;
     const deltaX = currentX - touchStartXRef.current;
     const deltaY = Math.abs(currentY - touchStartYRef.current);
+    if (Math.abs(deltaX) > 8 || deltaY > 8) clearMessageHold();
 
     if (deltaX > 8 && deltaX > deltaY) {
       isSwipingRef.current = true;
@@ -270,6 +289,7 @@ const ChatRoom = () => {
 
   const handleBubbleTouchEnd = (e, msg) => {
     if (msg.deletedAt || !swipingBubbleRef.current) return;
+    clearMessageHold();
     const bubble = swipingBubbleRef.current;
     const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
     const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartYRef.current);
@@ -283,6 +303,12 @@ const ChatRoom = () => {
       replyIcon.style.opacity = '0';
       replyIcon.style.transform = 'translateY(-50%) scale(0.5)';
       replyIcon.classList.remove('!bg-indigo-600', '!text-white');
+    }
+
+    if (longPressTriggeredRef.current) {
+      longPressTriggeredRef.current = false;
+      swipingBubbleRef.current = null;
+      return;
     }
 
     if (isSwipingRef.current && deltaX >= 45 && deltaY < 50) {
@@ -796,7 +822,7 @@ const ChatRoom = () => {
                       if (isDeleted) return null;
                       const isReactionOpen = activeReactionMsgId === msg._id;
                       return (
-                        <div className="relative self-center shrink-0">
+                        <div className={`relative self-center shrink-0 ${!isOutgoing ? 'absolute right-0 top-1/2 -translate-y-1/2' : ''}`}>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -804,7 +830,7 @@ const ChatRoom = () => {
                               setActiveReactionMsgId(isReactionOpen ? null : msg._id);
                             }}
                             className={`p-1.5 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 transition-all ${
-                              isReactionOpen ? 'opacity-100 pointer-events-auto' : 'opacity-70 sm:opacity-0 sm:group-hover:opacity-100 pointer-events-auto sm:pointer-events-none sm:group-hover:pointer-events-auto'
+                              isReactionOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none sm:group-hover:opacity-100 sm:group-hover:pointer-events-auto'
                             }`}
                             title="React"
                           >
@@ -814,7 +840,7 @@ const ChatRoom = () => {
                           {isReactionOpen && (
                             <>
                               <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setActiveReactionMsgId(null); }} />
-                              <div className={`absolute bottom-full mb-1.5 ${isOutgoing ? 'right-0' : 'left-0'} z-50 flex items-center gap-1.5 rounded-full bg-white dark:bg-[#22242a] px-3 py-1.5 shadow-2xl border border-slate-200 dark:border-slate-700 animate-in fade-in zoom-in-95 duration-150`}>
+                              <div className="absolute bottom-full right-0 z-50 mb-1.5 flex max-w-[calc(100vw-1.5rem)] items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 dark:border-slate-700 dark:bg-[#22242a]">
                                 {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
                                   <button
                                     key={emoji}
@@ -882,6 +908,7 @@ const ChatRoom = () => {
                           onTouchStart={(e) => handleBubbleTouchStart(e, msg)}
                           onTouchMove={(e) => handleBubbleTouchMove(e, msg)}
                           onTouchEnd={(e) => handleBubbleTouchEnd(e, msg)}
+                          onTouchCancel={clearMessageHold}
                           className={`relative max-w-[94%] space-y-1 rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2.5 shadow-sm sm:max-w-[86%] lg:max-w-[80%] touch-pan-y ${
                           msg.replyTo && !isDeleted ? 'min-w-[260px] sm:min-w-[300px]' : 'min-w-[100px]'
                         } ${
@@ -917,7 +944,7 @@ const ChatRoom = () => {
                                   }}
                                 />
                                 {isDeleted ? (
-                                  <div className={`absolute ${menuPlacement === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1'} right-0 z-50 w-44 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#22242a] p-1.5 text-xs shadow-2xl`}>
+                                  <div className={`absolute ${menuPlacement === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1'} ${isOutgoing ? 'right-0' : 'left-0'} z-50 w-[min(13rem,calc(100vw-1rem))] max-h-[min(70vh,20rem)] overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#22242a] p-1.5 text-xs shadow-2xl`}>
                                     <button
                                       type="button"
                                       onClick={(e) => {
@@ -940,7 +967,7 @@ const ChatRoom = () => {
                                     </button>
                                   </div>
                                 ) : (
-                                  <div className={`absolute ${menuPlacement === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1'} right-0 z-50 w-52 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#22242a] p-1.5 text-xs shadow-2xl`}>
+                                  <div className={`absolute ${menuPlacement === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1'} ${isOutgoing ? 'right-0' : 'left-0'} z-50 w-[min(13rem,calc(100vw-1rem))] max-h-[min(70vh,20rem)] overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#22242a] p-1.5 text-xs shadow-2xl`}>
                                   {/* Quick Reaction Bar */}
                                   <div className="flex items-center justify-between px-2 py-1.5 mb-1 border-b border-slate-200 dark:border-slate-700">
                                     {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (

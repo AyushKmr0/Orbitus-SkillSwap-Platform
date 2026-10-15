@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../../features/authSlice.js';
@@ -67,7 +67,6 @@ const AppShadcnSidebarInner = ({ children }) => {
 
   const { isMobile, open, setOpen, setOpenMobile } = useSidebar();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-
   const confirmLogout = () => {
     setShowLogoutModal(false);
     dispatch(logout());
@@ -359,7 +358,7 @@ const AppShadcnSidebarInner = ({ children }) => {
       </Sidebar>
 
       {/* Main Content Area via SidebarInset: starts beside desktop sidebar with min-w-0 */}
-      <SidebarInset className="flex-1 min-w-0 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden bg-background">
+      <SidebarInset className="flex-1 min-w-0 flex flex-col h-[var(--app-viewport-height,100dvh)] max-h-[var(--app-viewport-height,100dvh)] min-h-0 overflow-hidden bg-background">
         {/* Mobile / Responsive Shell Header Bar (Hidden on md and desktop) */}
         <header className="md:hidden flex items-center justify-between px-4 py-2.5 border-b border-sidebar-border bg-sidebar/95 backdrop-blur-sm z-30 shrink-0 orbitus-sidebar-mobile-header-motion">
           <div className="flex items-center gap-2.5">
@@ -431,8 +430,39 @@ const AppShadcnSidebarInner = ({ children }) => {
 };
 
 export const AppShadcnSidebar = ({ children }) => {
+  const [viewportHeight, setViewportHeight] = useState(null);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return undefined;
+
+    let frameId;
+    const updateViewportHeight = () => {
+      cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(() => {
+        setViewportHeight(Math.round(viewport.height));
+      });
+    };
+
+    updateViewportHeight();
+    viewport.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('resize', updateViewportHeight);
+    return () => {
+      cancelAnimationFrame(frameId);
+      viewport.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('resize', updateViewportHeight);
+    };
+  }, []);
+
   return (
-    <SidebarProvider defaultOpen={true} className="flex h-[100dvh] max-h-[100dvh] w-full overflow-hidden">
+    <SidebarProvider
+      defaultOpen={true}
+      style={viewportHeight ? {
+        '--app-viewport-height': `${viewportHeight}px`,
+        minHeight: `${viewportHeight}px`
+      } : undefined}
+      className="flex h-[var(--app-viewport-height,100dvh)] max-h-[var(--app-viewport-height,100dvh)] min-h-0 w-full overflow-hidden"
+    >
       <AppShadcnSidebarInner>{children}</AppShadcnSidebarInner>
     </SidebarProvider>
   );
