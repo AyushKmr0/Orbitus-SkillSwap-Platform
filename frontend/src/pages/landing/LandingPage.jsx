@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowDown,
@@ -10,6 +11,7 @@ import {
   CalendarDays,
   Compass,
   LockKeyhole,
+  Map,
   Menu,
   MessageCircle,
   MoreHorizontal,
@@ -51,6 +53,9 @@ const previewItemVariants = {
 const LandingPage = () => {
   const reducedMotion = useReducedMotion();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  const exploreTarget = isAuthenticated ? '/explore' : '#skills-catalog';
+  const destination = (path, guestPath = '/register') => isAuthenticated ? path : guestPath;
 
   useDocumentHead({
     title: 'Orbitus | Learn and teach skills together',
@@ -59,6 +64,20 @@ const LandingPage = () => {
   });
 
   const closeMenu = () => setMobileMenuOpen(false);
+  const handleExploreClick = (event) => {
+    if (isAuthenticated) return;
+    handlePreviewClick('skills-catalog')(event);
+  };
+
+  const handlePreviewClick = (sectionId) => (event) => {
+    if (isAuthenticated) return;
+    event.preventDefault();
+    closeMenu();
+    document.getElementById(sectionId)?.scrollIntoView({
+      behavior: reducedMotion ? 'auto' : 'smooth',
+      block: 'start'
+    });
+  };
 
   return (
     <main className="orbitus-landing">
@@ -86,12 +105,13 @@ const LandingPage = () => {
             aria-label="Main navigation"
           >
             <a href="#how-it-works" onClick={closeMenu}>How it works</a>
-            <a href="#what-you-can-do" onClick={closeMenu}>What you can do</a>
-            <Link to="/explore" onClick={closeMenu}>Explore skills</Link>
+            <a href="#what-you-can-do" onClick={closeMenu}>Explore Orbitus</a>
             <div className="landing-nav-actions">
-              <Link className="landing-sign-in" to="/login" onClick={closeMenu}>Sign in</Link>
-              <Link className="landing-button landing-button-small" to="/register" onClick={closeMenu}>
-                Get started <ArrowRight size={15} />
+              <Link className="landing-sign-in" to={destination('/dashboard', '/login')} onClick={closeMenu}>
+                {isAuthenticated ? 'Dashboard' : 'Sign in'}
+              </Link>
+              <Link className="landing-button landing-button-small" to={destination('/dashboard')} onClick={closeMenu}>
+                {isAuthenticated ? 'Open dashboard' : 'Get started'} <ArrowRight size={15} />
               </Link>
             </div>
           </nav>
@@ -107,8 +127,8 @@ const LandingPage = () => {
               Meet people with different skills, exchange knowledge, and make progress together, one conversation at a time.
             </p>
             <div className="landing-hero-actions">
-              <Link className="landing-button" to="/register">Create your account <ArrowRight size={17} /></Link>
-              <Link className="landing-text-link" to="/explore">Explore skills <ArrowUpRight size={16} /></Link>
+              <Link className="landing-button" to={destination('/dashboard')}>{isAuthenticated ? 'Open dashboard' : 'Create your account'} <ArrowRight size={17} /></Link>
+              <Link className="landing-text-link" to={exploreTarget} onClick={handleExploreClick}>Explore skills <ArrowUpRight size={16} /></Link>
             </div>
             <div className="landing-hero-note"><UsersRound size={16} /> Learning is better when it goes both ways.</div>
           </Reveal>
@@ -150,7 +170,7 @@ const LandingPage = () => {
           </Reveal>
           <Reveal className="landing-intro-copy" delay={0.1} reducedMotion={reducedMotion}>
             <p>Orbitus brings learners and knowledge-sharers together. Find a skill, meet a peer, and build understanding through real conversations and practice.</p>
-            <Link className="landing-text-link" to="/explore">See the skill catalog <ArrowUpRight size={16} /></Link>
+            <Link className="landing-text-link" to={exploreTarget} onClick={handleExploreClick}>See the skill catalog <ArrowUpRight size={16} /></Link>
           </Reveal>
         </div>
       </section>
@@ -253,25 +273,25 @@ const LandingPage = () => {
               <div className="landing-feature-index">01 / DISCOVER</div>
               <div className="landing-feature-icon feature-blue"><Compass size={23} /></div>
               <div className="landing-feature-copy"><h3>Find skills and people</h3><p>Browse the skill catalog, explore learning areas, and discover peers to learn with.</p></div>
-              <Link className="landing-feature-link" to="/explore" aria-label="Explore skills"><ArrowUpRight size={20} /></Link>
+              <Link className="landing-feature-link" to={exploreTarget} onClick={handleExploreClick} aria-label="Explore skills"><ArrowUpRight size={20} /></Link>
             </Reveal>
             <Reveal className="landing-feature-row" delay={0.06} reducedMotion={reducedMotion}>
               <div className="landing-feature-index">02 / CONNECT</div>
               <div className="landing-feature-icon feature-coral"><UsersRound size={23} /></div>
               <div className="landing-feature-copy"><h3>Learn with a community</h3><p>Take part in study groups, share ideas in the feed, and stay in touch through chat.</p></div>
-              <Link className="landing-feature-link" to="/register" aria-label="Join the Orbitus community"><ArrowUpRight size={20} /></Link>
+              <Link className="landing-feature-link" to={isAuthenticated ? '/groups' : '#community-preview'} onClick={handlePreviewClick('community-preview')} aria-label="Preview the Orbitus community"><ArrowUpRight size={20} /></Link>
             </Reveal>
             <Reveal className="landing-feature-row" delay={0.12} reducedMotion={reducedMotion}>
               <div className="landing-feature-index">03 / PRACTICE</div>
               <div className="landing-feature-icon feature-yellow"><CalendarDays size={23} /></div>
               <div className="landing-feature-copy"><h3>Make time to practice</h3><p>Arrange learning sessions with peers and turn a shared interest into a regular practice.</p></div>
-              <Link className="landing-feature-link" to="/register" aria-label="Get started with learning sessions"><ArrowUpRight size={20} /></Link>
+              <Link className="landing-feature-link" to={isAuthenticated ? '/bookings' : '#practice-preview'} onClick={handlePreviewClick('practice-preview')} aria-label="Preview learning sessions"><ArrowUpRight size={20} /></Link>
             </Reveal>
             <Reveal className="landing-feature-row" delay={0.18} reducedMotion={reducedMotion}>
               <div className="landing-feature-index">04 / GROW</div>
               <div className="landing-feature-icon feature-green"><Award size={23} /></div>
               <div className="landing-feature-copy"><h3>See your progress</h3><p>Use learning roadmaps, activity history, points, and certificates to recognize your effort.</p></div>
-              <Link className="landing-feature-link" to="/register" aria-label="Create an account to track learning progress"><ArrowUpRight size={20} /></Link>
+              <Link className="landing-feature-link" to={isAuthenticated ? '/dashboard' : '#progress-preview'} onClick={handlePreviewClick('progress-preview')} aria-label="Preview learning progress"><ArrowUpRight size={20} /></Link>
             </Reveal>
           </div>
         </div>
@@ -289,8 +309,117 @@ const LandingPage = () => {
             <span className="landing-eyebrow">Progress is shared</span>
             <h2>Every learner has something to teach.</h2>
             <p>Bring what you know. Stay open to what others know. Orbitus makes space for both sides of learning.</p>
-            <Link className="landing-text-link" to="/register">Join the community <ArrowRight size={16} /></Link>
+            <Link className="landing-text-link" to={destination('/groups')}>{isAuthenticated ? 'Visit study groups' : 'Join the community'} <ArrowRight size={16} /></Link>
           </Reveal>
+        </div>
+      </section>
+
+      <section id="skills-catalog" className="landing-catalog-section" aria-labelledby="landing-catalog-title">
+        <div className="landing-section-shell">
+          <Reveal className="landing-catalog-heading" reducedMotion={reducedMotion}>
+            <span className="landing-eyebrow">01 / Discover</span>
+            <h2 id="landing-catalog-title">Skills Catalog</h2>
+            <p>Browse a few example topics from the kinds of skills people can share on Orbitus.</p>
+          </Reveal>
+          <div className="landing-catalog-grid">
+            {[
+              { category: 'Programming & Tech', skills: ['React.js', 'API design', 'Docker basics'], icon: BookOpen, tone: 'feature-blue' },
+              { category: 'Languages & Speaking', skills: ['Conversational Spanish', 'Public speaking', 'English practice'], icon: MessageCircle, tone: 'feature-coral' },
+              { category: 'Design & Creative Arts', skills: ['UI/UX in Figma', 'Digital illustration', 'Visual storytelling'], icon: Compass, tone: 'feature-green' },
+              { category: 'Career & Personal Growth', skills: ['Interview practice', 'Portfolio reviews', 'Study habits'], icon: Award, tone: 'feature-yellow' }
+            ].map(({ category, skills, icon: Icon, tone }, index) => (
+              <Reveal key={category} className="landing-catalog-item" delay={index * 0.06} reducedMotion={reducedMotion}>
+                <div className={`landing-catalog-icon ${tone}`}><Icon size={21} /></div>
+                <h3>{category}</h3>
+                <ul>{skills.map((skill) => <li key={skill}>{skill}</li>)}</ul>
+              </Reveal>
+            ))}
+          </div>
+          <div className="landing-catalog-action">
+            <p>{isAuthenticated ? 'Ready to explore the full catalog?' : 'Sign in to browse skills and connect with people.'}</p>
+            <Link className="landing-preview-link" to={destination('/explore', '/login')}>
+              {isAuthenticated ? 'Browse all skills' : 'Sign in to browse skills'} <ArrowRight size={16} />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section id="community-preview" className="landing-preview-section" aria-labelledby="community-preview-title">
+        <div className="landing-section-shell">
+          <Reveal className="landing-catalog-heading" reducedMotion={reducedMotion}>
+            <span className="landing-eyebrow">02 / Connect</span>
+            <h2 id="community-preview-title">Learn with a community</h2>
+            <p>Study groups, shared conversations, and a feed help learners stay connected.</p>
+          </Reveal>
+          <div className="landing-preview-grid">
+            <Reveal className="landing-preview-card" reducedMotion={reducedMotion}>
+              <div className="landing-catalog-icon feature-coral"><UsersRound size={21} /></div>
+              <span className="landing-preview-label">STUDY GROUPS</span>
+              <h3>Find your people</h3>
+              <p>Join focused spaces to practice a skill and learn alongside others.</p>
+              <div className="landing-preview-tags"><span>React study circle</span><span>Language exchange</span></div>
+            </Reveal>
+            <Reveal className="landing-preview-card" delay={0.07} reducedMotion={reducedMotion}>
+              <div className="landing-catalog-icon feature-blue"><MessageCircle size={21} /></div>
+              <span className="landing-preview-label">FEED & CHAT</span>
+              <h3>Keep the conversation going</h3>
+              <p>Share ideas in the feed and message peers as you learn together.</p>
+              <div className="landing-preview-tags"><span>Share a learning win</span><span>Ask a question</span></div>
+            </Reveal>
+          </div>
+          {!isAuthenticated && <Link className="landing-preview-link" to="/register">Join the Orbitus community <ArrowRight size={16} /></Link>}
+        </div>
+      </section>
+
+      <section id="practice-preview" className="landing-preview-section landing-preview-alt" aria-labelledby="practice-preview-title">
+        <div className="landing-section-shell">
+          <Reveal className="landing-catalog-heading" reducedMotion={reducedMotion}>
+            <span className="landing-eyebrow">03 / Practice</span>
+            <h2 id="practice-preview-title">Make time to practice</h2>
+            <p>Turn a shared interest into a focused session with a peer.</p>
+          </Reveal>
+          <div className="landing-preview-grid landing-session-grid">
+            {[
+              { title: 'Build a small React feature', detail: 'Pair practice · Programming', icon: BookOpen },
+              { title: 'Practice everyday Spanish', detail: 'Conversation · Languages', icon: MessageCircle },
+              { title: 'Review a portfolio together', detail: 'Peer feedback · Design', icon: Compass }
+            ].map(({ title, detail, icon: Icon }, index) => (
+              <Reveal key={title} className="landing-preview-card landing-session-card" delay={index * 0.06} reducedMotion={reducedMotion}>
+                <div className="landing-catalog-icon feature-yellow"><Icon size={21} /></div>
+                <span className="landing-preview-label">SESSION IDEA</span>
+                <h3>{title}</h3>
+                <p>{detail}</p>
+              </Reveal>
+            ))}
+          </div>
+          {!isAuthenticated && <Link className="landing-preview-link" to="/register">Create an account to plan a session <ArrowRight size={16} /></Link>}
+        </div>
+      </section>
+
+      <section id="progress-preview" className="landing-preview-section" aria-labelledby="progress-preview-title">
+        <div className="landing-section-shell">
+          <Reveal className="landing-catalog-heading" reducedMotion={reducedMotion}>
+            <span className="landing-eyebrow">04 / Grow</span>
+            <h2 id="progress-preview-title">See your progress</h2>
+            <p>Keep the effort visible as you learn, practice, and reach new milestones.</p>
+          </Reveal>
+          <div className="landing-preview-grid landing-progress-grid">
+            <Reveal className="landing-preview-card" reducedMotion={reducedMotion}>
+              <div className="landing-catalog-icon feature-blue"><Map size={21} /></div>
+              <span className="landing-preview-label">LEARNING ROADMAPS</span>
+              <h3>Break a goal into steps</h3>
+              <p>Track topics and milestones along a learning path.</p>
+              <div className="landing-preview-tags"><span>Plan</span><span>Practice</span><span>Review</span></div>
+            </Reveal>
+            <Reveal className="landing-preview-card" delay={0.07} reducedMotion={reducedMotion}>
+              <div className="landing-catalog-icon feature-green"><Award size={21} /></div>
+              <span className="landing-preview-label">MILESTONES</span>
+              <h3>Recognize your effort</h3>
+              <p>Activity history, points, and certificates can mark progress over time.</p>
+              <div className="landing-preview-tags"><span>Activity</span><span>Points</span><span>Certificates</span></div>
+            </Reveal>
+          </div>
+          {!isAuthenticated && <Link className="landing-preview-link" to="/register">Start tracking your learning <ArrowRight size={16} /></Link>}
         </div>
       </section>
 
@@ -300,8 +429,8 @@ const LandingPage = () => {
           <h2>Learn something.<br /><em>Pass it on.</em></h2>
           <p>Find your place in a community built around sharing what we know.</p>
           <div className="landing-hero-actions">
-            <Link className="landing-button landing-button-light" to="/register">Get started <ArrowRight size={17} /></Link>
-            <Link className="landing-cta-secondary" to="/explore">Explore skills</Link>
+            <Link className="landing-button landing-button-light" to={destination('/dashboard')}>{isAuthenticated ? 'Open dashboard' : 'Get started'} <ArrowRight size={17} /></Link>
+            <Link className="landing-cta-secondary" to={exploreTarget} onClick={handleExploreClick}>Explore skills</Link>
           </div>
         </Reveal>
       </section>
@@ -314,9 +443,9 @@ const LandingPage = () => {
           </Link>
           <span className="landing-footer-note">Learn and teach skills together.</span>
           <nav className="landing-footer-links" aria-label="Footer navigation">
-            <Link to="/explore">Explore skills</Link>
-            <Link to="/login">Sign in</Link>
-            <Link to="/register">Create account</Link>
+            <Link to={exploreTarget} onClick={handleExploreClick}>Explore skills</Link>
+            <Link to={destination('/dashboard', '/login')}>{isAuthenticated ? 'Dashboard' : 'Sign in'}</Link>
+            <Link to={destination('/dashboard')}>{isAuthenticated ? 'Open dashboard' : 'Create account'}</Link>
           </nav>
           <span className="landing-copyright">© {new Date().getFullYear()} Orbitus</span>
         </div>

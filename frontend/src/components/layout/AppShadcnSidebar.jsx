@@ -121,11 +121,11 @@ const AppShadcnSidebarInner = ({ children }) => {
     }
   };
 
-  const handleLogoClick = (e) => {
+  const handleLogoClick = (event) => {
     if (isMobile) {
       setOpenMobile(false);
     } else if (!open) {
-      e.preventDefault();
+      event.preventDefault();
       setOpen(true);
     }
   };
@@ -138,11 +138,11 @@ const AppShadcnSidebarInner = ({ children }) => {
           <SidebarHeader className="p-3 group-data-[collapsible=icon]:px-2 border-b border-sidebar-border orbitus-sidebar-header-motion">
           <div className="flex items-center justify-between gap-2">
             <Link
-              to="/dashboard"
+              to="/"
               onClick={handleLogoClick}
               className="flex items-center gap-2.5 overflow-hidden rounded-lg p-1 transition-transform active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring cursor-pointer"
-              title={!open && !isMobile ? 'Expand Sidebar' : 'Orbitus Dashboard'}
-              aria-label={!open && !isMobile ? 'Expand Sidebar' : 'Orbitus Dashboard'}
+              title={!open && !isMobile ? 'Expand sidebar' : 'Orbitus home'}
+              aria-label={!open && !isMobile ? 'Expand sidebar' : 'Orbitus home'}
             >
               <BrandLogo size={40} className="h-10 w-10 shrink-0 object-contain" />
               <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
