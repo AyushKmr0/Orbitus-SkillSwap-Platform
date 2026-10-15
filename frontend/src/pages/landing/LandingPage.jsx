@@ -13,7 +13,6 @@ import {
   Menu,
   X,
   ArrowLeftRight,
-  Calendar,
   Compass,
   CheckCircle2,
   Award,
@@ -27,7 +26,8 @@ import {
   Lightbulb,
   Users2,
   Layers,
-  Check
+  Check,
+  Lock
 } from 'lucide-react';
 import BrandLogo from '../../components/common/BrandLogo.jsx';
 import { useDocumentHead } from '../../hooks/useDocumentHead.js';
@@ -50,14 +50,14 @@ const LandingPage = () => {
   });
 
   // Dribbble-inspired smooth spring & inertia motion variants
+  const smoothEase = [0.16, 1, 0.3, 1];
+
   const springTransition = {
     type: 'spring',
     stiffness: 120,
     damping: 18,
     mass: 0.8
   };
-
-  const smoothEase = [0.16, 1, 0.3, 1];
 
   const fadeUp = {
     hidden: { opacity: 0, y: shouldReduceMotion ? 0 : 20 },
@@ -111,8 +111,8 @@ const LandingPage = () => {
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: shouldReduceMotion ? 0 : 0.06,
-        delayChildren: shouldReduceMotion ? 0 : 0.03
+        staggerChildren: shouldReduceMotion ? 0 : 0.08,
+        delayChildren: shouldReduceMotion ? 0 : 0.04
       }
     }
   };
@@ -139,7 +139,62 @@ const LandingPage = () => {
     scale: shouldReduceMotion ? 1 : 0.98
   };
 
-  // Interactive Feature Showcase Data
+  // 5 Floating Capability Cards in the Hero Viewport (Dribbble Frame 01)
+  const HERO_FLOATING_CARDS = [
+    {
+      id: 'react',
+      title: 'React & TypeScript',
+      sub: 'Frontend Architecture',
+      tag: 'Peer Swap',
+      icon: Code2,
+      duration: 4.4,
+      yOffset: -7,
+      delay: 0
+    },
+    {
+      id: 'python',
+      title: 'Python & FastApi',
+      sub: 'Data & Backend Services',
+      tag: 'Peer Swap',
+      icon: Layers,
+      duration: 5.0,
+      yOffset: 8,
+      delay: 0.5
+    },
+    {
+      id: 'video',
+      title: '1:1 Live Swap Room',
+      sub: 'In-Browser WebRTC Call',
+      tag: 'Instant Session',
+      icon: Video,
+      duration: 4.2,
+      yOffset: -9,
+      delay: 1.0,
+      isHighlighted: true
+    },
+    {
+      id: 'uiux',
+      title: 'UI/UX & Figma',
+      sub: 'Design Systems & Motion',
+      tag: 'Peer Swap',
+      icon: Palette,
+      duration: 4.8,
+      yOffset: 7,
+      delay: 0.8
+    },
+    {
+      id: 'languages',
+      title: 'Fluent English & Spanish',
+      sub: 'Real-time Conversation',
+      tag: 'Language Swap',
+      icon: Languages,
+      duration: 4.1,
+      yOffset: -6,
+      delay: 1.3
+    }
+  ];
+
+  // Interactive Feature Showcase Data (Dribbble Frame 05 Mockup)
   const SHOWCASE_TABS = [
     {
       id: 'sessions',
@@ -148,34 +203,24 @@ const LandingPage = () => {
       title: 'In-Browser Video Rooms with Pre-Session Agendas',
       description: 'Schedule focused learning sessions with peers. Every confirmed swap generates an integrated, download-free video meeting room with agenda checklists to keep learning structured.',
       bullets: [
-        'WebRTC in-browser video & audio—zero third-party tools',
-        'Shared agenda checklists and real-time objectives',
-        'Timezone-synchronized session coordination'
+        'Integrated WebRTC video calling — zero third-party downloads',
+        'Structured pre-session agendas with reciprocal time breakdown',
+        'Mutual completion checklists and review prompts'
       ],
-      preview: {
-        badge: 'Active Video Room',
-        heading: 'React Component Architecture & TypeScript Tokens',
-        meta: '45-Min Exchange · Room Connection Ready',
-        points: ['Agenda approved by both peers', 'Microphone and camera ready', 'Session notes live synchronization']
-      }
+      previewType: 'video'
     },
     {
       id: 'groups',
       label: 'Study Circles',
-      icon: BookOpen,
-      title: 'Community Study Groups Organized by Subject',
-      description: 'Connect with learning circles centered on your exact tools. Share curated documentation, ask technical questions, and hold recurring peer review sessions.',
+      icon: Users2,
+      title: 'Persistent Collaborative Circles with Live Chat',
+      description: 'Join subject-focused learning circles or build your own. Collaborate with multiple peers simultaneously, ask questions, share project code, and coordinate group sessions.',
       bullets: [
-        'Specialized study circles across 8 knowledge domains',
-        'Curated resource repositories and code snippets',
-        'Real-time peer chat with group call rooms'
+        'Real-time group discussions with code & resource sharing',
+        'Built-in member management and group video coordination',
+        'Subject channels across Programming, Design, and Languages'
       ],
-      preview: {
-        badge: 'Study Group Hub',
-        heading: 'Fullstack & Cloud Architecture Circle',
-        meta: '38 Active Peers · General Discussion Channel',
-        points: ['Database connection pooling best practices', 'Redis cache invalidation patterns', 'Docker multi-stage build optimization']
-      }
+      previewType: 'group'
     },
     {
       id: 'roadmaps',
@@ -188,12 +233,7 @@ const LandingPage = () => {
         'Hands-on project checkpoints with real deliverables',
         'Daily consistency tracking on contribution calendars'
       ],
-      preview: {
-        badge: 'Curriculum Roadmap',
-        heading: 'Fullstack React & Node.js Architecture',
-        meta: '4 Phases · Milestone 2 in Progress',
-        points: ['Phase 1: Architecture & Foundations (Complete)', 'Phase 2: Asynchronous State & Sockets (Current)', 'Phase 3: Production Hardening & Caching (Next)']
-      }
+      previewType: 'roadmap'
     },
     {
       id: 'credentials',
@@ -206,48 +246,85 @@ const LandingPage = () => {
         'Issued solely upon reciprocal partner evaluation',
         'Publicly shareable verification link for portfolios'
       ],
-      preview: {
-        badge: 'Verified Credential',
-        heading: 'Demonstrated Knowledge Exchange Credential',
-        meta: 'Status: Cryptographically Verified',
-        points: ['Evaluation: Passed Mutual Peer Review', 'Permanent Hash: VERIFIED-HASH-RECORD', 'Public Verification Link Active']
-      }
+      previewType: 'certificate'
     }
   ];
 
-  // 4 Structured Steps for the Vertical Timeline
-  const HOW_IT_WORKS = [
+  // 4 Connected Nodes for Architecture Flow (Dribbble Frame 10)
+  const ARCHITECTURE_STEPS = [
     {
       step: '01',
-      title: 'Publish What You Teach & Learn',
-      subtitle: 'Build your reciprocal profile matrix',
-      description: 'Declare the subjects you are ready to mentor peers in, alongside the exact concepts you want to learn. No fees, coins, or paywalls.',
-      icon: ArrowLeftRight,
-      highlight: 'Set custom skill levels: Beginner, Intermediate, or Advanced'
+      title: 'Mutual Skill Match',
+      subtitle: 'Two-Way Reciprocal Engine',
+      description: 'Declare the subjects you can teach and what you want to learn. The platform pairs peers whose availability and interests complement each other.',
+      icon: ArrowLeftRight
     },
     {
       step: '02',
-      title: 'Connect with Reciprocal Peers',
-      subtitle: 'Automated two-way compatibility matching',
-      description: 'Orbitus matches you with fellow learners whose educational targets complement your mentoring capabilities for a balanced, two-way exchange.',
-      icon: Users2,
-      highlight: 'Balanced 1-to-1 matching based on mutual availability'
+      title: '1:1 Video Swaps',
+      subtitle: 'Integrated WebRTC Rooms',
+      description: 'Book a confirmed slot on the calendar. Join directly via in-browser video equipped with shared agenda outlines and checklists.',
+      icon: Video
     },
     {
       step: '03',
-      title: 'Schedule 1-on-1 Video Sessions',
-      subtitle: 'Structured live learning with shared agendas',
-      description: 'Agree on mutual meeting times and join directly via integrated in-browser video meeting rooms equipped with shared agenda notes and checklists.',
-      icon: Calendar,
-      highlight: 'Built-in video rooms with pre-meeting agenda outlines'
+      title: 'Study Circles',
+      subtitle: 'Continuous Peer Support',
+      description: 'Deepen understanding in community study groups with real-time text chat, shared code snippets, and group meetups.',
+      icon: Users2
     },
     {
       step: '04',
-      title: 'Earn Verified Credentials',
-      subtitle: 'Reciprocal peer signoff and permanent credential IDs',
-      description: 'Submit mutual session evaluations upon completion to build community reputation and mint permanent certificates with unique verification IDs.',
-      icon: Award,
-      highlight: 'Cryptographically verifiable proof IDs for portfolios'
+      title: 'Verified Proof',
+      subtitle: 'Reciprocal Signoff IDs',
+      description: 'Submit mutual session evaluations upon completion to unlock verified certificates with permanent cryptographic hash IDs.',
+      icon: Award
+    }
+  ];
+
+  // High-Contrast Dark Tier Cards (Dribbble Frame 15/18)
+  const PEER_TIERS = [
+    {
+      name: 'Self-Directed Learner',
+      price: '$0',
+      period: 'forever free',
+      description: 'Ideal for independent exploration and discovering high-quality learning paths.',
+      highlight: false,
+      features: [
+        'Explore complete skill catalogs & domains',
+        'Access all public study groups & discussions',
+        'Track personal milestone learning roadmaps',
+        'Activity heatmap & streak monitoring',
+        'No credit card or payment info ever needed'
+      ]
+    },
+    {
+      name: 'Active Peer Swapper',
+      price: '$0',
+      period: 'forever free',
+      description: 'Our core reciprocal exchange model designed for hands-on, accelerated learning.',
+      highlight: true,
+      features: [
+        'Everything in Self-Directed Learner',
+        'Unlimited 1:1 in-browser video swap sessions',
+        'Mutual post-session evaluations & ratings',
+        'Mint permanent verified skill credentials',
+        'Real-time direct messaging with learning peers'
+      ]
+    },
+    {
+      name: 'Community Mentor',
+      price: '$0',
+      period: 'forever free',
+      description: 'For experienced practitioners who enjoy guiding study circles and mentoring.',
+      highlight: false,
+      features: [
+        'Everything in Active Peer Swapper',
+        'Create & moderate custom study circles',
+        'Publish learning roadmaps for the community',
+        'Top contributor status on leaderboard',
+        'Priority reciprocal matching algorithm'
+      ]
     }
   ];
 
@@ -292,30 +369,6 @@ const LandingPage = () => {
       name: 'General Learning',
       icon: Lightbulb,
       topics: 'Study Strategies, Time Management, Public Speaking'
-    }
-  ];
-
-  // Comparison points between passive courses and peer exchange
-  const COMPARISONS = [
-    {
-      title: 'Cost & Accessibility',
-      course: 'Expensive subscriptions ($20-$50/month) or upfront paywalls.',
-      orbitus: '100% Free reciprocal exchange. You trade your knowledge directly.'
-    },
-    {
-      title: 'Personalized Feedback',
-      course: 'Pre-recorded video lectures with no individualized feedback.',
-      orbitus: 'Live 1-on-1 dialogue with questions answered on the spot.'
-    },
-    {
-      title: 'Accountability & Completion',
-      course: 'High abandonment rates because you study completely in isolation.',
-      orbitus: 'Dedicated calendar appointments with a real study partner.'
-    },
-    {
-      title: 'Retention Through Teaching',
-      course: 'Passive watching where most information is quickly forgotten.',
-      orbitus: 'Active learning by explaining concepts, proven to maximize retention.'
     }
   ];
 
@@ -377,16 +430,16 @@ const LandingPage = () => {
               Interactive Preview
             </a>
             <a
-              href="#how-it-works"
+              href="#architecture"
               className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded px-1 py-0.5"
             >
               How It Works
             </a>
             <a
-              href="#why-orbitus"
+              href="#tiers"
               className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded px-1 py-0.5"
             >
-              Why SkillSwap
+              Free Tiers
             </a>
             <a
               href="#domains"
@@ -395,7 +448,7 @@ const LandingPage = () => {
               Skill Domains
             </a>
             <a
-              href="#community"
+              href="#standards"
               className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded px-1 py-0.5"
             >
               Community Standards
@@ -477,18 +530,18 @@ const LandingPage = () => {
                   <Video size={14} className="text-indigo-500" /> Interactive Preview
                 </a>
                 <a
-                  href="#how-it-works"
+                  href="#architecture"
                   onClick={() => setMobileMenuOpen(false)}
                   className="p-2 rounded bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:text-indigo-600 flex items-center gap-2"
                 >
                   <ArrowLeftRight size={14} className="text-indigo-500" /> How It Works
                 </a>
                 <a
-                  href="#why-orbitus"
+                  href="#tiers"
                   onClick={() => setMobileMenuOpen(false)}
                   className="p-2 rounded bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:text-indigo-600 flex items-center gap-2"
                 >
-                  <Layers size={14} className="text-indigo-500" /> Why SkillSwap
+                  <Layers size={14} className="text-indigo-500" /> Free Tiers
                 </a>
                 <a
                   href="#domains"
@@ -498,7 +551,7 @@ const LandingPage = () => {
                   <BookOpen size={14} className="text-indigo-500" /> Skill Domains
                 </a>
                 <a
-                  href="#community"
+                  href="#standards"
                   onClick={() => setMobileMenuOpen(false)}
                   className="p-2 rounded bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:text-indigo-600 flex items-center gap-2"
                 >
@@ -540,9 +593,13 @@ const LandingPage = () => {
       </motion.header>
 
       <main className="flex-1">
-        {/* 2. Hero Section: Refined, compact typography and balanced padding */}
-        <section className="pt-12 pb-14 sm:pt-16 sm:pb-18 md:pt-20 md:pb-22 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#12141a]">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center space-y-4">
+        {/* 2. Hero Section: Full Viewport Height Canvas with Floating Motion Arc (Dribbble Frame 01) */}
+        <section className="min-h-[calc(100vh-3.5rem)] flex flex-col justify-between pt-8 pb-8 sm:pt-12 sm:pb-10 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#12141a] relative overflow-hidden">
+          {/* Subtle background ambient glow for spatial depth */}
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-indigo-500/5 dark:bg-indigo-500/10 blur-[100px] pointer-events-none rounded-full" />
+
+          {/* Top/Center: Hero Text & Call to Action */}
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center space-y-4 my-auto relative z-10">
             <motion.div
               initial="hidden"
               animate="visible"
@@ -559,7 +616,7 @@ const LandingPage = () => {
 
               <motion.h1
                 variants={fadeUp}
-                className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-[1.2]"
+                className="text-2xl sm:text-3xl md:text-4xl lg:text-[40px] font-extrabold tracking-tight text-slate-900 dark:text-white leading-[1.2]"
               >
                 Learn by teaching. <br />
                 <span className="text-indigo-600 dark:text-indigo-400">
@@ -577,7 +634,7 @@ const LandingPage = () => {
               {/* Primary Actions with Compact Proportions */}
               <motion.div
                 variants={fadeUp}
-                className="pt-2 flex flex-wrap items-center justify-center gap-3"
+                className="pt-1 flex flex-wrap items-center justify-center gap-3"
               >
                 {isAuthenticated ? (
                   <motion.div whileHover={buttonHover} whileTap={buttonTap}>
@@ -614,31 +671,80 @@ const LandingPage = () => {
               {/* Verified Trust Strip */}
               <motion.div
                 variants={fadeUp}
-                className="pt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl mx-auto text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/80"
+                className="pt-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5 max-w-xl mx-auto text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/80"
               >
-                <div className="flex items-center justify-center gap-1.5 pt-2">
+                <div className="flex items-center justify-center gap-1.5 pt-1.5">
                   <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
                   <span>100% Free Exchange</span>
                 </div>
-                <div className="flex items-center justify-center gap-1.5 pt-2">
+                <div className="flex items-center justify-center gap-1.5 pt-1.5">
                   <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
                   <span>1:1 Video Swaps</span>
                 </div>
-                <div className="flex items-center justify-center gap-1.5 pt-2">
+                <div className="flex items-center justify-center gap-1.5 pt-1.5">
                   <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
-                  <span>Active Study Groups</span>
+                  <span>Active Study Circles</span>
                 </div>
-                <div className="flex items-center justify-center gap-1.5 pt-2">
+                <div className="flex items-center justify-center gap-1.5 pt-1.5">
                   <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
-                  <span>Verified Credentials</span>
+                  <span>Verified Proof</span>
                 </div>
               </motion.div>
             </motion.div>
           </div>
+
+          {/* Bottom of First Viewport: Floating Capabilities Arc from Dribbble Reference */}
+          <div className="w-full max-w-5xl mx-auto px-4 pt-6 sm:pt-8 relative z-10">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+              {HERO_FLOATING_CARDS.map((card, idx) => {
+                const Icon = card.icon;
+                return (
+                  <motion.div
+                    key={card.id}
+                    initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 20 }}
+                    animate={{
+                      opacity: 1,
+                      y: shouldReduceMotion ? 0 : [0, card.yOffset, 0]
+                    }}
+                    transition={{
+                      opacity: { duration: 0.5, delay: idx * 0.1 },
+                      y: {
+                        duration: card.duration,
+                        repeat: Infinity,
+                        ease: 'easeInOut',
+                        delay: card.delay
+                      }
+                    }}
+                    whileHover={cardHover}
+                    className={`p-3 sm:p-3.5 rounded-xl border text-left shadow-sm transition-colors ${
+                      card.isHighlighted
+                        ? 'bg-indigo-50/60 dark:bg-indigo-950/30 border-indigo-300 dark:border-indigo-700/80'
+                        : 'bg-white dark:bg-[#181d26] border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between pb-1.5">
+                      <div className={`p-1.5 rounded-md ${card.isHighlighted ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400'}`}>
+                        <Icon size={14} />
+                      </div>
+                      <span className="text-[9px] font-bold tracking-wide uppercase text-slate-400 dark:text-slate-500">
+                        {card.tag}
+                      </span>
+                    </div>
+                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                      {card.title}
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                      {card.sub}
+                    </p>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
         </section>
 
-        {/* 3. Dribbble-Style Interactive Feature Showcase Section */}
-        <section id="showcase" className="py-12 sm:py-16 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#151922] transition-colors">
+        {/* 3. Dribbble-Style Browser Mockup Interactive Showcase (Frame 05) */}
+        <section id="showcase" className="py-14 sm:py-20 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#151922] transition-colors">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-8">
             <motion.div
               initial="hidden"
@@ -658,110 +764,226 @@ const LandingPage = () => {
               </p>
             </motion.div>
 
-            {/* Interactive Tab Switcher Bar */}
-            <div className="flex justify-center">
-              <div className="inline-flex p-1 rounded-lg bg-slate-200/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-xs font-semibold">
-                {SHOWCASE_TABS.map((tab) => {
-                  const Icon = tab.icon;
-                  const isActive = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`relative px-3.5 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
-                        isActive
-                          ? 'text-indigo-600 dark:text-indigo-300 font-bold'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                      }`}
-                    >
-                      {isActive && (
-                        <motion.div
-                          layoutId="activeShowcaseTab"
-                          className="absolute inset-0 bg-white dark:bg-slate-700 rounded-md shadow-sm border border-slate-200/60 dark:border-slate-600"
-                          transition={springTransition}
-                        />
-                      )}
-                      <span className="relative z-10 flex items-center gap-1.5">
-                        <Icon size={14} />
-                        <span>{tab.label}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Animated Tab Content Card */}
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: shouldReduceMotion ? 0 : -10 }}
-                transition={{ duration: shouldReduceMotion ? 0 : 0.3, ease: smoothEase }}
-                className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center p-6 sm:p-7 rounded-xl bg-white dark:bg-[#181d26] border border-slate-200 dark:border-slate-800 shadow-sm"
-              >
-                {/* Left Description Column */}
-                <div className="md:col-span-6 space-y-3 text-left">
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-snug">
-                    {currentShowcase.title}
-                  </h3>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                    {currentShowcase.description}
-                  </p>
-                  <div className="pt-1 space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
-                    {currentShowcase.bullets.map((b) => (
-                      <div key={b} className="flex items-center gap-2">
-                        <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
-                        <span>{b}</span>
-                      </div>
-                    ))}
-                  </div>
+            {/* Browser Frame Mockup Container */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.15 }}
+              variants={scaleUp}
+              className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#181d26] shadow-xl overflow-hidden"
+            >
+              {/* Browser Window Header with Traffic Lights & URL Bar */}
+              <div className="px-4 py-2.5 bg-slate-100/90 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700/60 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-400" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
                 </div>
 
-                {/* Right Interactive Preview Card */}
-                <div className="md:col-span-6">
+                <div className="flex-1 max-w-sm mx-auto bg-white dark:bg-slate-900 px-3 py-1 rounded-md border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-1.5 text-[10px] text-slate-500 font-mono">
+                  <Lock size={10} className="text-emerald-500" />
+                  <span>orbitus.app/workspace/{activeTab}</span>
+                </div>
+
+                <div className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 shrink-0 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="hidden sm:inline">Connected</span>
+                </div>
+              </div>
+
+              {/* Showcase Tab Switcher Row */}
+              <div className="px-4 pt-3 pb-1 border-b border-slate-200 dark:border-slate-800 flex justify-center">
+                <div className="inline-flex p-1 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-xs font-semibold">
+                  {SHOWCASE_TABS.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`relative px-3 sm:px-3.5 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
+                          isActive
+                            ? 'text-indigo-600 dark:text-indigo-300 font-bold'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        {isActive && (
+                          <motion.div
+                            layoutId="activeShowcaseTab"
+                            className="absolute inset-0 bg-white dark:bg-slate-700 rounded-md shadow-sm border border-slate-200/60 dark:border-slate-600"
+                            transition={springTransition}
+                          />
+                        )}
+                        <span className="relative z-10 flex items-center gap-1.5">
+                          <Icon size={14} />
+                          <span className="hidden sm:inline">{tab.label}</span>
+                          <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Inside Browser Window: Dynamic Tab Visual */}
+              <div className="p-5 sm:p-7">
+                <AnimatePresence mode="wait">
                   <motion.div
-                    whileHover={cardHover}
-                    className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 space-y-3 text-left transition-colors"
+                    key={activeTab}
+                    initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: shouldReduceMotion ? 0 : -10 }}
+                    transition={{ duration: shouldReduceMotion ? 0 : 0.3, ease: smoothEase }}
+                    className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center"
                   >
-                    <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-2">
-                      <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                        {currentShowcase.preview.badge}
-                      </span>
-                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                        Ready
-                      </span>
+                    {/* Left Column: Description */}
+                    <div className="md:col-span-6 space-y-3 text-left">
+                      <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-snug">
+                        {currentShowcase.title}
+                      </h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                        {currentShowcase.description}
+                      </p>
+                      <div className="pt-1 space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
+                        {currentShowcase.bullets.map((b) => (
+                          <div key={b} className="flex items-center gap-2">
+                            <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                            <span>{b}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <p className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
-                        {currentShowcase.preview.heading}
-                      </p>
-                      <p className="text-[11px] text-slate-500">
-                        {currentShowcase.preview.meta}
-                      </p>
-                    </div>
+                    {/* Right Column: Live App Mockup UI */}
+                    <div className="md:col-span-6">
+                      <motion.div
+                        whileHover={cardHover}
+                        className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/60 space-y-3 text-left shadow-inner transition-colors"
+                      >
+                        {/* 1. Video Mockup */}
+                        {currentShowcase.previewType === 'video' && (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="h-24 rounded-lg bg-slate-800 text-white flex flex-col justify-between p-2 relative overflow-hidden border border-slate-700">
+                                <span className="text-[10px] font-medium text-slate-300">Alex · Teaching React</span>
+                                <div className="self-end px-1.5 py-0.5 rounded bg-emerald-500/80 text-[8px] font-bold text-white">
+                                  Speaking
+                                </div>
+                              </div>
+                              <div className="h-24 rounded-lg bg-slate-700 text-white flex flex-col justify-between p-2 relative overflow-hidden border border-slate-600">
+                                <span className="text-[10px] font-medium text-slate-300">Sarah · Learning TS</span>
+                                <div className="self-end px-1.5 py-0.5 rounded bg-slate-900/80 text-[8px] font-semibold text-slate-300">
+                                  Listening
+                                </div>
+                              </div>
+                            </div>
+                            <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-1.5 text-[11px]">
+                              <span className="font-bold text-slate-800 dark:text-slate-200 text-[10px] uppercase tracking-wide">
+                                Shared Agenda Checklist
+                              </span>
+                              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                                <Check size={11} className="text-emerald-500" />
+                                <span>30m: React Custom Hooks & Memory Leaks</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                                <Check size={11} className="text-emerald-500" />
+                                <span>30m: Python Asyncio & FastApi Routers</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
-                    <div className="space-y-1 pt-1 border-t border-slate-200/50 dark:border-slate-700/50">
-                      {currentShowcase.preview.points.map((pt) => (
-                        <div key={pt} className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-400">
-                          <Check size={11} className="text-indigo-500 shrink-0" />
-                          <span>{pt}</span>
-                        </div>
-                      ))}
+                        {/* 2. Group Chat Mockup */}
+                        {currentShowcase.previewType === 'group' && (
+                          <div className="space-y-2.5">
+                            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2 text-xs font-bold text-slate-900 dark:text-white">
+                              <span>Fullstack Systems Circle</span>
+                              <span className="text-[10px] text-emerald-500 font-semibold">18 Online</span>
+                            </div>
+                            <div className="space-y-2 text-[11px]">
+                              <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                                <span className="font-bold text-indigo-600 dark:text-indigo-400 text-[10px]">Priya K.</span>
+                                <p className="text-slate-600 dark:text-slate-300 text-[11px]">Any peer available tonight for a 45m swap on Docker Compose & Nginx?</p>
+                              </div>
+                              <div className="bg-indigo-50 dark:bg-indigo-950/40 p-2 rounded-lg border border-indigo-200 dark:border-indigo-800/60 ml-4">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 text-[10px]">Dev M.</span>
+                                <p className="text-slate-600 dark:text-slate-300 text-[11px]">Yes! I can do 8:00 PM IST. Booking the video room now.</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 3. Roadmap Mockup */}
+                        {currentShowcase.previewType === 'roadmap' && (
+                          <div className="space-y-2.5">
+                            <div className="flex items-center justify-between text-xs font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-700 pb-1.5">
+                              <span>Curriculum: Fullstack TypeScript</span>
+                              <span className="text-[10px] text-indigo-500">67% Complete</span>
+                            </div>
+                            <div className="space-y-1.5 text-[11px]">
+                              <div className="p-2 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium">
+                                  <CheckCircle2 size={13} />
+                                  <span>Phase 1: Generics & Strict Type-Safety</span>
+                                </div>
+                                <span className="text-[9px] uppercase font-bold text-slate-400">Done</span>
+                              </div>
+                              <div className="p-2 rounded bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-300 dark:border-indigo-800 flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold">
+                                  <Compass size={13} className="text-indigo-600 animate-spin" style={{ animationDuration: '6s' }} />
+                                  <span>Phase 2: Fullstack Monorepos & TRPC</span>
+                                </div>
+                                <span className="text-[9px] uppercase font-bold text-indigo-600 dark:text-indigo-400">Current</span>
+                              </div>
+                              <div className="p-2 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-slate-400">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-3.5 h-3.5 rounded-full border border-slate-400" />
+                                  <span>Phase 3: Production Deployment & Docker</span>
+                                </div>
+                                <span className="text-[9px] uppercase font-bold">Next</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 4. Certificate Mockup */}
+                        {currentShowcase.previewType === 'certificate' && (
+                          <div className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-2 text-left">
+                            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5">
+                              <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
+                                Cryptographic Credential
+                              </span>
+                              <span className="text-[9px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                                Verified
+                              </span>
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-900 dark:text-white">
+                                Peer Knowledge Exchange: System Architecture
+                              </p>
+                              <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                Hash ID: ORB-2026-F982B-VALID
+                              </p>
+                            </div>
+                            <div className="pt-1.5 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-[10px] text-slate-500">
+                              <span>Signoff: Mutual Evaluation Passed</span>
+                              <span className="text-indigo-600 dark:text-indigo-400 font-semibold">Shareable Link</span>
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
                     </div>
                   </motion.div>
-                </div>
-              </motion.div>
-            </AnimatePresence>
+                </AnimatePresence>
+              </div>
+            </motion.div>
           </div>
         </section>
 
-        {/* 4. Section: Why Peer Skill Exchange vs Passive Courses */}
-        <section id="why-orbitus" className="py-12 sm:py-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#12141a] transition-colors">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-8">
+        {/* 4. Connected Node Architecture Flow (Dribbble Frame 10) */}
+        <section id="architecture" className="py-14 sm:py-20 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#12141a] transition-colors">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-10">
             <motion.div
               initial="hidden"
               whileInView="visible"
@@ -770,118 +992,57 @@ const LandingPage = () => {
               className="max-w-lg mx-auto text-center space-y-2"
             >
               <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 tracking-widest uppercase">
-                The Orbitus Philosophy
+                Peer Architecture
               </p>
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-                Why Peer Exchange Beats Passive Video Courses
+                A Frictionless Knowledge Loop
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Learning from pre-recorded videos leaves you isolated without feedback. Orbitus turns learning into an active dialogue.
+                How learners connect, schedule, collaborate, and earn verified recognition on Orbitus without monetary friction.
               </p>
             </motion.div>
 
-            {/* Compact structured comparison cards */}
-            <motion.div
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, amount: 0.1 }}
-              variants={staggerContainer}
-              className="grid grid-cols-1 sm:grid-cols-2 gap-4"
-            >
-              {COMPARISONS.map((comp) => (
-                <motion.div
-                  key={comp.title}
-                  variants={fadeUp}
-                  whileHover={cardHover}
-                  className="p-4 sm:p-5 rounded-xl bg-slate-50/70 dark:bg-[#181d26] border border-slate-200 dark:border-slate-800 shadow-sm space-y-2.5 transition-colors text-left"
-                >
-                  <h3 className="text-xs font-bold text-slate-900 dark:text-white">
-                    {comp.title}
-                  </h3>
-
-                  <div className="space-y-2 text-[11px]">
-                    <div className="border-l-2 border-slate-300 dark:border-slate-700 pl-2.5 py-0.5 space-y-0.5">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Traditional Courses</p>
-                      <p className="text-slate-500 dark:text-slate-400 leading-relaxed">{comp.course}</p>
-                    </div>
-
-                    <div className="border-l-2 border-indigo-600 dark:border-indigo-400 pl-2.5 py-0.5 space-y-0.5">
-                      <p className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide">Orbitus SkillSwap</p>
-                      <p className="font-medium text-slate-800 dark:text-slate-200 leading-relaxed">{comp.orbitus}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </motion.div>
-          </div>
-        </section>
-
-        {/* 5. Section: How Skill Exchange Works — Compact Vertical Timeline */}
-        <section id="how-it-works" className="py-12 sm:py-16 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#151922] transition-colors">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 space-y-8">
-            <motion.div
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, amount: 0.2 }}
-              variants={fadeUp}
-              className="max-w-lg mx-auto text-center space-y-2"
-            >
-              <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 tracking-widest uppercase">
-                Step-by-Step
-              </p>
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-                Direct Reciprocal Learning in 4 Steps
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                No middleman or monetary fees. Honest skill trading structured for real progress.
-              </p>
-            </motion.div>
-
-            {/* Compact timeline flow */}
-            <div className="relative border-l-2 border-slate-200 dark:border-slate-800 ml-4 pl-6 space-y-6">
-              {HOW_IT_WORKS.map((item) => {
-                const Icon = item.icon;
+            {/* Visual Connected 4-Node Flow */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative">
+              {ARCHITECTURE_STEPS.map((step, idx) => {
+                const Icon = step.icon;
                 return (
                   <motion.div
-                    key={item.step}
+                    key={step.step}
                     initial="hidden"
                     whileInView="visible"
                     viewport={{ once: true, amount: 0.2 }}
                     variants={fadeUp}
                     whileHover={cardHover}
-                    className="relative group p-4 sm:p-5 rounded-xl bg-white dark:bg-[#181d26] border border-slate-200 dark:border-slate-800 hover:border-indigo-400/50 dark:hover:border-indigo-500/50 shadow-sm transition-colors text-left"
+                    className="p-4 sm:p-5 rounded-xl bg-slate-50/70 dark:bg-[#181d26] border border-slate-200 dark:border-slate-800 hover:border-indigo-400/50 dark:hover:border-indigo-500/50 shadow-sm transition-colors text-left flex flex-col justify-between"
                   >
-                    {/* Compact timeline node */}
-                    <div className="absolute -left-[31px] top-5 w-3.5 h-3.5 rounded-full bg-white dark:bg-[#12141a] border-2 border-indigo-600 dark:border-indigo-400 flex items-center justify-center">
-                      <div className="w-1 h-1 rounded-full bg-indigo-600 dark:bg-indigo-400"></div>
-                    </div>
-
-                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                      <div className="flex items-center gap-2.5">
-                        <div className="text-indigo-600 dark:text-indigo-400">
-                          <Icon size={16} />
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
+                          <Icon size={18} />
                         </div>
-                        <div>
-                          <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
-                            {item.title}
-                          </h3>
-                          <p className="text-[10px] text-slate-400 font-medium">
-                            {item.subtitle}
-                          </p>
-                        </div>
+                        <span className="text-sm font-mono font-black text-slate-300 dark:text-slate-700">
+                          {step.step}
+                        </span>
                       </div>
-                      <span className="text-sm font-black text-slate-300 dark:text-slate-700 font-mono">
-                        {item.step}
-                      </span>
+
+                      <div className="space-y-1">
+                        <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                          {step.title}
+                        </h3>
+                        <p className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
+                          {step.subtitle}
+                        </p>
+                      </div>
+
+                      <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                        {step.description}
+                      </p>
                     </div>
 
-                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed pt-2">
-                      {item.description}
-                    </p>
-
-                    <div className="pt-2 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
-                      <Check size={11} className="text-emerald-500" />
-                      <span>{item.highlight}</span>
+                    <div className="pt-3 mt-3 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-500">
+                      <span>Phase {idx + 1}</span>
+                      <span className="text-emerald-500 font-semibold">Ready</span>
                     </div>
                   </motion.div>
                 );
@@ -890,8 +1051,126 @@ const LandingPage = () => {
           </div>
         </section>
 
+        {/* 5. Dribbble High-Contrast Dark Tier Canvas (Frame 15 & 18) */}
+        <section id="tiers" className="py-16 sm:py-24 bg-[#0b0f17] text-white border-b border-slate-800 transition-colors relative overflow-hidden">
+          {/* Subtle cosmic ambient glow */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-indigo-600/10 blur-[130px] pointer-events-none rounded-full" />
+
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 space-y-10 relative z-10">
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.2 }}
+              variants={fadeUp}
+              className="max-w-lg mx-auto text-center space-y-2"
+            >
+              <p className="text-[10px] font-bold text-indigo-400 tracking-widest uppercase">
+                The 100% Free Peer Economy
+              </p>
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+                Knowledge Is A Reciprocal Currency
+              </h2>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Zero paywalls, zero subscription tiers, and no credit card required. You pay with your knowledge and focus.
+              </p>
+            </motion.div>
+
+            {/* 3 Tier Comparison Cards */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.15 }}
+              variants={staggerContainer}
+              className="grid grid-cols-1 md:grid-cols-3 gap-5"
+            >
+              {PEER_TIERS.map((tier) => (
+                <motion.div
+                  key={tier.name}
+                  variants={fadeUp}
+                  whileHover={cardHover}
+                  className={`p-5 sm:p-6 rounded-2xl flex flex-col justify-between text-left transition-colors relative ${
+                    tier.highlight
+                      ? 'bg-gradient-to-b from-indigo-950/60 to-slate-900 border-2 border-indigo-500 shadow-xl'
+                      : 'bg-slate-900/80 border border-slate-800'
+                  }`}
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-200">
+                        {tier.name}
+                      </span>
+                      {tier.highlight && (
+                        <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-indigo-600 text-white">
+                          Core Model
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-3xl font-black text-white font-mono">{tier.price}</span>
+                        <span className="text-[11px] text-slate-400 font-medium">/ {tier.period}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                        {tier.description}
+                      </p>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-800 space-y-2 text-xs">
+                      {tier.features.map((feat) => (
+                        <div key={feat} className="flex items-start gap-2 text-slate-300">
+                          <Check size={12} className="text-emerald-400 shrink-0 mt-0.5" />
+                          <span className="text-[11px] leading-tight">{feat}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-6 mt-4">
+                    <Link
+                      to={isAuthenticated ? '/dashboard' : '/register'}
+                      className={`w-full py-2.5 rounded-lg text-xs font-semibold text-center transition-colors inline-block focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                        tier.highlight
+                          ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                      }`}
+                    >
+                      {isAuthenticated ? 'Open Dashboard' : 'Join as a Peer'}
+                    </Link>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+
+            {/* Quick Differentiator Comparison Against Paid Courses */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.2 }}
+              variants={fadeUp}
+              className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3 text-center text-xs"
+            >
+              <div className="space-y-0.5 p-2">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">Commercial Bootcamps</span>
+                <p className="text-slate-300 font-semibold">$10,000+ upfront debt</p>
+                <p className="text-[10px] text-slate-500">Orbitus: $0 (Trade knowledge)</p>
+              </div>
+              <div className="space-y-0.5 p-2 border-t sm:border-t-0 sm:border-x border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">Pre-Recorded Courses</span>
+                <p className="text-slate-300 font-semibold">90%+ dropout rate</p>
+                <p className="text-[10px] text-slate-500">Orbitus: Live partner accountability</p>
+              </div>
+              <div className="space-y-0.5 p-2 border-t sm:border-t-0 border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">Passive Videos</span>
+                <p className="text-slate-300 font-semibold">One-way monologue</p>
+                <p className="text-[10px] text-slate-500">Orbitus: 1:1 active dialogue</p>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
         {/* 6. Skill Domains / Real Categories — Compact 4x2 Grid */}
-        <section id="domains" className="py-12 sm:py-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#12141a]">
+        <section id="domains" className="py-14 sm:py-20 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#12141a]">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-8">
             <motion.div
               initial="hidden"
@@ -946,7 +1225,7 @@ const LandingPage = () => {
         </section>
 
         {/* 7. Community Principles & Mutual Accountability */}
-        <section id="community" className="py-12 sm:py-16 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#151922] transition-colors">
+        <section id="standards" className="py-14 sm:py-20 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#151922] transition-colors">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-8">
             <motion.div
               initial="hidden"
@@ -1075,16 +1354,16 @@ const LandingPage = () => {
               <a href="#showcase" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                 Interactive Preview
               </a>
-              <a href="#how-it-works" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+              <a href="#architecture" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                 How It Works
               </a>
-              <a href="#why-orbitus" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                Why SkillSwap
+              <a href="#tiers" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                Free Tiers
               </a>
               <a href="#domains" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                 Skill Domains
               </a>
-              <a href="#community" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+              <a href="#standards" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                 Community Standards
               </a>
               <Link to="/login" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
