@@ -891,10 +891,10 @@ const GroupDetail = () => {
       {/* ═══════════════════════════════════════════════════════════════════
           CENTER COLUMN — Chat area
       ═══════════════════════════════════════════════════════════════════ */}
-      <div className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-[#1a1c22]">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden bg-slate-50 dark:bg-[#1a1c22]">
 
         {/* Chat Header */}
-        <div className="flex items-center justify-between px-2 sm:px-4 h-14 sm:h-16 bg-white dark:bg-[#22242a] border-b border-slate-200 dark:border-slate-800 shrink-0 sticky top-0 z-20">
+        <div className="flex items-center justify-between px-2 sm:px-4 h-14 sm:h-16 bg-white dark:bg-[#22242a] border-b border-slate-200 dark:border-slate-800 shrink-0 z-20">
           <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1 mr-2">
             <Link
               to="/groups"
@@ -982,7 +982,7 @@ const GroupDetail = () => {
         )}
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-3 pt-5 sm:p-4 space-y-2">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 pt-5 sm:p-4 space-y-2">
           {displayedMessages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted gap-2 py-16">
               <Users size={36} className="opacity-40" />
@@ -1417,7 +1417,7 @@ const GroupDetail = () => {
         )}
 
         {/* Input bar */}
-        <div className="px-2.5 sm:px-5 py-2 sm:py-3.5 bg-white dark:bg-[#22242a] border-t border-slate-200 dark:border-slate-800 shrink-0 relative sticky bottom-0 z-20">
+        <div className="px-2.5 sm:px-5 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:py-3.5 bg-white dark:bg-[#22242a] border-t border-slate-200 dark:border-slate-800 shrink-0 relative z-20">
           {/* Attach popup */}
           {showAttachMenu && (
             <div className="absolute bottom-14 left-2 sm:left-4 z-20 w-44 sm:w-48 bg-white dark:bg-[#2a2c34] border border-slate-200 dark:border-slate-700 rounded-2xl p-1.5 sm:p-2 shadow-xl space-y-1">

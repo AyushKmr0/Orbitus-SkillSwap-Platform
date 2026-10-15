@@ -9,6 +9,15 @@
   animation: none;
 }
 
+.contained-page-transition {
+  display: flex;
+  flex: 1 1 0%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
 .dashboard-page-transition > :first-child > :is(header, section, article, aside, [data-dashboard-motion]),
 .dashboard-page-transition > :first-child > :not(.fixed):not([role="dialog"]):not([aria-busy="true"]) {
   animation: dashboard-section-rise 2s cubic-bezier(0.22, 1, 0.36, 1) backwards;

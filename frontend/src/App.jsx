@@ -43,7 +43,9 @@ const PageLoader = () => (
   </div>
 );
 
-const withPageTransition = (page, dashboard = false) => <PageTransition dashboard={dashboard}>{page}</PageTransition>;
+const withPageTransition = (page, dashboard = false, contained = false) => (
+  <PageTransition dashboard={dashboard} contained={contained}>{page}</PageTransition>
+);
 
 // Layout Wrapper inside Dashboard (toggleable between top nav trial and classic sidebar)
 const DashboardLayout = () => {
@@ -53,7 +55,7 @@ const DashboardLayout = () => {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={withPageTransition(<UserDashboard />, true)} />
         <Route path="skills" element={withPageTransition(<SkillCatalog />, true)} />
-        <Route path="chat" element={withPageTransition(<ChatRoom />, true)} />
+        <Route path="chat" element={withPageTransition(<ChatRoom />, true, true)} />
         <Route path="feed" element={withPageTransition(<Feed />, true)} />
         <Route path="notifications" element={withPageTransition(<Notifications />, true)} />
         <Route path="settings" element={withPageTransition(<Settings />, true)} />
@@ -65,7 +67,7 @@ const DashboardLayout = () => {
 
         {/* Public & Private Study Groups */}
         <Route path="groups" element={withPageTransition(<Groups />, true)} />
-        <Route path="groups/:id" element={withPageTransition(<GroupDetail />, true)} />
+        <Route path="groups/:id" element={withPageTransition(<GroupDetail />, true, true)} />
 
         <Route path="roadmap" element={withPageTransition(<AiRoadmap />, true)} />
         <Route path="leaderboard" element={withPageTransition(<Leaderboard />, true)} />

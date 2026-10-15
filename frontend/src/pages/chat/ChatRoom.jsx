@@ -682,13 +682,13 @@ const ChatRoom = () => {
         </div>
 
         {/* Message Window Panel */}
-        <div className={`h-full min-w-0 flex-1 flex-col overflow-hidden bg-slate-50 dark:bg-slate-950/20 ${
+        <div className={`h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50 dark:bg-slate-950/20 ${
           !mobileShowSidebar ? 'flex' : 'hidden md:flex'
         }`}>
           {chatPartner ? (
             <>
               {/* Partner details bar - pinned on mobile and desktop */}
-              <div className="sticky top-0 z-30 shrink-0 flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#22242a] p-2 sm:px-5 sm:py-3.5 backdrop-blur-md">
+              <div className="z-30 shrink-0 flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#22242a] p-2 sm:px-5 sm:py-3.5 backdrop-blur-md">
                 <div className="flex min-w-0 items-center gap-1.5 sm:gap-3.5">
                   <button
                     onClick={() => setMobileShowSidebar(true)}
@@ -779,7 +779,7 @@ const ChatRoom = () => {
               )}
 
               {/* Chat Stream Bubble list */}
-              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[#efeae2] p-3 pt-5 sm:p-4 dark:bg-[#1a1c22]">
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-[#efeae2] p-3 pt-5 sm:p-4 dark:bg-[#1a1c22]">
                 {loading ? (
                   <div className="flex justify-center items-center py-20">
                     <div className="w-8 h-8 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
@@ -1145,14 +1145,14 @@ const ChatRoom = () => {
                 </div>
               )}
 
-              <form onSubmit={handleSendMessage} className="sticky bottom-0 z-20 shrink-0 flex items-end gap-1.5 sm:gap-2.5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#22242a] p-2 sm:p-4">
+              <form onSubmit={handleSendMessage} className="z-20 shrink-0 flex items-end gap-1.5 sm:gap-2.5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#22242a] px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-4">
                 <input ref={documentInputRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.txt" onChange={(e) => handleFileUpload(e.target.files?.[0])} />
                 <input ref={imageInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e.target.files?.[0])} />
-                <button type="button" onClick={() => documentInputRef.current?.click()} className="rounded-xl p-1.5 sm:p-2.5 text-slate-500 transition-colors hover:text-slate-700 dark:hover:text-slate-300" title="Attach document">
-                  <Paperclip size={18} />
+                <button type="button" onClick={() => documentInputRef.current?.click()} className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:text-slate-700 dark:hover:text-slate-300" title="Attach document">
+                  <Paperclip size={20} />
                 </button>
-                <button type="button" onClick={() => imageInputRef.current?.click()} className="rounded-xl p-1.5 sm:p-2.5 text-slate-500 transition-colors hover:text-slate-700 dark:hover:text-slate-300" title="Attach image">
-                  <Image size={18} />
+                <button type="button" onClick={() => imageInputRef.current?.click()} className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:text-slate-700 dark:hover:text-slate-300" title="Attach image">
+                  <Image size={20} />
                 </button>
                 
                 <textarea
@@ -1162,7 +1162,7 @@ const ChatRoom = () => {
                   onKeyDown={handleComposerKeyDown}
                   placeholder="Type a message..."
                   rows={1}
-                  className="field-input max-h-36 min-h-10 min-w-0 flex-1 resize-none px-3 py-2 text-xs sm:text-[15px] rounded-xl"
+                  className="field-input max-h-36 min-h-11 min-w-0 flex-1 resize-none px-3 py-2 text-xs sm:text-[15px] rounded-xl"
                 />
 
                 <div className="relative">
@@ -1175,14 +1175,14 @@ const ChatRoom = () => {
                       ))}
                     </div>
                   )}
-                  <button type="button" onClick={() => setShowEmojiPicker((value) => !value)} className="rounded-xl p-1.5 sm:p-2.5 text-slate-500 transition-colors hover:text-slate-700 dark:hover:text-slate-300" title="Emoji">
-                    <Smile size={18} />
+                  <button type="button" onClick={() => setShowEmojiPicker((value) => !value)} className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:text-slate-700 dark:hover:text-slate-300" title="Emoji">
+                    <Smile size={20} />
                   </button>
                 </div>
                 <button
                   type="submit"
                   disabled={!typedMessage.trim() || uploadingFile}
-                  className="flex items-center justify-center rounded-xl bg-indigo-600 p-2 sm:p-3 text-white shadow transition-all hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 shrink-0"
+                  className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow transition-all hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 shrink-0"
                 >
                   <Send size={16} />
                 </button>
