@@ -393,7 +393,7 @@ const AppShadcnSidebarInner = ({ children }) => {
         </header>
 
         {/* Page Content Container: Starts beside desktop sidebar without clipping */}
-        <div className="flex-1 min-w-0 flex flex-col min-h-0 overflow-y-auto">
+        <div className={`flex-1 min-w-0 flex flex-col min-h-0 ${location.pathname === '/chat' || /^\/groups\/[^/]+/.test(location.pathname) ? 'relative overflow-hidden' : 'overflow-y-auto'}`}>
           {children}
         </div>
       </SidebarInset>
@@ -430,36 +430,48 @@ const AppShadcnSidebarInner = ({ children }) => {
 };
 
 export const AppShadcnSidebar = ({ children }) => {
-  const [viewportHeight, setViewportHeight] = useState(null);
+  const [viewportBounds, setViewportBounds] = useState(null);
 
   useEffect(() => {
     const viewport = window.visualViewport;
-    if (!viewport) return undefined;
-
     let frameId;
-    const updateViewportHeight = () => {
+    const updateViewportBounds = () => {
       cancelAnimationFrame(frameId);
       frameId = requestAnimationFrame(() => {
-        setViewportHeight(Math.round(viewport.height));
+        setViewportBounds({
+          width: Math.round(viewport?.width || window.innerWidth),
+          height: Math.round(viewport?.height || window.innerHeight),
+          top: Math.round(viewport?.offsetTop || 0),
+          left: Math.round(viewport?.offsetLeft || 0)
+        });
       });
     };
 
-    updateViewportHeight();
-    viewport.addEventListener('resize', updateViewportHeight);
-    window.addEventListener('resize', updateViewportHeight);
+    updateViewportBounds();
+    viewport?.addEventListener('resize', updateViewportBounds);
+    viewport?.addEventListener('scroll', updateViewportBounds);
+    window.addEventListener('resize', updateViewportBounds);
+    window.addEventListener('orientationchange', updateViewportBounds);
     return () => {
       cancelAnimationFrame(frameId);
-      viewport.removeEventListener('resize', updateViewportHeight);
-      window.removeEventListener('resize', updateViewportHeight);
+      viewport?.removeEventListener('resize', updateViewportBounds);
+      viewport?.removeEventListener('scroll', updateViewportBounds);
+      window.removeEventListener('resize', updateViewportBounds);
+      window.removeEventListener('orientationchange', updateViewportBounds);
     };
   }, []);
 
   return (
     <SidebarProvider
       defaultOpen={true}
-      style={viewportHeight ? {
-        '--app-viewport-height': `${viewportHeight}px`,
-        minHeight: `${viewportHeight}px`
+      style={viewportBounds ? {
+        '--app-viewport-height': `${viewportBounds.height}px`,
+        minHeight: `${viewportBounds.height}px`,
+        width: `${viewportBounds.width}px`,
+        height: `${viewportBounds.height}px`,
+        position: 'fixed',
+        top: `${viewportBounds.top}px`,
+        left: `${viewportBounds.left}px`
       } : undefined}
       className="flex h-[var(--app-viewport-height,100dvh)] max-h-[var(--app-viewport-height,100dvh)] min-h-0 w-full overflow-hidden"
     >

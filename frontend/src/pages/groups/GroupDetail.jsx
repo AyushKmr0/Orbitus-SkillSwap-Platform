@@ -7,7 +7,7 @@ import { setCurrentRoom, upsertActiveChat } from '../../features/chatSlice.js';
 import {
   Users, Send, Video, Pin, MoreVertical, Shield, Trash2, Reply, Copy,
   Check, X, Lock, Settings, UserX, ExternalLink,
-  ChevronLeft, ChevronDown, Plus, Smile, Pencil, Image as ImageIcon, FileText,
+  ChevronLeft, Plus, Smile, Pencil, Image as ImageIcon, FileText,
   Search, Info, Link2, UserPlus, LogOut, ChevronRight,
   Share2, CheckCheck, Camera, AlertTriangle, Upload, Loader2, Ban,
   MessageSquare, CheckSquare
@@ -1041,7 +1041,7 @@ const GroupDetail = () => {
                 if (isDeleted) return null;
                 const isReactionOpen = activeReactionMsgId === msg._id;
                 return (
-                  <div className={`relative self-center shrink-0 ${!isMe ? 'absolute right-0 top-1/2 -translate-y-1/2' : ''}`}>
+                  <div className="relative self-center shrink-0">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -1059,7 +1059,7 @@ const GroupDetail = () => {
                     {isReactionOpen && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setActiveReactionMsgId(null); }} />
-                        <div className="absolute bottom-full right-0 z-50 mb-1.5 flex max-w-[calc(100vw-1.5rem)] items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 dark:border-slate-700 dark:bg-[#22242a]">
+                        <div className={`absolute bottom-full ${isMe ? 'right-0' : 'left-0'} z-50 mb-1.5 flex max-w-[calc(100vw-1.5rem)] items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 dark:border-slate-700 dark:bg-[#22242a]`}>
                           {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
                             <button
                               key={emoji}
@@ -1163,18 +1163,19 @@ const GroupDetail = () => {
                             setMenuPlacement(openUp ? 'up' : 'down');
                             setOpenMsgMenuId(menuOpen ? '' : msg._id);
                           }}
-                          className={`rounded-full p-1 transition-all ${
+                          className={`rounded-full border bg-transparent p-1 transition-all ${
                             isDeleted
                               ? 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-black/10 dark:hover:bg-white/10'
                               : isMe
                               ? 'text-white/70 hover:text-white hover:bg-white/20'
                               : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-black/10 dark:hover:bg-white/10'
                           } ${
-                            menuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'
-                          }`}
+                            isMe ? 'border-white/40' : 'border-slate-200 dark:border-slate-700'
+                          } ${menuOpen ? 'opacity-100' : 'opacity-90 sm:opacity-0 sm:group-hover:opacity-100'}`}
                           title="Message actions"
+                          aria-label="Message actions"
                         >
-                          <ChevronDown size={15} />
+                          <MoreVertical size={15} />
                         </button>
 
                         {/* Context Menu Dropdown */}

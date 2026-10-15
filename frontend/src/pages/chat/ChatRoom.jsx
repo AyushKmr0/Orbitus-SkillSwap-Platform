@@ -12,7 +12,6 @@ import {
   CheckCheck,
   Smile,
   ChevronLeft,
-  ChevronDown,
   MoreVertical,
   Reply,
   Copy,
@@ -822,7 +821,7 @@ const ChatRoom = () => {
                       if (isDeleted) return null;
                       const isReactionOpen = activeReactionMsgId === msg._id;
                       return (
-                        <div className={`relative self-center shrink-0 ${!isOutgoing ? 'absolute right-0 top-1/2 -translate-y-1/2' : ''}`}>
+                        <div className="relative self-center shrink-0">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -840,7 +839,7 @@ const ChatRoom = () => {
                           {isReactionOpen && (
                             <>
                               <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setActiveReactionMsgId(null); }} />
-                              <div className="absolute bottom-full right-0 z-50 mb-1.5 flex max-w-[calc(100vw-1.5rem)] items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 dark:border-slate-700 dark:bg-[#22242a]">
+                              <div className={`absolute bottom-full ${isOutgoing ? 'right-0' : 'left-0'} z-50 mb-1.5 flex max-w-[calc(100vw-1.5rem)] items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 dark:border-slate-700 dark:bg-[#22242a]`}>
                                 {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
                                   <button
                                     key={emoji}
@@ -926,12 +925,13 @@ const ChatRoom = () => {
                                 setMenuPlacement(openUp ? 'up' : 'down');
                                 setOpenMessageMenu(isMenuOpen ? '' : msg._id);
                               }}
-                              className={`rounded-full p-1 text-slate-500 transition-all hover:bg-black/10 dark:hover:bg-white/10 ${
-                                isMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-70 sm:opacity-0 sm:group-hover:opacity-100 pointer-events-auto sm:pointer-events-none sm:group-hover:pointer-events-auto'
-                              }`}
+                              className={`rounded-full border bg-transparent p-1 text-slate-600 transition-all hover:bg-black/10 dark:text-slate-200 dark:hover:bg-white/10 ${
+                                isOutgoing ? 'border-white/40' : 'border-slate-200 dark:border-slate-700'
+                              } ${isMenuOpen ? 'opacity-100' : 'opacity-90 sm:opacity-0 sm:group-hover:opacity-100'}`}
                               title="Message actions"
+                              aria-label="Message actions"
                             >
-                              <ChevronDown size={15} />
+                              <MoreVertical size={15} />
                             </button>
 
                             {isMenuOpen && (
