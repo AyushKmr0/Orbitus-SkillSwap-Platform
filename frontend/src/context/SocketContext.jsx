@@ -48,6 +48,8 @@ export const SocketProvider = ({ children }) => {
   const currentRoomIdRef = useRef(currentRoomId);
   const userRef = useRef(user);
   const socketRef = useRef(null);
+  const activeChatsRefreshTimerRef = useRef(null);
+  const notificationSummaryRefreshTimerRef = useRef(null);
 
   const fetchNotificationSummary = useCallback(async () => {
     if (!token) return;
@@ -88,6 +90,27 @@ export const SocketProvider = ({ children }) => {
       }
     }
   }, [token, dispatch]);
+
+  const scheduleActiveChatsRefresh = useCallback(() => {
+    if (activeChatsRefreshTimerRef.current) return;
+    activeChatsRefreshTimerRef.current = window.setTimeout(() => {
+      activeChatsRefreshTimerRef.current = null;
+      fetchActiveChats();
+    }, 1000);
+  }, [fetchActiveChats]);
+
+  const scheduleNotificationSummaryRefresh = useCallback(() => {
+    if (notificationSummaryRefreshTimerRef.current) return;
+    notificationSummaryRefreshTimerRef.current = window.setTimeout(() => {
+      notificationSummaryRefreshTimerRef.current = null;
+      fetchNotificationSummary();
+    }, 1000);
+  }, [fetchNotificationSummary]);
+
+  useEffect(() => () => {
+    window.clearTimeout(activeChatsRefreshTimerRef.current);
+    window.clearTimeout(notificationSummaryRefreshTimerRef.current);
+  }, []);
 
   useEffect(() => {
     currentRoomIdRef.current = currentRoomId;
@@ -148,7 +171,7 @@ export const SocketProvider = ({ children }) => {
               userId: userRef.current?._id
             });
           }
-          fetchActiveChats();
+          scheduleActiveChatsRefresh();
         });
 
         socketConn.on('message_updated', (message) => {
@@ -188,8 +211,7 @@ export const SocketProvider = ({ children }) => {
 
           playNotificationChime();
           setNotifications((prev) => [notification, ...prev]);
-          fetchNotificationSummary();
-          fetchActiveChats();
+          scheduleNotificationSummaryRefresh();
 
           // Show HTML5 native alert or visual pop if allowed
           if (Notification.permission === 'granted') {
@@ -240,7 +262,7 @@ export const SocketProvider = ({ children }) => {
       setOnlineUsersList({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user?._id, token, dispatch, fetchNotificationSummary, fetchActiveChats]);
+  }, [isAuthenticated, user?._id, token, dispatch, fetchNotificationSummary, fetchActiveChats, scheduleActiveChatsRefresh, scheduleNotificationSummaryRefresh]);
 
 
   const markNotificationsRead = async (payload) => {

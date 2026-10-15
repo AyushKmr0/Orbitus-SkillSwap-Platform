@@ -133,9 +133,9 @@ const AppShadcnSidebarInner = ({ children }) => {
   return (
     <>
       {/* shadcn Responsive Sidebar (Left rail on desktop, slide-over Sheet on mobile) */}
-      <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+      <Sidebar data-orbitus-sidebar="true" collapsible="icon" className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
         {/* Sidebar Header with Brand Logo */}
-        <SidebarHeader className="p-3 border-b border-sidebar-border">
+          <SidebarHeader className="p-3 group-data-[collapsible=icon]:px-2 border-b border-sidebar-border orbitus-sidebar-header-motion">
           <div className="flex items-center justify-between gap-2">
             <Link
               to="/dashboard"
@@ -144,7 +144,7 @@ const AppShadcnSidebarInner = ({ children }) => {
               title={!open && !isMobile ? 'Expand Sidebar' : 'Orbitus Dashboard'}
               aria-label={!open && !isMobile ? 'Expand Sidebar' : 'Orbitus Dashboard'}
             >
-              <BrandLogo size={32} className="h-8 w-8 shrink-0 object-contain" />
+              <BrandLogo size={40} className="h-10 w-10 shrink-0 object-contain" />
               <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
                 <span className="truncate text-base font-extrabold tracking-tight text-app leading-tight font-outfit">
                   Orbitus
@@ -180,7 +180,7 @@ const AppShadcnSidebarInner = ({ children }) => {
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {filteredItems.map((item) => {
+                {filteredItems.map((item, index) => {
                   const isActive =
                     location.pathname === item.path ||
                     (item.path !== '/dashboard' && location.pathname.startsWith(item.path)) ||
@@ -189,18 +189,31 @@ const AppShadcnSidebarInner = ({ children }) => {
                   const badgeValue = getUnreadBadge(item.path);
 
                   return (
-                    <SidebarMenuItem key={item.path}>
+                    <SidebarMenuItem
+                      key={item.path}
+                      className="orbitus-sidebar-item-motion"
+                      style={{ animationDelay: `${Math.min(index, 8) * 70}ms` }}
+                    >
                       <SidebarMenuButton
                         asChild
                         isActive={isActive}
-                        tooltip={item.name}
+                          tooltip={{
+                            children: item.name,
+                            className: 'z-[100] min-h-8 whitespace-nowrap rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-white'
+                          }}
                         className={`relative rounded-xl transition-all ${
                           isActive
                             ? 'bg-blue-600 text-white font-bold hover:bg-blue-600 hover:text-white shadow-sm'
                             : 'text-muted-strong hover:bg-sidebar-accent hover:text-app'
                         }`}
                       >
-                        <Link to={item.path} onClick={handleLinkClick} className="flex items-center gap-3 w-full">
+                          <Link
+                            to={item.path}
+                            onClick={handleLinkClick}
+                            className="flex items-center gap-3 w-full"
+                            title={item.name}
+                            aria-label={item.name}
+                          >
                           <Icon size={18} className="shrink-0" />
                           <span className="truncate text-xs font-semibold">{item.name}</span>
                           {badgeValue && (
@@ -225,7 +238,7 @@ const AppShadcnSidebarInner = ({ children }) => {
         </SidebarContent>
 
         {/* Sidebar Footer: Theme Toggle, Profile, Settings & Logout */}
-        <SidebarFooter className="p-2 border-t border-sidebar-border space-y-2">
+        <SidebarFooter className="p-2 border-t border-sidebar-border space-y-2 orbitus-sidebar-footer-motion">
           {/* Theme Toggle Button */}
           <SidebarMenu>
             <SidebarMenuItem>
@@ -298,7 +311,10 @@ const AppShadcnSidebarInner = ({ children }) => {
               <div className="hidden group-data-[collapsible=icon]:flex flex-col items-center gap-1.5">
                 <SidebarMenuButton
                   asChild
-                  tooltip={`Profile (${user.name})`}
+                    tooltip={{
+                      children: `Profile (${user.name})`,
+                      className: 'z-[100] min-h-8 whitespace-nowrap rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-white'
+                    }}
                   className="h-8 w-8 p-0 rounded-xl justify-center"
                 >
                   <Link to={`/profile/${user._id || 'me'}`} onClick={handleLinkClick}>
@@ -313,7 +329,10 @@ const AppShadcnSidebarInner = ({ children }) => {
 
                 <SidebarMenuButton
                   asChild
-                  tooltip="Account Settings"
+                    tooltip={{
+                      children: 'Account Settings',
+                      className: 'z-[100] min-h-8 whitespace-nowrap rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-white'
+                    }}
                   className="h-8 w-8 p-0 rounded-xl justify-center text-muted-strong hover:text-app"
                 >
                   <Link to="/settings" onClick={handleLinkClick}>
@@ -322,7 +341,10 @@ const AppShadcnSidebarInner = ({ children }) => {
                 </SidebarMenuButton>
 
                 <SidebarMenuButton
-                  tooltip="Sign Out"
+                    tooltip={{
+                      children: 'Sign Out',
+                      className: 'z-[100] min-h-8 whitespace-nowrap rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-white'
+                    }}
                   onClick={() => setShowLogoutModal(true)}
                   className="h-8 w-8 p-0 rounded-xl justify-center text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
                 >
@@ -339,7 +361,7 @@ const AppShadcnSidebarInner = ({ children }) => {
       {/* Main Content Area via SidebarInset: starts beside desktop sidebar with min-w-0 */}
       <SidebarInset className="flex-1 min-w-0 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden bg-background">
         {/* Mobile / Responsive Shell Header Bar (Hidden on md and desktop) */}
-        <header className="md:hidden flex items-center justify-between px-4 py-2.5 border-b border-sidebar-border bg-sidebar/95 backdrop-blur-sm z-30 shrink-0">
+        <header className="md:hidden flex items-center justify-between px-4 py-2.5 border-b border-sidebar-border bg-sidebar/95 backdrop-blur-sm z-30 shrink-0 orbitus-sidebar-mobile-header-motion">
           <div className="flex items-center gap-2.5">
             <SidebarTrigger className="p-1.5 rounded-lg text-muted hover:text-app hover:bg-sidebar-accent transition-colors">
               <PanelLeft size={18} />

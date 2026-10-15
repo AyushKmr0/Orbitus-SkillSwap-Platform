@@ -3,9 +3,11 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
 import { authSuccess } from '../../features/authSlice.js';
+import SlidingSegment from '../../components/common/SlidingSegment.jsx';
 import {
   Shield,
   Users,
+  Award,
   FileCheck,
   Star,
   Plus,
@@ -20,7 +22,10 @@ import {
   Send,
   Lock,
   BarChart3,
-  Layers
+  Layers,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink
 } from 'lucide-react';
 import {
   Dialog,
@@ -96,6 +101,10 @@ const AdminDashboard = () => {
   const [adminStats, setAdminStats] = useState(null);
   const [skills, setSkills] = useState([]);
   const [usersList, setUsersList] = useState([]);
+  const [usersPagination, setUsersPagination] = useState({ page: 1, pages: 1, total: 0, limit: 20 });
+  const [usersPage, setUsersPage] = useState(1);
+  const [selectedRoleUser, setSelectedRoleUser] = useState(null);
+  const [roleSaving, setRoleSaving] = useState(false);
   const [groupsList, setGroupsList] = useState([]);
   const [postsList, setPostsList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -108,6 +117,19 @@ const AdminDashboard = () => {
   const showAdminToast = (text, isError = false) => {
     setAdminToast({ text, isError });
     setTimeout(() => setAdminToast({ text: '', isError: false }), 4000);
+  };
+
+  const requestDeleteConfirmation = ({ title, message, onConfirm }) => {
+    setAdminConfirmModal({
+      title,
+      message,
+      confirmText: 'Delete permanently',
+      danger: true,
+      onConfirm: async () => {
+        setAdminConfirmModal(null);
+        await onConfirm();
+      }
+    });
   };
 
   // User tab search
@@ -148,12 +170,15 @@ const AdminDashboard = () => {
         const res = await apiClient.get('/api/dashboard/admin/users', {
           params: {
             search: userSearch?.trim() || undefined,
-            role: userRoleFilter !== 'All' ? userRoleFilter : undefined
+            role: userRoleFilter !== 'All' ? userRoleFilter : undefined,
+            page: usersPage,
+            limit: 20
           }
         });
         const p = res.data?.data || res.data || {};
         const list = p.users || res.data?.users || [];
         setUsersList(Array.isArray(list) ? list : []);
+        setUsersPagination(p.pagination || { page: usersPage, pages: 1, total: list.length, limit: 20 });
       } else if (activeTab === 'groups') {
         const res = await apiClient.get('/api/dashboard/admin/groups');
         const p = res.data?.data || res.data || {};
@@ -191,7 +216,7 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, userSearch, userRoleFilter, skillRequestStatusFilter, feedbackStatusFilter]);
+  }, [activeTab, userSearch, userRoleFilter, usersPage, skillRequestStatusFilter, feedbackStatusFilter]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -199,57 +224,75 @@ const AdminDashboard = () => {
     }
   }, [isAdmin, loadDashboardData]);
 
-  const handlePromoteDemoteUser = async (userId, currentRole) => {
-    const nextRole = currentRole === 'Admin' ? 'User' : 'Admin';
-    if (!window.confirm(`Change this user's role to ${nextRole}?`)) return;
-
+  const handlePromoteDemoteUser = async () => {
+    if (!selectedRoleUser) return;
+    const nextRole = String(selectedRoleUser.role).toLowerCase() === 'admin' ? 'User' : 'Admin';
+    setRoleSaving(true);
     try {
       await apiClient.put(
-        `/api/dashboard/admin/users/${userId}/role`,
+        `/api/dashboard/admin/users/${selectedRoleUser._id}/role`,
         { role: nextRole }
       );
       setStatusMsg(`User role updated to ${nextRole}`);
       setTimeout(() => setStatusMsg(''), 3000);
-      loadDashboardData();
+      setSelectedRoleUser(null);
+      await loadDashboardData();
     } catch (err) {
       showAdminToast(err.response?.data?.message || 'Could not update user role');
+    } finally {
+      setRoleSaving(false);
     }
   };
 
-  const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Delete this user and all associated data permanently?')) return;
-    try {
-      await apiClient.delete(`/api/dashboard/admin/users/${userId}`);
-      setStatusMsg('User account removed.');
-      setTimeout(() => setStatusMsg(''), 3000);
-      loadDashboardData();
-    } catch (err) {
-      showAdminToast(err.response?.data?.message || 'Could not delete user');
-    }
+  const handleDeleteUser = (target) => {
+    requestDeleteConfirmation({
+      title: 'Delete user account?',
+      message: `This permanently deletes ${target.name || 'this user'} and associated account data. This action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          await apiClient.delete(`/api/dashboard/admin/users/${target._id}`);
+          setStatusMsg('User account removed.');
+          setTimeout(() => setStatusMsg(''), 3000);
+          await loadDashboardData();
+        } catch (err) {
+          showAdminToast(err.response?.data?.message || 'Could not delete user');
+        }
+      }
+    });
   };
 
-  const handleDeleteGroup = async (groupId) => {
-    if (!window.confirm('Delete this study group permanently?')) return;
-    try {
-      await apiClient.delete(`/api/dashboard/admin/groups/${groupId}`);
-      setStatusMsg('Group deleted.');
-      setTimeout(() => setStatusMsg(''), 3000);
-      loadDashboardData();
-    } catch (err) {
-      showAdminToast(err.response?.data?.message || 'Could not delete group');
-    }
+  const handleDeleteGroup = (group) => {
+    requestDeleteConfirmation({
+      title: 'Delete study group?',
+      message: `The group “${group.name || 'Untitled group'}” will be permanently deleted for all members. This action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          await apiClient.delete(`/api/dashboard/admin/groups/${group._id}`);
+          setStatusMsg('Group deleted.');
+          setTimeout(() => setStatusMsg(''), 3000);
+          await loadDashboardData();
+        } catch (err) {
+          showAdminToast(err.response?.data?.message || 'Could not delete group');
+        }
+      }
+    });
   };
 
-  const handleDeletePost = async (postId) => {
-    if (!window.confirm('Delete this community post permanently?')) return;
-    try {
-      await apiClient.delete(`/api/dashboard/admin/posts/${postId}`);
-      setStatusMsg('Post removed.');
-      setTimeout(() => setStatusMsg(''), 3000);
-      loadDashboardData();
-    } catch (err) {
-      showAdminToast(err.response?.data?.message || 'Could not delete post');
-    }
+  const handleDeletePost = (post) => {
+    requestDeleteConfirmation({
+      title: 'Delete community post?',
+      message: `This permanently removes this post by ${post.author?.name || 'the author'} from the community feed. This action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          await apiClient.delete(`/api/dashboard/admin/posts/${post._id}`);
+          setStatusMsg('Post removed.');
+          setTimeout(() => setStatusMsg(''), 3000);
+          await loadDashboardData();
+        } catch (err) {
+          showAdminToast(err.response?.data?.message || 'Could not delete post');
+        }
+      }
+    });
   };
 
   const handleAddSkill = async (e) => {
@@ -278,14 +321,19 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteSkill = async (skillId) => {
-    if (!window.confirm('Delete this skill from platform?')) return;
-    try {
-      await apiClient.delete(`/api/skills/${skillId}`);
-      loadDashboardData();
-    } catch (err) {
-      showAdminToast(err.response?.data?.message || 'Could not delete skill');
-    }
+  const handleDeleteSkill = (skill) => {
+    requestDeleteConfirmation({
+      title: 'Remove skill from catalog?',
+      message: `“${skill.name}” will no longer be available in the platform catalog. This action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          await apiClient.delete(`/api/skills/${skill._id}`);
+          await loadDashboardData();
+        } catch (err) {
+          showAdminToast(err.response?.data?.message || 'Could not delete skill');
+        }
+      }
+    });
   };
 
   const handleApproveSkillRequest = async (requestId) => {
@@ -396,16 +444,21 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteFeedback = async (feedbackId) => {
-    if (!window.confirm('Delete this user feedback permanently?')) return;
-    try {
-      await apiClient.delete(`/api/feedback/admin/${feedbackId}`);
-      setStatusMsg('Feedback removed.');
-      setTimeout(() => setStatusMsg(''), 3000);
-      loadDashboardData();
-    } catch (err) {
-      showAdminToast(err.response?.data?.message || 'Failed to delete feedback');
-    }
+  const handleDeleteFeedback = (feedback) => {
+    requestDeleteConfirmation({
+      title: 'Delete user feedback?',
+      message: `The feedback “${feedback.subject || 'Untitled feedback'}” will be permanently removed. This action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          await apiClient.delete(`/api/feedback/admin/${feedback._id}`);
+          setStatusMsg('Feedback removed.');
+          setTimeout(() => setStatusMsg(''), 3000);
+          await loadDashboardData();
+        } catch (err) {
+          showAdminToast(err.response?.data?.message || 'Failed to delete feedback');
+        }
+      }
+    });
   };
 
   // Administrator Account Required Gate
@@ -516,44 +569,33 @@ const AdminDashboard = () => {
       </div>
 
       {/* Admin Navigation Tabs */}
-      <div className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-1.5 shadow-xs flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-        {[
-          { id: 'overview', label: 'Overview & Analytics', icon: BarChart3 },
-          { id: 'feedbacks', label: 'User Feedback', icon: MessageSquare, badge: unreadFeedbackCount },
-          { id: 'skill-requests', label: 'Course Requests', icon: FileCheck },
-          { id: 'users', label: 'User Accounts', icon: Users },
-          { id: 'groups', label: 'Study Groups', icon: Layers },
-          { id: 'posts', label: 'Feed Posts', icon: MessageSquare },
-          { id: 'skills', label: 'Skills Catalog', icon: Database },
-          { id: 'broadcast', label: 'Global Broadcast', icon: Radio }
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 relative cursor-pointer ${
-                isActive
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/25'
-                  : 'text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              <Icon size={15} />
-              <span>{tab.label}</span>
-              {tab.badge > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black shadow-xs">
-                  {tab.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs scrollbar-none dark:border-slate-800/80 dark:bg-[#181d28]">
+        <SlidingSegment
+          ariaLabel="Admin Hub sections"
+          value={activeTab}
+          onChange={setActiveTab}
+          options={[
+            { value: 'overview', label: 'Overview & Analytics', icon: BarChart3 },
+            { value: 'feedbacks', label: 'User Feedback', icon: MessageSquare, badge: unreadFeedbackCount },
+            { value: 'skill-requests', label: 'Course Requests', icon: FileCheck },
+            { value: 'users', label: 'User Accounts', icon: Users },
+            { value: 'groups', label: 'Study Groups', icon: Layers },
+            { value: 'posts', label: 'Feed Posts', icon: MessageSquare },
+            { value: 'skills', label: 'Skills Catalog', icon: Database },
+            { value: 'certificate-preview', label: 'Certificate Preview', icon: Award },
+            { value: 'broadcast', label: 'Global Broadcast', icon: Radio }
+          ]}
+          className="w-max min-w-full"
+          buttonClassName="rounded-xl px-4 py-2.5 text-xs font-bold"
+          activeTextClassName="text-white"
+          inactiveTextClassName="text-muted hover:bg-slate-100 hover:text-app dark:hover:bg-slate-800/60"
+          indicatorClassName="bg-indigo-600 shadow-md shadow-indigo-500/25"
+        />
       </div>
 
       {/* Tab 1: Overview & Charts */}
       {activeTab === 'overview' && (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6 content-switch-motion">
           {loading && !adminStats && (
             <div className="flex h-64 w-full items-center justify-center">
               <div className="flex flex-col items-center gap-3">
@@ -613,7 +655,7 @@ const AdminDashboard = () => {
 
       {/* Tab: User Feedbacks */}
       {activeTab === 'feedbacks' && (
-        <div className="space-y-4 animate-fade-in">
+        <div className="space-y-4 content-switch-motion">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
               <h3 className="font-bold text-base text-app font-outfit">Direct User Feedbacks & Suggestions</h3>
@@ -623,22 +665,18 @@ const AdminDashboard = () => {
             </div>
 
             {/* Filter status */}
-            <div className="flex items-center gap-1.5 bg-white dark:bg-[#181d28] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs shadow-xs">
-              {['all', 'unread', 'reviewed', 'resolved'].map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => setFeedbackStatusFilter(st)}
-                  className={`px-3 py-1.5 rounded-xl font-bold uppercase text-[10px] transition-all cursor-pointer ${
-                    feedbackStatusFilter === st
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-muted hover:text-app'
-                  }`}
-                >
-                  {st}
-                </button>
-              ))}
-            </div>
+            <SlidingSegment
+              ariaLabel="Feedback status filter"
+              value={feedbackStatusFilter}
+              onChange={setFeedbackStatusFilter}
+              options={['all', 'unread', 'reviewed', 'resolved'].map((status) => ({
+                value: status,
+                label: status
+              }))}
+              className="rounded-2xl border border-slate-200 bg-white text-xs shadow-xs dark:border-slate-800 dark:bg-[#181d28]"
+              buttonClassName="px-3 py-1.5 text-[10px] font-bold uppercase"
+              indicatorClassName="bg-indigo-600 shadow-xs"
+            />
           </div>
 
           {loading ? (
@@ -740,7 +778,7 @@ const AdminDashboard = () => {
                       )}
                       <button
                         type="button"
-                        onClick={() => handleDeleteFeedback(fb._id)}
+                        onClick={() => handleDeleteFeedback(fb)}
                         className="p-1.5 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                         title="Delete feedback"
                       >
@@ -757,7 +795,7 @@ const AdminDashboard = () => {
 
       {/* Tab 2: Users Management */}
       {activeTab === 'users' && (
-        <div className="space-y-4 animate-fade-in">
+        <div className="space-y-4 content-switch-motion">
           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
             <div className="relative flex-1 max-w-md">
               <Search size={16} className="absolute left-3.5 top-3 text-muted" />
@@ -765,8 +803,13 @@ const AdminDashboard = () => {
                 type="text"
                 placeholder="Search user by name, email, or username..."
                 value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && loadDashboardData()}
+                onChange={(e) => { setUserSearch(e.target.value); setUsersPage(1); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (usersPage === 1) loadDashboardData();
+                    else setUsersPage(1);
+                  }
+                }}
                 className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 rounded-2xl text-xs sm:text-sm text-app outline-none focus:border-indigo-500 shadow-xs"
               />
             </div>
@@ -774,7 +817,7 @@ const AdminDashboard = () => {
             <div className="flex items-center gap-2">
               <select
                 value={userRoleFilter}
-                onChange={(e) => setUserRoleFilter(e.target.value)}
+                onChange={(e) => { setUserRoleFilter(e.target.value); setUsersPage(1); }}
                 className="px-3.5 py-2.5 bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-app outline-none cursor-pointer"
               >
                 <option value="All">All Roles</option>
@@ -804,42 +847,56 @@ const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {usersList.map((u) => (
-                    <tr key={u._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="p-4 flex items-center gap-3">
-                        <img src={u.profileImage} alt={u.name} className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 object-cover border border-slate-200 dark:border-slate-700" />
-                        <div>
-                          <p className="font-bold text-app">{u.name}</p>
-                          <p className="text-[10px] text-muted">@{u.username || 'user'}</p>
-                        </div>
-                      </td>
-                      <td className="p-4 text-muted font-mono text-[11px]">{u.email}</td>
-                      <td className="p-4">
-                        <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${u.role === 'Admin' ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800' : 'bg-slate-100 dark:bg-slate-800 text-muted'}`}>
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="p-4 font-bold text-app">{u.points || 0}</td>
-                      <td className="p-4 text-muted">{new Date(u.createdAt).toLocaleDateString()}</td>
-                      <td className="p-4 text-right space-x-2">
-                        <button
-                          onClick={() => handlePromoteDemoteUser(u._id, u.role)}
-                          className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-app rounded-xl text-[10px] font-bold transition-colors cursor-pointer"
-                        >
-                          {u.role === 'Admin' ? 'Demote' : 'Promote'}
-                        </button>
-                        <button
-                          onClick={() => handleDeleteUser(u._id)}
-                          className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
-                          title="Delete user"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {usersList.length === 0 ? (
+                    <tr><td colSpan={6} className="p-10 text-center text-muted">{loading ? 'Loading accounts...' : 'No accounts match these filters.'}</td></tr>
+                  ) : usersList.map((u) => {
+                    const isUserAdmin = String(u.role || '').toLowerCase() === 'admin';
+                    return (
+                      <tr key={u._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="p-4">
+                          <button type="button" onClick={() => navigate(`/profile/${u.username || u._id}`)} className="flex items-center gap-3 text-left group">
+                            <img src={u.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'User')}&background=6366f1&color=fff`} alt="" className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 object-cover border border-slate-200 dark:border-slate-700" />
+                            <span className="min-w-0">
+                              <span className="block font-bold text-app group-hover:text-indigo-600 dark:group-hover:text-indigo-400">{u.name || 'Unnamed user'}</span>
+                              <span className="block text-[10px] text-muted">@{u.username || 'user'}</span>
+                            </span>
+                          </button>
+                        </td>
+                        <td className="p-4 text-muted font-mono text-[11px]">{u.email}</td>
+                        <td className="p-4">
+                          <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${isUserAdmin ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800' : 'bg-slate-100 dark:bg-slate-800 text-muted'}`}>
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="p-4 font-bold text-app">{u.points || 0}</td>
+                        <td className="p-4 text-muted">{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}</td>
+                        <td className="p-4 text-right whitespace-nowrap">
+                          <button type="button" onClick={() => navigate(`/profile/${u.username || u._id}`)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg text-[10px] font-bold" title="Open profile">
+                            <ExternalLink size={13} /> Profile
+                          </button>
+                          <button type="button" onClick={() => setSelectedRoleUser(u)} className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-app rounded-lg text-[10px] font-bold transition-colors">
+                            {isUserAdmin ? 'Demote' : 'Promote'}
+                          </button>
+                          <button type="button" onClick={() => handleDeleteUser(u)} className="inline-flex p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors" title="Delete user" aria-label={`Delete ${u.name || 'user'}`}>
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
+            </div>
+            <div className="flex flex-col gap-3 border-t border-slate-200 dark:border-slate-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted">{usersPagination.total} accounts · Page {usersPagination.page || usersPage} of {Math.max(1, usersPagination.pages || 1)}</p>
+              <div className="flex items-center gap-2">
+                <button type="button" disabled={usersPage <= 1 || loading} onClick={() => setUsersPage((page) => Math.max(1, page - 1))} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-app disabled:opacity-40">
+                  <ChevronLeft size={14} /> Previous
+                </button>
+                <button type="button" disabled={usersPage >= (usersPagination.pages || 1) || loading} onClick={() => setUsersPage((page) => page + 1)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-app disabled:opacity-40">
+                  Next <ChevronRight size={14} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -847,7 +904,7 @@ const AdminDashboard = () => {
 
       {/* Tab 3: Study Groups Management */}
       {activeTab === 'groups' && (
-        <div className="space-y-4 animate-fade-in">
+        <div className="space-y-4 content-switch-motion">
           <div className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
@@ -871,7 +928,7 @@ const AdminDashboard = () => {
                       <td className="p-4 font-bold text-app">{g.membersCount}</td>
                       <td className="p-4 text-right">
                         <button
-                          onClick={() => handleDeleteGroup(g._id)}
+                          onClick={() => handleDeleteGroup(g)}
                           className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
                           title="Delete group"
                         >
@@ -889,7 +946,7 @@ const AdminDashboard = () => {
 
       {/* Tab 4: Posts Moderation */}
       {activeTab === 'posts' && (
-        <div className="space-y-3 animate-fade-in">
+        <div className="space-y-3 content-switch-motion">
           {postsList.map((p) => (
             <div key={p._id} className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl p-4 sm:p-5 flex items-start justify-between gap-4 shadow-xs">
               <div className="space-y-1 min-w-0">
@@ -901,7 +958,7 @@ const AdminDashboard = () => {
                 <p className="text-xs text-muted line-clamp-3 leading-relaxed">{p.content}</p>
               </div>
               <button
-                onClick={() => handleDeletePost(p._id)}
+                onClick={() => handleDeletePost(p)}
                 className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl shrink-0 transition-colors cursor-pointer"
                 title="Remove post"
               >
@@ -914,7 +971,7 @@ const AdminDashboard = () => {
 
       {/* Tab 5: Skills Catalog */}
       {activeTab === 'skills' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 content-switch-motion">
           <form onSubmit={handleAddSkill} className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl p-5 space-y-4 text-xs h-fit shadow-xs">
             <h3 className="font-bold text-sm text-app font-outfit flex items-center gap-2">
               <Plus size={16} className="text-indigo-600 dark:text-indigo-400" /> Register New Skill
@@ -969,7 +1026,7 @@ const AdminDashboard = () => {
                     <p className="font-bold text-xs text-app truncate">{s.name}</p>
                     <p className="text-[10px] text-muted">{s.category}</p>
                   </div>
-                  <button onClick={() => handleDeleteSkill(s._id)} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer">
+                  <button onClick={() => handleDeleteSkill(s)} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer">
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -981,7 +1038,7 @@ const AdminDashboard = () => {
 
       {/* Tab 5.5: Course Requests from Community */}
       {activeTab === 'skill-requests' && (
-        <div className="space-y-4 animate-fade-in">
+        <div className="space-y-4 content-switch-motion">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
               <h3 className="font-bold text-base text-app font-outfit flex items-center gap-2">
@@ -994,22 +1051,15 @@ const AdminDashboard = () => {
             </div>
 
             {/* Filter Status Pills */}
-            <div className="flex items-center gap-1.5 bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 p-1 rounded-2xl text-xs shadow-xs">
-              {['all', 'pending', 'approved', 'rejected'].map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => setSkillRequestStatusFilter(st)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer ${
-                    skillRequestStatusFilter === st
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-muted hover:text-app'
-                  }`}
-                >
-                  {st}
-                </button>
-              ))}
-            </div>
+            <SlidingSegment
+              ariaLabel="Course request status filter"
+              value={skillRequestStatusFilter}
+              onChange={setSkillRequestStatusFilter}
+              options={['all', 'pending', 'approved', 'rejected']}
+              className="rounded-2xl border border-slate-200 bg-white text-xs shadow-xs dark:border-slate-800 dark:bg-[#181d28]"
+              buttonClassName="px-3 py-1.5 text-xs capitalize"
+              indicatorClassName="bg-indigo-600 shadow-xs"
+            />
           </div>
 
           {skillRequests.length === 0 ? (
@@ -1112,49 +1162,110 @@ const AdminDashboard = () => {
 
       {/* Tab 6: Global Broadcast */}
       {activeTab === 'broadcast' && (
-        <div className="max-w-xl mx-auto bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 space-y-4 text-xs">
-          <div className="flex items-center gap-2 text-purple-400">
-            <Radio size={20} />
-            <h3 className="font-bold text-base text-white">Broadcast Global Notification</h3>
-          </div>
-          <p className="text-slate-400 leading-relaxed">
-            Send an instant notification alert to all verified platform users. It will appear on their notification bells in real-time.
-          </p>
-
-          <form onSubmit={handleBroadcast} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase">Announcement Title</label>
-              <input
-                type="text"
-                placeholder="e.g. Platform v2.0 Release!"
-                value={broadcastTitle}
-                onChange={(e) => setBroadcastTitle(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 outline-none focus:border-purple-500"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase">Message Content *</label>
-              <textarea
-                required
-                rows={4}
-                placeholder="Write the platform-wide announcement..."
-                value={broadcastContent}
-                onChange={(e) => setBroadcastContent(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 outline-none focus:border-purple-500"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={broadcastSending}
-              className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold transition-all shadow disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              <Send size={15} />
-              <span>{broadcastSending ? 'Broadcasting...' : 'Broadcast to All Users'}</span>
-            </button>
-          </form>
+        <div className="mx-auto grid w-full max-w-5xl gap-5 content-switch-motion lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.8fr)]">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#181d28] sm:p-6">
+            <header className="mb-5 flex items-start gap-3 border-b border-slate-200 pb-4 dark:border-slate-800">
+              <span className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300"><Radio size={19} /></span>
+              <div>
+                <h3 className="text-base font-bold text-app">Global announcement</h3>
+                <p className="mt-1 text-xs text-muted">Send one notification to every platform user.</p>
+              </div>
+            </header>
+            <form onSubmit={handleBroadcast} className="space-y-4">
+              <div className="space-y-1.5">
+                <label htmlFor="broadcast-title" className="text-xs font-semibold text-app">Title</label>
+                <input
+                  id="broadcast-title"
+                  type="text"
+                  required
+                  maxLength={200}
+                  placeholder="What should users know?"
+                  value={broadcastTitle}
+                  onChange={(e) => setBroadcastTitle(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm text-app outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 dark:border-slate-700 dark:bg-[#11151d]"
+                />
+                <p className="text-right text-[10px] text-muted">{broadcastTitle.length}/200</p>
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="broadcast-content" className="text-xs font-semibold text-app">Message</label>
+                <textarea
+                  id="broadcast-content"
+                  required
+                  rows={6}
+                  maxLength={2000}
+                  placeholder="Write a clear, useful announcement..."
+                  value={broadcastContent}
+                  onChange={(e) => setBroadcastContent(e.target.value)}
+                  className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-6 text-app outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 dark:border-slate-700 dark:bg-[#11151d]"
+                />
+                <p className="text-right text-[10px] text-muted">{broadcastContent.length}/2000</p>
+              </div>
+              <button type="submit" disabled={broadcastSending || !broadcastTitle.trim() || !broadcastContent.trim()} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">
+                <Send size={15} /> {broadcastSending ? 'Sending announcement…' : 'Send to all users'}
+              </button>
+            </form>
+          </section>
+          <aside className="space-y-4">
+            <section className="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-5 dark:border-indigo-900/70 dark:bg-indigo-950/20">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Recipients</p>
+              <p className="mt-2 text-xl font-bold text-app">All platform users</p>
+              <p className="mt-1 text-xs leading-5 text-muted">This announcement is delivered to user notification inboxes. Review the preview before sending.</p>
+            </section>
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-[#181d28]" aria-live="polite">
+              <div className="mb-4 flex items-center gap-2 text-muted"><Radio size={15} /><span className="text-[10px] font-bold uppercase tracking-wider">Notification preview</span></div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-[#11151d]">
+                <p className="break-words text-sm font-bold text-app">{broadcastTitle.trim() || 'Announcement title'}</p>
+                <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-muted">{broadcastContent.trim() || 'Your announcement message will appear here.'}</p>
+                <p className="mt-4 text-[10px] text-muted">Just now</p>
+              </div>
+            </section>
+          </aside>
         </div>
+      )}
+
+      {activeTab === 'certificate-preview' && (
+        <section className="mx-auto w-full max-w-5xl space-y-4 content-switch-motion" aria-labelledby="certificate-preview-title">
+          <header>
+            <h2 id="certificate-preview-title" className="text-lg font-bold text-app font-outfit">Certificate design preview</h2>
+            <p className="mt-1 text-xs text-muted">A sample of the certificate learners receive after a completed skill exchange.</p>
+          </header>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-100 p-3 dark:border-slate-800 dark:bg-[#11151d] sm:p-6">
+            <article className="relative mx-auto w-full max-w-4xl overflow-hidden border-4 border-double border-amber-500/70 bg-[#0a0e17] px-5 py-8 text-center text-slate-100 shadow-2xl sm:px-12 sm:py-12">
+              <div className="pointer-events-none absolute inset-2 border border-amber-300/20 sm:inset-3" />
+              <div className="relative flex flex-col items-center">
+                <div className="mb-3 flex items-center gap-2 text-sm font-bold tracking-wide text-white">
+                  <img src="/favicon.svg" alt="" className="h-8 w-8 object-contain" />
+                  Orbitus
+                </div>
+                <span className="mb-5 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-200">
+                  Sample preview · Not issued
+                </span>
+                <h3 className="text-lg font-extrabold uppercase tracking-[0.12em] text-amber-200 sm:text-2xl">Certificate of Skill Mastery</h3>
+                <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Presented to</p>
+                <p className="mt-2 break-words font-serif text-3xl font-semibold text-white sm:text-4xl">Alex Morgan</p>
+                <p className="mt-4 max-w-2xl text-xs leading-6 text-slate-300 sm:text-sm">
+                  In recognition of completing a verified peer-to-peer learning exchange and demonstrating commitment to continuous learning.
+                </p>
+                <span className="mt-5 inline-flex max-w-full items-center rounded-full border border-indigo-300/30 bg-indigo-400/10 px-5 py-2 text-sm font-bold text-indigo-200 sm:text-base">
+                  React Development
+                </span>
+                <div className="mt-8 flex w-full flex-col items-center justify-between gap-5 border-t border-slate-700 pt-5 text-left sm:flex-row">
+                  <div>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-500">Issued on</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-300">Sample date · 15 October 2026</p>
+                    <p className="mt-2 break-all font-mono text-[9px] text-slate-500">SAMPLE-ORB-CERT-0001</p>
+                  </div>
+                  <div className="flex items-center gap-2 self-center rounded-full border border-amber-300/50 p-2.5 text-amber-200 sm:self-auto" aria-label="Orbitus sample seal">
+                    <Award size={24} />
+                    <span className="text-[9px] font-bold uppercase tracking-wider">Verified<br />Exchange</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+          <p className="text-[11px] text-muted">This preview is illustrative only. It is not linked to a learner record and cannot be verified.</p>
+        </section>
       )}
 
       {/* Toast Notification */}
@@ -1168,7 +1279,7 @@ const AdminDashboard = () => {
 
       {/* Admin Confirmation Modal */}
       {adminConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setAdminConfirmModal(null)}>
+        <div data-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setAdminConfirmModal(null)}>
           <div className="w-full max-w-sm bg-white dark:bg-[#161b22] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl text-app space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-bold font-outfit text-app">{adminConfirmModal.title}</h3>
@@ -1197,7 +1308,7 @@ const AdminDashboard = () => {
 
       {/* Admin Prompt Input Modal */}
       {adminPromptModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setAdminPromptModal(null)}>
+        <div data-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setAdminPromptModal(null)}>
           <div className="w-full max-w-sm bg-white dark:bg-[#161b22] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl text-app space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-bold font-outfit text-app">{adminPromptModal.title}</h3>
@@ -1228,6 +1339,34 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+
+      <Dialog open={Boolean(selectedRoleUser)} onOpenChange={(open) => !open && !roleSaving && setSelectedRoleUser(null)}>
+        {selectedRoleUser && (
+          <DialogContent className="w-[calc(100%-2rem)] max-w-md text-app">
+            <DialogHeader className="pr-7 text-left">
+              <DialogTitle>{String(selectedRoleUser.role).toLowerCase() === 'admin' ? 'Demote administrator?' : 'Promote user to admin?'}</DialogTitle>
+              <DialogDescription>
+                {String(selectedRoleUser.role).toLowerCase() === 'admin'
+                  ? 'This account will lose administrator access.'
+                  : 'This account will gain administrator access to the Admin Hub.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-[#11151d]">
+              <img src={selectedRoleUser.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedRoleUser.name || 'User')}&background=6366f1&color=fff`} alt="" className="h-11 w-11 rounded-full object-cover" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-app">{selectedRoleUser.name || 'Unnamed user'}</p>
+                <p className="truncate text-xs text-muted">{selectedRoleUser.email}</p>
+              </div>
+            </div>
+            <DialogFooter>
+              <button type="button" disabled={roleSaving} onClick={() => setSelectedRoleUser(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-app hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800">Cancel</button>
+              <button type="button" disabled={roleSaving} onClick={handlePromoteDemoteUser} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50">
+                {roleSaving ? 'Updating…' : String(selectedRoleUser.role).toLowerCase() === 'admin' ? 'Confirm demotion' : 'Confirm promotion'}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
 
       <Dialog open={Boolean(selectedFeedback)} onOpenChange={(open) => !open && setSelectedFeedback(null)}>
         {selectedFeedback && (

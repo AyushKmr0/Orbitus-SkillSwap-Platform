@@ -4,6 +4,7 @@ import { ProtectedRoute, AdminRoute } from './components/layout/RouteGuard.jsx';
 import AppShadcnSidebar from './components/layout/AppShadcnSidebar.jsx';
 import ProfileCompletionGate from './components/layout/ProfileCompletionGate.jsx';
 import ErrorBoundary from './components/common/ErrorBoundary.jsx';
+import PageTransition from './components/common/PageTransition.jsx';
 
 const AdminRedirect = () => {
   const location = useLocation();
@@ -42,37 +43,39 @@ const PageLoader = () => (
   </div>
 );
 
+const withPageTransition = (page, dashboard = false) => <PageTransition dashboard={dashboard}>{page}</PageTransition>;
+
 // Layout Wrapper inside Dashboard (toggleable between top nav trial and classic sidebar)
 const DashboardLayout = () => {
   const routesContent = (
     <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<UserDashboard />} />
-        <Route path="skills" element={<SkillCatalog />} />
-        <Route path="chat" element={<ChatRoom />} />
-        <Route path="feed" element={<Feed />} />
-        <Route path="notifications" element={<Notifications />} />
-        <Route path="settings" element={<Settings />} />
-        <Route path="bookings" element={<Bookings />} />
+        <Route path="dashboard" element={withPageTransition(<UserDashboard />, true)} />
+        <Route path="skills" element={withPageTransition(<SkillCatalog />, true)} />
+        <Route path="chat" element={withPageTransition(<ChatRoom />, true)} />
+        <Route path="feed" element={withPageTransition(<Feed />, true)} />
+        <Route path="notifications" element={withPageTransition(<Notifications />, true)} />
+        <Route path="settings" element={withPageTransition(<Settings />, true)} />
+        <Route path="bookings" element={withPageTransition(<Bookings />, true)} />
 
         {/* Instagram-style Suggested Users */}
-        <Route path="suggested-users" element={<SuggestedUsers />} />
-        <Route path="ai-match" element={<SuggestedUsers />} />
+        <Route path="suggested-users" element={withPageTransition(<SuggestedUsers />, true)} />
+        <Route path="ai-match" element={withPageTransition(<SuggestedUsers />, true)} />
 
         {/* Public & Private Study Groups */}
-        <Route path="groups" element={<Groups />} />
-        <Route path="groups/:id" element={<GroupDetail />} />
+        <Route path="groups" element={withPageTransition(<Groups />, true)} />
+        <Route path="groups/:id" element={withPageTransition(<GroupDetail />, true)} />
 
-        <Route path="roadmap" element={<AiRoadmap />} />
-        <Route path="leaderboard" element={<Leaderboard />} />
-        <Route path="profile" element={<PublicProfile />} />
-        <Route path="profile/:id" element={<PublicProfile />} />
+        <Route path="roadmap" element={withPageTransition(<AiRoadmap />, true)} />
+        <Route path="leaderboard" element={withPageTransition(<Leaderboard />, true)} />
+        <Route path="profile" element={withPageTransition(<PublicProfile />, true)} />
+        <Route path="profile/:id" element={withPageTransition(<PublicProfile />, true)} />
 
         {/* Admin Console routes protected by AdminRoute */}
         <Route element={<AdminRoute />}>
-          <Route path="admin" element={<AdminDashboard />} />
-          <Route path="admin/*" element={<AdminDashboard />} />
+          <Route path="admin" element={withPageTransition(<AdminDashboard />, true)} />
+          <Route path="admin/*" element={withPageTransition(<AdminDashboard />, true)} />
           <Route path="admin-portal" element={<AdminRedirect />} />
           <Route path="admin-panel" element={<AdminRedirect />} />
           <Route path="admin-panel/*" element={<AdminRedirect />} />
@@ -97,12 +100,12 @@ function App() {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public Home / Landing Page */}
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={withPageTransition(<LandingPage />)} />
 
           {/* Core Auth Pages */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/login" element={withPageTransition(<Login />)} />
+          <Route path="/register" element={withPageTransition(<Register />)} />
+          <Route path="/auth/callback" element={withPageTransition(<AuthCallback />)} />
 
           {/* Top-Level Admin Route Aliases redirect into authenticated layout */}
           <Route path="/admin-portal" element={<AdminRedirect />} />
@@ -110,7 +113,7 @@ function App() {
 
           {/* Protected Pages wrapped in Layout */}
           <Route element={<ProtectedRoute />}>
-            <Route path="/explore" element={<SkillCatalog />} />
+            <Route path="/explore" element={withPageTransition(<SkillCatalog />, true)} />
             <Route path="/*" element={<DashboardLayout />} />
           </Route>
 

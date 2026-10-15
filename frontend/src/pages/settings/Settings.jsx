@@ -25,6 +25,7 @@ import {
 import { playNotificationChime } from '../../context/SocketContext.jsx';
 import { logout } from '../../features/authSlice.js';
 import BellToggle from '../../components/common/react-bits/BellToggle.jsx';
+import SlidingSegment from '../../components/common/SlidingSegment.jsx';
 
 const SETTING_TABS = [
   { id: 'feedback', label: 'Feedback & Support', icon: MessageSquare },
@@ -226,31 +227,23 @@ const Settings = () => {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-slate-200 dark:border-slate-800">
-          {SETTING_TABS.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shrink-0 ${
-                  isActive
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 text-muted hover:text-app'
-                }`}
-              >
-                <Icon size={14} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+        <div className="overflow-x-auto border-b border-slate-200 pb-2 scrollbar-none dark:border-slate-800">
+          <SlidingSegment
+            ariaLabel="Settings sections"
+            value={activeTab}
+            onChange={setActiveTab}
+            options={SETTING_TABS.map(({ id, label, icon }) => ({ value: id, label, icon }))}
+            className="w-max rounded-2xl"
+            buttonClassName="gap-2 px-4 py-2.5 text-xs font-bold"
+            activeTextClassName="text-white"
+            inactiveTextClassName="border border-slate-200 bg-white text-muted hover:text-app dark:border-slate-800 dark:bg-[#22242a]"
+            indicatorClassName="bg-indigo-600 shadow-sm"
+          />
         </div>
 
         {/* ── TAB 1: FEEDBACK & SUPPORT ────────────────────────────────────── */}
         {activeTab === 'feedback' && (
-          <div className="space-y-6 animate-fade-in">
+          <div className="space-y-6 settings-tab-motion">
             {/* Feedback Form Card */}
             <section className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-7 space-y-5 shadow-sm">
               <div className="flex items-start gap-3">
@@ -443,7 +436,7 @@ const Settings = () => {
 
         {/* ── TAB 2: NOTIFICATIONS & SOUND ─────────────────────────────────── */}
         {activeTab === 'notifications' && (
-          <div className="space-y-6 animate-fade-in">
+          <div className="space-y-6 settings-tab-motion">
             <section className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-7 space-y-6 shadow-sm">
               <div className="flex items-start gap-3">
                 <div className="rounded-2xl bg-blue-500/10 p-3 text-blue-600 shrink-0">
@@ -522,7 +515,7 @@ const Settings = () => {
 
         {/* ── TAB 3: PRIVACY & PRESENCE ────────────────────────────────────── */}
         {activeTab === 'privacy' && (
-          <div className="space-y-6 animate-fade-in">
+          <div className="space-y-6 settings-tab-motion">
             <section className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-7 space-y-6 shadow-sm">
               <div className="flex items-start gap-3">
                 <div className="rounded-2xl bg-emerald-500/10 p-3 text-emerald-600 shrink-0">
@@ -591,7 +584,7 @@ const Settings = () => {
 
         {/* ── TAB 4: ACCOUNT & DATA / DANGER ZONE ─────────────────────────── */}
         {activeTab === 'account' && (
-          <div className="space-y-6 animate-fade-in">
+          <div className="space-y-6 settings-tab-motion">
             {/* Export Data Card */}
             <section className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-7 space-y-4 shadow-sm">
               <div className="flex items-start gap-3">
@@ -664,7 +657,7 @@ const Settings = () => {
 
       {/* Delete Account Custom Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowDeleteModal(false)}>
+        <div data-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowDeleteModal(false)}>
           <div className="w-full max-w-sm bg-white dark:bg-[#161b22] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl text-app space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-bold font-outfit text-red-600 flex items-center gap-2">

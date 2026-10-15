@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Info, Sparkles } from 'lucide-react';
+import SlidingSegment from '../common/SlidingSegment.jsx';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -276,26 +277,17 @@ export const SkillActivityHeatmap = ({
         </div>
 
         {/* Year Selector Pill Tabs */}
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#161b22] p-1 rounded-xl border border-slate-200/80 dark:border-slate-800 shrink-0">
-          {yearOptions.map((opt) => {
-            const optId = typeof opt === 'string' ? opt : opt.id;
-            const optLabel = typeof opt === 'string' ? opt : opt.label;
-            return (
-              <button
-                key={optId}
-                type="button"
-                onClick={() => handleYearChange(optId)}
-                className={`px-2 py-0.5 sm:px-2.5 sm:py-1 text-xs font-semibold rounded-lg transition-all ${
-                  selectedYear === optId
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-slate-500 hover:text-app'
-                }`}
-              >
-                {optLabel}
-              </button>
-            );
-          })}
-        </div>
+        <SlidingSegment
+          ariaLabel="Heatmap year"
+          value={selectedYear}
+          onChange={handleYearChange}
+          options={yearOptions.map((opt) => ({
+            value: typeof opt === 'string' ? opt : opt.id,
+            label: typeof opt === 'string' ? opt : opt.label
+          }))}
+          className="shrink-0 rounded-xl border border-slate-200/80 bg-slate-100 dark:border-slate-800 dark:bg-[#161b22]"
+          buttonClassName="px-2 py-0.5 text-xs sm:px-2.5 sm:py-1"
+        />
       </div>
 
       {/* Heatmap Grid Wrapper with Auto-Scroll */}

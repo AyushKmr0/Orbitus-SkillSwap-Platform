@@ -15,6 +15,7 @@ import {
 	Award
 } from "lucide-react";
 import SkillActivityHeatmap from "../../components/dashboard/SkillActivityHeatmap.jsx";
+import SlidingSegment from "../../components/common/SlidingSegment.jsx";
 import { Avatar, AvatarImage, AvatarFallback, Badge } from "../../components/ui/index.js";
 import { optimizeCloudinaryUrl } from "../../lib/utils.js";
 
@@ -31,7 +32,6 @@ const UserDashboard = () => {
 	const [progressViewMode, setProgressViewMode] = useState('heatmap');
 
 	const isMountedRef = useRef(true);
-	const abortControllerRef = useRef(null);
 	const requestIdRef = useRef(0);
 	const userRef = useRef(user);
 	userRef.current = user;
@@ -139,17 +139,12 @@ const UserDashboard = () => {
 	useEffect(() => {
 		isMountedRef.current = true;
 		const currentId = ++requestIdRef.current;
-		const controller = new AbortController();
-		abortControllerRef.current = controller;
 
 		const loadData = async () => {
 			setLoading(true);
 			setFetchError(null);
 			try {
-				const res = await apiClient.get("/api/dashboard/user", {
-					signal: controller.signal,
-					bypassDedupe: true
-				});
+				const res = await apiClient.get("/api/dashboard/user");
 				if (!isMountedRef.current || requestIdRef.current !== currentId) return;
 				const normalized = normalizeDashboardPayload(res.data, userRef.current);
 				setDashboardData(normalized);
@@ -175,25 +170,16 @@ const UserDashboard = () => {
 
 		return () => {
 			isMountedRef.current = false;
-			controller.abort();
 		};
 	}, [token, user?._id]);
 
 	const fetchDashboardStats = async () => {
 		const currentId = ++requestIdRef.current;
-		if (abortControllerRef.current) {
-			abortControllerRef.current.abort();
-		}
-		const controller = new AbortController();
-		abortControllerRef.current = controller;
 
 		setLoading(true);
 		setFetchError(null);
 		try {
-			const res = await apiClient.get("/api/dashboard/user", {
-				signal: controller.signal,
-				bypassDedupe: true
-			});
+			const res = await apiClient.get("/api/dashboard/user");
 			if (!isMountedRef.current || requestIdRef.current !== currentId) return;
 			const normalized = normalizeDashboardPayload(res.data, userRef.current);
 			setDashboardData(normalized);
@@ -488,12 +474,16 @@ const UserDashboard = () => {
 										Timelines tracking hours exchanged
 									</p>
 								</div>
-								<div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/60 p-1 rounded-xl">
-									<button onClick={() => setProgressViewMode('heatmap')} className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${progressViewMode === 'heatmap' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-app'}`}>Heatmap</button>
-									<button onClick={() => setProgressViewMode('barchart')} className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${progressViewMode === 'barchart' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-app'}`}>Chart</button>
-								</div>
+								<SlidingSegment
+									ariaLabel="Learning progress view"
+									value={progressViewMode}
+									onChange={setProgressViewMode}
+									options={[{ value: 'heatmap', label: 'Heatmap' }, { value: 'barchart', label: 'Chart' }]}
+									className="rounded-xl bg-slate-100 dark:bg-slate-800/60"
+									buttonClassName="px-2.5 py-1 text-xs"
+								/>
 							</div>
-							<div className="w-full min-h-[220px] flex items-center justify-center pt-1">
+							<div key={progressViewMode} className="w-full min-h-[220px] flex items-center justify-center pt-1 content-switch-motion">
 								{progressViewMode === 'heatmap' ? (
 									<SkillActivityHeatmap
 										user={currentUser}

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
+import SlidingSegment from '../../components/common/SlidingSegment.jsx';
 import {
   Globe,
   MessageCircle,
@@ -537,33 +538,18 @@ const Feed = () => {
             </div>
 
             {/* Full-width sliding segmented pill */}
-            <div className="relative flex items-center p-1 bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl w-full sm:w-64">
-              {/* Sliding Blue Pill Background */}
-              <div
-                className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-xl bg-blue-600 shadow-md transition-all duration-300 ease-out ${
-                  feedScope === 'all' ? 'left-1' : 'left-[calc(50%+2px)]'
-                }`}
-              />
-
-              <button
-                type="button"
-                onClick={() => setFeedScope('all')}
-                className={`relative z-10 flex-1 py-2 text-xs font-bold transition-colors duration-200 flex items-center justify-center gap-1.5 rounded-xl ${
-                  feedScope === 'all' ? 'text-white' : 'text-muted hover:text-app'
-                }`}
-              >
-                <Globe size={13} /> All
-              </button>
-              <button
-                type="button"
-                onClick={() => setFeedScope('following')}
-                className={`relative z-10 flex-1 py-2 text-xs font-bold transition-colors duration-200 flex items-center justify-center gap-1.5 rounded-xl ${
-                  feedScope === 'following' ? 'text-white' : 'text-muted hover:text-app'
-                }`}
-              >
-                <Users size={13} /> Following
-              </button>
-            </div>
+            <SlidingSegment
+              ariaLabel="Feed posts"
+              value={feedScope}
+              onChange={setFeedScope}
+              options={[
+                { value: 'all', label: 'All', icon: Globe },
+                { value: 'following', label: 'Following', icon: Users }
+              ]}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900/80 sm:w-64"
+              buttonClassName="flex-1 py-2"
+              indicatorClassName="bg-blue-600 shadow-md"
+            />
           </div>
 
           {/* Post Composer with Natural Smooth Reveal */}

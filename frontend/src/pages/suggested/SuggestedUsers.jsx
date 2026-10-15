@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
+import SlidingSegment from '../../components/common/SlidingSegment.jsx';
 import { setCurrentRoom } from '../../features/chatSlice.js';
 import {
   Users,
@@ -288,31 +289,20 @@ const SuggestedUsers = () => {
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl self-start sm:self-auto">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-              activeTab === 'all'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-muted hover:text-app'
-            }`}
-          >
-            All Suggestions ({users.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('not_following')}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-              activeTab === 'not_following'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-muted hover:text-app'
-            }`}
-          >
-            Not Following
-          </button>
-        </div>
+        <SlidingSegment
+          ariaLabel="Suggested peer filter"
+          value={activeTab}
+          onChange={setActiveTab}
+          options={[
+            { value: 'all', label: `All Suggestions (${users.length})` },
+            { value: 'not_following', label: 'Not Following' }
+          ]}
+          className="self-start rounded-2xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900/80 sm:self-auto"
+        />
       </div>
 
       {/* Grid of User Cards */}
+      <div key={activeTab} className="content-switch-motion">
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 py-8">
           {[...Array(8)].map((_, i) => (
@@ -459,6 +449,7 @@ const SuggestedUsers = () => {
           <div ref={sentinelRef} className="h-6 w-full pointer-events-none opacity-0 col-span-full" />
         </div>
       )}
+      </div>
 
       {/* Booking Session Modal (Skill select removed, VC link options added) */}
       {bookingPartner && (

@@ -90,7 +90,7 @@ const Leaderboard = () => {
 
       {/* Top 3 Podium Cards */}
       {podium.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto items-end">
+        <div key={`podium:${timelineFilter}`} className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto items-end content-switch-motion">
           {/* Rank 2 - Silver Medal */}
           {podium[1] && (
             <div
@@ -156,7 +156,7 @@ const Leaderboard = () => {
       )}
 
       {/* Main Ranking List */}
-      <div className="max-w-4xl mx-auto bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 p-6 rounded-3xl space-y-4 shadow-sm">
+      <div key={`ranks:${timelineFilter}`} className="max-w-4xl mx-auto bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 p-6 rounded-3xl space-y-4 shadow-sm content-switch-motion">
         <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-4">
           <h3 className="font-bold text-sm text-app font-outfit flex items-center gap-2">
             <Award size={16} className="text-indigo-400" /> Platform Ranks (4 – 15)

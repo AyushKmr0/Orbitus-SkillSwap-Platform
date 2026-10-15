@@ -147,5 +147,5 @@ export const uploadRateLimiter = createRateLimiter({
 export const apiRateLimiter = createRateLimiter({
   prefix: 'api',
   windowMs: 15 * 60 * 1000,
-  max: 300
+  max: Number.parseInt(process.env.API_RATE_LIMIT_MAX, 10) || 1200
 });

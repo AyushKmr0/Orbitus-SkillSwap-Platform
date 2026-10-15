@@ -49,6 +49,17 @@
     min-height: 100%;
   }
 
+  :where(html, body, #root, .overflow-y-auto, .overflow-auto, [data-sidebar="content"]) {
+    scroll-behavior: smooth;
+    scroll-padding-block: 1rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :where(html, body, #root, .overflow-y-auto, .overflow-auto, [data-sidebar="content"]) {
+      scroll-behavior: auto !important;
+    }
+  }
+
   body {
     margin: 0;
     background: var(--app-bg);

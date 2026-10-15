@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
+import SlidingSegment from '../../components/common/SlidingSegment.jsx';
 import {
   Users,
   Plus,
@@ -317,58 +318,36 @@ const Groups = () => {
         </form>
 
         {/* Filter Tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl self-start md:self-auto shadow-sm">
-          <button
-            onClick={() => setFilterTab('all')}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-              filterTab === 'all'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'text-muted hover:text-app'
-            }`}
-          >
-            All Groups
-          </button>
-          <button
-            onClick={() => setFilterTab('joined')}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-              filterTab === 'joined'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'text-muted hover:text-app'
-            }`}
-          >
-            My Groups
-          </button>
-          <button
-            onClick={() => setFilterTab('admin')}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-              filterTab === 'admin'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'text-muted hover:text-app'
-            }`}
-          >
-            Groups I Manage
-          </button>
-        </div>
+        <SlidingSegment
+          ariaLabel="Study group filter"
+          value={filterTab}
+          onChange={setFilterTab}
+          options={[
+            { value: 'all', label: 'All Groups' },
+            { value: 'joined', label: 'My Groups' },
+            { value: 'admin', label: 'Groups I Manage' }
+          ]}
+          className="self-start rounded-2xl border border-slate-200 bg-slate-100 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:self-auto"
+        />
       </div>
 
       {/* Category Pills Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all interactive-pill ${
-              selectedCategory === cat
-                ? 'bg-indigo-600 text-white font-bold shadow-sm'
-                : 'bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 text-muted hover:text-app hover:border-slate-300 dark:hover:border-slate-700'
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
+      <div className="overflow-x-auto pb-2 scrollbar-none">
+        <SlidingSegment
+          ariaLabel="Study group category"
+          value={selectedCategory}
+          onChange={setSelectedCategory}
+          options={CATEGORIES}
+          className="w-max min-w-full rounded-xl"
+          buttonClassName="border border-transparent px-3.5 py-1.5 font-medium"
+          activeTextClassName="font-bold text-white"
+          inactiveTextClassName="border-slate-200 bg-white text-muted hover:border-slate-300 hover:text-app dark:border-slate-800 dark:bg-[#22242a] dark:hover:border-slate-700"
+          indicatorClassName="bg-indigo-600 shadow-sm"
+        />
       </div>
 
       {/* Groups Grid */}
+      <div key={`${filterTab}:${selectedCategory}`} className="content-switch-motion">
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 py-8">
           {[...Array(6)].map((_, i) => (
@@ -501,6 +480,7 @@ const Groups = () => {
           <div ref={sentinelRef} className="h-6 w-full pointer-events-none opacity-0 col-span-full" />
         </div>
       )}
+      </div>
 
       {/* Create Group Modal */}
       {showCreateModal && (
