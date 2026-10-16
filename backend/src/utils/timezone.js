@@ -8,9 +8,20 @@
 
 export const DEFAULT_APP_TIMEZONE = process.env.APP_TIMEZONE || 'Asia/Kolkata';
 
+const formatIsoDateKey = (date, timeZone) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
 /**
  * Returns formatted calendar date 'YYYY-MM-DD' in the given timezone.
- * Uses Intl.DateTimeFormat with 'en-CA' locale which guarantees standard ISO YYYY-MM-DD format.
+ * Builds the ISO key from date parts so it is independent of locale formatting.
  */
 export const getDateKey = (date = new Date(), timeZone = DEFAULT_APP_TIMEZONE) => {
   if (!date) return '';
@@ -19,22 +30,10 @@ export const getDateKey = (date = new Date(), timeZone = DEFAULT_APP_TIMEZONE) =
 
   const tz = timeZone || DEFAULT_APP_TIMEZONE;
   try {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-    return formatter.format(d);
+    return formatIsoDateKey(d, tz);
   } catch {
     // Fallback if timezone string is unrecognized
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: DEFAULT_APP_TIMEZONE,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-    return formatter.format(d);
+    return formatIsoDateKey(d, DEFAULT_APP_TIMEZONE);
   }
 };
 

@@ -404,7 +404,11 @@ export class ActivityService {
       const todayKey = getDateKey(new Date(), tz);
 
       for (const act of (activities || [])) {
-        const key = act.dateKey || (act.createdAt ? getDateKey(act.createdAt, tz) : null);
+        // Older deployments may have persisted locale-formatted dateKey strings.
+        // Heatmap cells use ISO keys, so derive malformed legacy keys from timestamps.
+        const key = /^\d{4}-\d{2}-\d{2}$/.test(act.dateKey || '')
+          ? act.dateKey
+          : (act.createdAt ? getDateKey(act.createdAt, tz) : null);
         if (key) {
           activityMap[key] = (activityMap[key] || 0) + 1;
         }

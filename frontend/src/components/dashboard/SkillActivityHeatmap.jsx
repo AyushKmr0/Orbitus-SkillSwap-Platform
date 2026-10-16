@@ -16,21 +16,23 @@ export const getDateKeyInTimezone = (date = new Date(), timeZone = DEFAULT_APP_T
   if (isNaN(d.getTime())) return '';
   const tz = timeZone || DEFAULT_APP_TIMEZONE;
   try {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
+    const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: tz,
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
-    });
-    return formatter.format(d);
+    }).formatToParts(d);
+    const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+    return `${values.year}-${values.month}-${values.day}`;
   } catch {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
+    const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: DEFAULT_APP_TIMEZONE,
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
-    });
-    return formatter.format(d);
+    }).formatToParts(d);
+    const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+    return `${values.year}-${values.month}-${values.day}`;
   }
 };
 

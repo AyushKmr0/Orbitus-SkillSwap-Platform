@@ -55,6 +55,29 @@ describe('Real getActivityHeatmap Execution & Aggregation Coverage', () => {
     expect(activityMap['2026-10-10']).toBe(2);
   });
 
+  it('maps legacy locale-formatted activity keys to the canonical ISO heatmap date', async () => {
+    const userId = '65f123456789abcdef100099';
+    vi.spyOn(UserActivity, 'find').mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([{
+          activityType: 'daily_login',
+          dateKey: '10/16/2026',
+          createdAt: new Date('2026-10-15T20:00:00.000Z')
+        }])
+      })
+    });
+    vi.spyOn(Session, 'find').mockReturnValue({
+      select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) })
+    });
+    vi.spyOn(Post, 'find').mockReturnValue({
+      select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) })
+    });
+
+    const activityMap = await activityService.getActivityHeatmap(userId, null, 'Asia/Kolkata');
+
+    expect(activityMap['2026-10-16']).toBe(1);
+  });
+
   it('aggregates multiple posts created on the same UTC date', async () => {
     const userId = '65f123456789abcdef100002';
 
