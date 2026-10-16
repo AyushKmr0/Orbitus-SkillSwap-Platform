@@ -153,11 +153,13 @@ export const SocketProvider = ({ children }) => {
           console.warn('[SOCKET CONNECT NOTICE]: Real-time connection handshake notice:', err.message);
         });
 
-        // Bind setup user handshake with privacy presence check
-        const hideOnline = localStorage.getItem('orbitus_pref_online') === 'false';
-        if (!hideOnline) {
-          socketConn.emit('setup_user', user._id);
-        }
+        // Refresh presence after every connect/reconnect; emitting before connect can
+        // race the server's connection handler and leave the peer list stale.
+        const refreshPresence = () => {
+          const hideOnline = localStorage.getItem('orbitus_pref_online') === 'false';
+          if (!hideOnline) socketConn.emit('setup_user');
+        };
+        socketConn.on('connect', refreshPresence);
 
         // Listen to real-time message streams
         socketConn.on('receive_private_message', (message) => {

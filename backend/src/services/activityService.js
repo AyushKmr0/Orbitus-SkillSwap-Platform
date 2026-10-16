@@ -24,7 +24,9 @@ export class ActivityService {
 
     let session = null;
     const isMock = Boolean(UserActivity.create?._isMockFunction || UserActivity.create?.mock);
-    if (!isMock && mongoose.connection?.readyState === 1 && typeof mongoose.connection?.startSession === 'function') {
+    const topologyType = mongoose.connection?.client?.topology?.description?.type;
+    const supportsTransactions = topologyType === 'ReplicaSetWithPrimary' || topologyType === 'Sharded';
+    if (!isMock && supportsTransactions && typeof mongoose.connection?.startSession === 'function') {
       try {
         session = await mongoose.connection.startSession();
         session.startTransaction();

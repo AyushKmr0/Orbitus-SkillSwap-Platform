@@ -167,19 +167,18 @@ export const socketHandler = (io) => {
     const wasOfflineLocally = !onlineUsers.has(userId);
     addUserSocket(userId, socket.id);
 
-    // Register presence in Redis (with TTL)
-    setUserPresenceOnline(userId, socket.id).catch(() => {});
+    // Register presence before taking the initial snapshot so the connecting client
+    // cannot receive a stale list that omits itself or recently connected peers.
+    const presenceRegistration = setUserPresenceOnline(userId, socket.id);
 
     // Keepalive heartbeat to refresh Redis presence TTL while socket remains active
     const heartbeatInterval = setInterval(() => {
       refreshUserPresence(userId, 120).catch(() => {});
     }, 45000);
 
-    getOnlineUserIds().then((initialOnlineList) => {
-      socket.emit('online_users_list', initialOnlineList);
-    }).catch(() => {
-      socket.emit('online_users_list', Array.from(onlineUsers.keys()));
-    });
+    Promise.resolve(presenceRegistration).finally(() => getOnlineUserIds())
+      .then((initialOnlineList) => socket.emit('online_users_list', initialOnlineList))
+      .catch(() => socket.emit('online_users_list', Array.from(onlineUsers.keys())));
 
     if (wasOfflineLocally) {
       io.emit('user_status_changed', { userId, status: 'online' });

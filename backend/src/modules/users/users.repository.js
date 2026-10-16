@@ -79,16 +79,28 @@ export class UsersRepository {
   async followUser(followerId, followingId) {
     await Promise.all([
       Follow.create({ follower: followerId, following: followingId }),
-      User.updateOne({ _id: followerId }, { $addToSet: { following: followingId } }),
-      User.updateOne({ _id: followingId }, { $addToSet: { followers: followerId } })
+      User.updateOne(
+        { _id: followerId },
+        { $addToSet: { following: followingId }, $inc: { followingCount: 1 } }
+      ),
+      User.updateOne(
+        { _id: followingId },
+        { $addToSet: { followers: followerId }, $inc: { followersCount: 1 } }
+      )
     ]);
   }
 
   async unfollowUser(followerId, followingId) {
     await Promise.all([
       Follow.deleteOne({ follower: followerId, following: followingId }),
-      User.updateOne({ _id: followerId }, { $pull: { following: followingId } }),
-      User.updateOne({ _id: followingId }, { $pull: { followers: followerId } })
+      User.updateOne(
+        { _id: followerId },
+        { $pull: { following: followingId }, $inc: { followingCount: -1 } }
+      ),
+      User.updateOne(
+        { _id: followingId },
+        { $pull: { followers: followerId }, $inc: { followersCount: -1 } }
+      )
     ]);
   }
 

@@ -195,7 +195,7 @@ export class UsersService {
     }
 
     const [targetUser, currentUser] = await Promise.all([
-      this.repo.findUserById(targetUserId),
+      this.repo.findUserByIdWithSkills(targetUserId),
       this.repo.findUserById(currentUserId)
     ]);
 
@@ -203,12 +203,28 @@ export class UsersService {
       throw new AppError('User not found', 404);
     }
 
-    const alreadyFollowing = await this.repo.checkIsFollowing(currentUser._id, targetUser._id);
+    // The current user's relationship array is already loaded above. Avoid an
+    // additional Follow.exists round trip on the hot follow/unfollow path.
+    const alreadyFollowing = (currentUser.following || []).some(
+      (id) => id.toString() === targetUser._id.toString()
+    );
 
     if (alreadyFollowing) {
       await this.repo.unfollowUser(currentUser._id, targetUser._id);
+      currentUser.following = (currentUser.following || []).filter(
+        (id) => id.toString() !== targetUser._id.toString()
+      );
+      targetUser.followers = (targetUser.followers || []).filter(
+        (id) => id.toString() !== currentUser._id.toString()
+      );
+      currentUser.followingCount = Math.max(0, (currentUser.followingCount || 0) - 1);
+      targetUser.followersCount = Math.max(0, (targetUser.followersCount || 0) - 1);
     } else {
       await this.repo.followUser(currentUser._id, targetUser._id);
+      currentUser.following = [...(currentUser.following || []), targetUser._id];
+      targetUser.followers = [...(targetUser.followers || []), currentUser._id];
+      currentUser.followingCount = (currentUser.followingCount || 0) + 1;
+      targetUser.followersCount = (targetUser.followersCount || 0) + 1;
 
       const notification = await this.repo.createNotification({
         recipient: targetUser._id,
@@ -218,16 +234,16 @@ export class UsersService {
         link: `/profile/${currentUser.username || currentUser._id}`
       });
 
-      const populatedNotification = await this.repo.findNotificationById(notification._id);
-      emitNotificationToUser(targetUser._id, populatedNotification);
+      emitNotificationToUser(targetUser._id, {
+        ...(notification.toObject?.() || notification),
+        sender: {
+          _id: currentUser._id,
+          name: currentUser.name,
+          username: currentUser.username,
+          profileImage: currentUser.profileImage
+        }
+      });
     }
-
-    await Promise.all([
-      this.repo.updateUserFollowCounts(targetUser._id),
-      this.repo.updateUserFollowCounts(currentUser._id)
-    ]);
-
-    const populatedTarget = await this.repo.findUserByIdWithSkills(targetUser._id);
 
     await Promise.all([
       invalidateUserDashboard(currentUser._id),
@@ -236,7 +252,7 @@ export class UsersService {
 
     return {
       following: !alreadyFollowing,
-      user: publicUserPayload(populatedTarget, currentUser._id, { isFollowing: !alreadyFollowing })
+      user: publicUserPayload(targetUser, currentUser._id, { isFollowing: !alreadyFollowing })
     };
   }
 
