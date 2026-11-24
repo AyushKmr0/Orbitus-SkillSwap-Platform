@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authSuccess, authFailure } from '../../features/authSlice.js';
+import { toast } from '../../components/ui/use-toast.js';
 
 const AuthCallback = () => {
   const [searchParams] = useSearchParams();
@@ -19,10 +20,18 @@ const AuthCallback = () => {
     }
 
     try {
+      const parsedUser = JSON.parse(encodedUser);
       dispatch(authSuccess({
         accessToken,
-        user: JSON.parse(encodedUser)
+        user: parsedUser
       }));
+
+      toast({
+        title: "Daily Login Active!",
+        description: `Welcome back, ${parsedUser?.name || 'Explorer'}! Current points: ${parsedUser?.points ?? 0}`,
+        variant: "points"
+      });
+
       navigate('/dashboard', { replace: true });
     } catch {
       dispatch(authFailure('Social login response was invalid.'));

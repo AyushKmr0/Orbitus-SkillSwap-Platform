@@ -242,7 +242,12 @@ export class AuthService {
     const { accessToken } = await this.issueSession(res, user);
     return {
       accessToken,
-      user: publicUserPayload(user, user._id)
+      user: publicUserPayload(user, user._id),
+      dailyReward: {
+        awarded: Boolean(loginReward?.awarded),
+        pointsAwarded: loginReward?.pointsAwarded ?? 10,
+        totalPoints: user.points
+      }
     };
   }
 

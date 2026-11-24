@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import { ShieldCheck, Lock, Key, User, Eye, EyeOff, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import apiClient from '../../services/apiClient.js';
+import { toast } from '../../components/ui/use-toast.js';
 import { authSuccess } from '../../features/authSlice.js';
 import BrandLogo from '../../components/common/BrandLogo.jsx';
 import { useDocumentHead } from '../../hooks/useDocumentHead.js';
@@ -57,6 +58,11 @@ const AdminLogin = ({ onSuccess }) => {
 
       const payload = res.data?.data || res.data;
       dispatch(authSuccess(payload));
+      toast({
+        title: "Administrator Authenticated",
+        description: "Master control console unlocked successfully.",
+        variant: "default"
+      });
 
       if (onSuccess) {
         onSuccess(payload);

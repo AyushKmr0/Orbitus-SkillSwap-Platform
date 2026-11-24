@@ -6,6 +6,7 @@ import { GitBranch, LogIn, Mail, Lock, ShieldAlert, CheckCircle2, Eye, EyeOff } 
 import { apiPath } from '../../config/env.js';
 import apiClient from '../../services/apiClient.js';
 import BrandLogo from '../../components/common/BrandLogo.jsx';
+import { toast } from '../../components/ui/use-toast.js';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -86,6 +87,23 @@ const Login = () => {
       const res = await apiClient.post('/api/auth/login', { email, password });
       dispatch(authSuccess(res.data));
       const loggedUser = res.data?.user || res.data;
+      const dailyReward = res.data?.dailyReward;
+      const currentPoints = loggedUser?.points ?? 0;
+
+      if (dailyReward?.awarded) {
+        toast({
+          title: "Daily Login Bonus! +10 Points Earned",
+          description: `Great job! You earned 10 points today. Total points: ${currentPoints}`,
+          variant: "points"
+        });
+      } else {
+        toast({
+          title: `Welcome back, ${loggedUser?.name || "Explorer"}!`,
+          description: `Your total balance: ${currentPoints} points.`,
+          variant: "default"
+        });
+      }
+
       const isAdmin = String(loggedUser?.role || '').trim().toLowerCase() === 'admin';
       const target = (redirectTarget && redirectTarget.startsWith('/'))
         ? redirectTarget

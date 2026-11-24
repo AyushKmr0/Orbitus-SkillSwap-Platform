@@ -6,6 +6,7 @@ import AppShadcnSidebar from './components/layout/AppShadcnSidebar.jsx';
 import ProfileCompletionGate from './components/layout/ProfileCompletionGate.jsx';
 import ErrorBoundary from './components/common/ErrorBoundary.jsx';
 import PageTransition from './components/common/PageTransition.jsx';
+import Toaster from './components/ui/toaster.jsx';
 
 // Core auth pages loaded directly for instant login flow
 import Login from './pages/auth/Login.jsx';
@@ -141,6 +142,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      <Toaster />
     </ErrorBoundary>
   );
 }
