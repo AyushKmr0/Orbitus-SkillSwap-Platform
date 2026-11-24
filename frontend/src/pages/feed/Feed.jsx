@@ -4,7 +4,6 @@ import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
 import RubberSegment from '../../components/common/react-bits/RubberSegment.jsx';
-import BranchedMenu from '../../components/common/react-bits/BranchedMenu.jsx';
 import {
   Globe,
   MessageCircle,
@@ -21,7 +20,6 @@ import {
   BookOpen,
   ArrowRight,
   Copy,
-  SlidersHorizontal,
   Reply
 } from 'lucide-react';
 import { useSocket } from '../../context/SocketContext.jsx';
@@ -76,25 +74,12 @@ const Feed = () => {
   const [copiedPostId, setCopiedPostId] = useState('');
   const [activeLikersPostId, setActiveLikersPostId] = useState(null);
   const [activeCommentLikersTarget, setActiveCommentLikersTarget] = useState(null);
-  const [openCommentFilterPostId, setOpenCommentFilterPostId] = useState(null);
-  const [postCommentFilters, setPostCommentFilters] = useState({});
   const [activeCommentsPost, setActiveCommentsPost] = useState(null);
   const [commentToDeleteTarget, setCommentToDeleteTarget] = useState(null);
   const [deletingCommentId, setDeletingCommentId] = useState('');
   const lastScrollY = useRef(0);
   const pageShellRef = useRef(null);
   const closeMenuTimerRef = useRef(null);
-
-  useEffect(() => {
-    if (!openCommentFilterPostId) return;
-    const handleClickOutside = (e) => {
-      if (!e.target.closest('.branched-menu') && !e.target.closest('button[data-filter-btn]')) {
-        setOpenCommentFilterPostId(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [openCommentFilterPostId]);
 
   const handleMenuMouseEnter = (id) => {
     if (closeMenuTimerRef.current) {
@@ -883,6 +868,7 @@ const Feed = () => {
                   {/* Comments Section */}
                   <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800/40">
                     <div className="flex items-center justify-between gap-2 mb-1">
+                      {/* View All / Comment Count CTA */}
                       {post.comments && post.comments.length > 0 ? (
                         <button
                           type="button"
@@ -890,96 +876,19 @@ const Feed = () => {
                           className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline block text-left cursor-pointer"
                         >
                           {post.comments.length > 3
-                            ? `View all ${post.comments.length} comments...`
+                            ? `View all ${post.comments.length} comments (Threaded)...`
                             : `${post.comments.length} comment${post.comments.length === 1 ? '' : 's'}`}
                         </button>
                       ) : (
                         <span className="text-[11px] text-muted">No comments yet. Start the conversation!</span>
                       )}
-
-                      {/* BranchedMenu Discussion & Comment Filter */}
-                      {post.comments && post.comments.length > 1 && (
-                        <div className="relative">
-                          <button
-                            type="button"
-                            data-filter-btn
-                            onClick={() =>
-                              setOpenCommentFilterPostId((prev) =>
-                                prev === post._id ? null : post._id
-                              )
-                            }
-                            className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 py-0.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-800/70 hover:bg-slate-200/70 transition-colors cursor-pointer"
-                            title="Filter comments and open discussion branches"
-                          >
-                            <SlidersHorizontal size={11} />
-                            <span>
-                              {postCommentFilters[post._id] === 'popular'
-                                ? 'Top Liked'
-                                : postCommentFilters[post._id] === 'oldest'
-                                ? 'Oldest'
-                                : 'Latest'}
-                            </span>
-                          </button>
-
-                          {openCommentFilterPostId === post._id && (
-                            <div className="absolute right-0 top-full mt-1.5 z-40 bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-slate-800 p-2 rounded-2xl shadow-xl animate-fade-in min-w-[210px]">
-                              <BranchedMenu
-                                items={[
-                                  {
-                                    label: 'Comment View',
-                                    children: [
-                                      { value: 'recent', label: 'Latest Comments' },
-                                      { value: 'popular', label: 'Top Liked Comments' },
-                                      { value: 'oldest', label: 'First / Oldest Comments' },
-                                      { value: 'all', label: 'Open Threaded Modal' }
-                                    ]
-                                  }
-                                ]}
-                                defaultOpen={0}
-                                defaultActive={postCommentFilters[post._id] || 'recent'}
-                                onSelect={(val) => {
-                                  if (val === 'all') {
-                                    setActiveCommentsPost(post);
-                                  } else {
-                                    setPostCommentFilters((prev) => ({
-                                      ...prev,
-                                      [post._id]: val
-                                    }));
-                                  }
-                                  setOpenCommentFilterPostId(null);
-                                }}
-                                width={200}
-                                rowHeight={30}
-                                color="currentColor"
-                                accentColor="#2563eb"
-                                lineColor="#3b82f6"
-                                fontSize={12}
-                                className="text-slate-800 dark:text-slate-200"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
 
                     {(() => {
-                      const filterMode = postCommentFilters[post._id] || 'recent';
-                      let displayedComments = [...(post.comments || [])];
-                      if (filterMode === 'popular') {
-                        displayedComments.sort(
-                          (a, b) => (b.likes?.length || 0) - (a.likes?.length || 0)
-                        );
-                        displayedComments = displayedComments.slice(0, 3);
-                      } else if (filterMode === 'oldest') {
-                        displayedComments.sort(
-                          (a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
-                        );
-                        displayedComments = displayedComments.slice(0, 3);
-                      } else {
-                        displayedComments = displayedComments.slice(-3);
-                      }
+                      const displayedComments = (post.comments || []).slice(-3);
 
                       return displayedComments.map((comment, index) => {
+                        const isReply = Boolean(comment.threadRootId || comment.parentCommentId || comment.replyTo);
                         const cAuthor = comment.author || comment.user || {
                           _id: '',
                           name: 'Member',
@@ -1005,8 +914,23 @@ const Feed = () => {
                         return (
                           <div
                             key={comment._id || index}
-                            className="flex items-start justify-between gap-2 text-xs bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800/60 group"
+                            className={`relative flex items-start justify-between gap-2 text-xs bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800/60 group transition-all ${
+                              isReply ? 'ml-3 sm:ml-4 border-indigo-200/60 dark:border-indigo-900/40' : ''
+                            }`}
                           >
+                            {/* Branch connector curve if this comment is a reply */}
+                            {isReply && (
+                              <div className="absolute -left-3 top-2.5 w-3 h-5 pointer-events-none text-indigo-500/70 dark:text-indigo-400/60">
+                                <svg className="w-3 h-5 overflow-visible" fill="none">
+                                  <path
+                                    d="M 0 0 V 4 A 4 4 0 0 0 4 8 H 12"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                  />
+                                </svg>
+                              </div>
+                            )}
                             <div className="flex items-start gap-2.5 min-w-0 flex-1">
                               <Link
                                 to={cProfileUrl}

@@ -193,3 +193,28 @@
     transition: none;
   }
 }
+
+/* Branched Comment Tree Styling */
+.branched-comment-thread {
+  position: relative;
+}
+
+.branched-comment-trunk {
+  position: absolute;
+  left: 10px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 1px;
+}
+
+.branched-comment-branch-path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 200ms ease, stroke-width 200ms ease;
+}
+
+.branched-comment-node {
+  transition: fill 200ms ease, r 200ms ease;
+}

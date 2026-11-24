@@ -20,7 +20,7 @@ import {
 } from '../ui/alert-dialog.jsx';
 import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar.jsx';
 import { PulseHeart } from './react-bits/PulseHeart.jsx';
-import BranchedMenu from './react-bits/BranchedMenu.jsx';
+import { BranchedCommentBranch } from './react-bits/BranchedMenu.jsx';
 import PostLikersDialog from './PostLikersDialog.jsx';
 import {
   MessageCircle,
@@ -33,8 +33,7 @@ import {
   Share2,
   Check,
   X,
-  CornerDownRight,
-  SlidersHorizontal
+  GitBranch
 } from 'lucide-react';
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
@@ -67,9 +66,6 @@ export const PostCommentsModal = ({
 
   // Copied share status per commentId
   const [copiedCommentId, setCopiedCommentId] = useState('');
-  const [discussionFilter, setDiscussionFilter] = useState('all');
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
-
 
   const inputRef = useRef(null);
 
@@ -106,17 +102,6 @@ export const PostCommentsModal = ({
       // Legacy or root comments without parentCommentId
       topLevelComments.push(comment);
     }
-  });
-
-
-  const sortedTopLevelComments = [...topLevelComments].sort((a, b) => {
-    if (discussionFilter === 'recent') {
-      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-    }
-    if (discussionFilter === 'popular') {
-      return (b.likes?.length || 0) - (a.likes?.length || 0);
-    }
-    return 0; // default threaded
   });
 
   const handleStartReply = (comment, rootCommentId = null) => {
@@ -411,13 +396,6 @@ export const PostCommentsModal = ({
             </button>
           </div>
         </div>
-
-        {/* Single-depth child replies container: all replies stay siblings under the root comment */}
-        {!isReply && repliesByRootId[comment._id] && repliesByRootId[comment._id].length > 0 && (
-          <div className="relative pl-2 sm:pl-3 pt-1 border-l-2 border-indigo-200/50 dark:border-indigo-900/40 space-y-2 mt-2">
-            {repliesByRootId[comment._id].map((child) => renderCommentCard(child, true, comment._id))}
-          </div>
-        )}
       </div>
     );
   };
@@ -451,45 +429,10 @@ export const PostCommentsModal = ({
                 </div>
               </div>
 
-              {comments.length > 1 && (
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowFilterMenu((v) => !v)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 bg-slate-100 dark:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                    title="Filter & organize discussions"
-                  >
-                    <SlidersHorizontal size={13} />
-                    <span>{discussionFilter === 'recent' ? 'Latest' : discussionFilter === 'popular' ? 'Top Liked' : 'All'}</span>
-                  </button>
-                  {showFilterMenu && (
-                    <div className="absolute right-0 top-full mt-1.5 z-40 bg-white dark:bg-[#1f2430] border border-slate-200 dark:border-slate-800 p-2 rounded-2xl shadow-xl animate-fade-in">
-                      <BranchedMenu
-                        items={[
-                          {
-                            label: 'Discussion View',
-                            children: [
-                              { value: 'all', label: 'All Replies (Threaded)' },
-                              { value: 'recent', label: 'Latest First' },
-                              { value: 'popular', label: 'Most Liked' }
-                            ]
-                          }
-                        ]}
-                        defaultOpen={0}
-                        defaultActive={discussionFilter}
-                        onSelect={(val) => {
-                          setDiscussionFilter(val);
-                          setShowFilterMenu(false);
-                        }}
-                        width={200}
-                        rowHeight={30}
-                        fontSize={12}
-                        color="inherit"
-                        accentColor="#4f46e5"
-                        lineColor="#64748b"
-                      />
-                    </div>
-                  )}
+              {comments.length > 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-1 rounded-xl">
+                  <GitBranch size={13} />
+                  <span>Interactive Branches</span>
                 </div>
               )}
             </div>
@@ -511,14 +454,22 @@ export const PostCommentsModal = ({
           )}
 
           {/* Scrollable Comments Stream */}
-          <div className="flex-1 overflow-y-auto space-y-3 py-2 pr-1 min-h-[140px]">
+          <div className="flex-1 overflow-y-auto space-y-4 py-2 pr-1 min-h-[140px]">
             {topLevelComments.length === 0 ? (
               <div className="text-center py-10 space-y-1.5 text-slate-400 dark:text-slate-500">
                 <MessageCircle size={28} className="mx-auto stroke-[1.5]" />
                 <p className="text-xs font-medium">No comments yet. Be the first to join the conversation!</p>
               </div>
             ) : (
-              sortedTopLevelComments.map((comment) => renderCommentCard(comment, false, null))
+              topLevelComments.map((rootComment) => (
+                <BranchedCommentBranch
+                  key={rootComment._id}
+                  rootComment={rootComment}
+                  replies={repliesByRootId[rootComment._id] || []}
+                  renderCommentCard={renderCommentCard}
+                  activeReplyTargetId={replyTarget?.replyToCommentId}
+                />
+              ))
             )}
           </div>
 
@@ -528,8 +479,8 @@ export const PostCommentsModal = ({
               <div className="flex items-center gap-1.5">
                 {replyTarget ? (
                   <>
-                    <CornerDownRight size={13} className="text-indigo-500" />
-                    <span>Replying to <strong>@{replyTarget.username}</strong></span>
+                    <GitBranch size={13} className="text-indigo-500" />
+                    <span>Branching reply to <strong>@{replyTarget.username}</strong></span>
                   </>
                 ) : (
                   <>
@@ -568,10 +519,12 @@ export const PostCommentsModal = ({
               >
                 {submitting ? (
                   <Loader2 size={14} className="animate-spin" />
+                ) : replyTarget ? (
+                  <GitBranch size={14} />
                 ) : (
                   <Send size={14} />
                 )}
-                <span>{editingTarget ? 'Save' : replyTarget ? 'Reply' : 'Post'}</span>
+                <span>{editingTarget ? 'Save' : replyTarget ? 'Branch Reply' : 'Post'}</span>
               </button>
             </div>
           </form>
