@@ -304,6 +304,21 @@ const PublicProfile = () => {
     }
   };
 
+  const toggleCommentLikeInProfile = async (postId, commentId) => {
+    try {
+      const res = await apiClient.put(`/api/posts/${postId}/comments/${commentId}/like`);
+      const updated = res.data?.data?.post || res.data?.post || res.data;
+      if (updated) {
+        setUserPosts((prev) => prev.map((p) => (p._id === updated._id ? updated : p)));
+        if (activeCommentsPost && activeCommentsPost._id === updated._id) {
+          setActiveCommentsPost(updated);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to toggle comment like:', err);
+    }
+  };
+
   const addCommentInProfile = async (postId) => {
     const draft = (postCommentDrafts[postId] || '').trim();
     if (!draft) return;
@@ -980,6 +995,9 @@ const PublicProfile = () => {
                             const isAdmin = (currentUser?.role || '').toLowerCase() === 'admin';
                             const canDelete = currentUserId && (commentAuthorId === currentUserId || postAuthorId === currentUserId || isAdmin);
 
+                            const cLiked = (comment.likes || []).some((id) => (id?._id || id)?.toString() === currentUserId);
+                            const cLikesCount = comment.likes?.length || 0;
+
                             return (
                               <div key={comment._id || ci} className="group flex items-center justify-between text-[11px] bg-white dark:bg-slate-900/50 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
                                 <div className="flex items-start gap-1.5 min-w-0 flex-1">
@@ -992,18 +1010,29 @@ const PublicProfile = () => {
                                     <strong className="text-app font-semibold">{ca.name || 'User'}:</strong> <span className="text-muted">{comment.content}</span>
                                   </span>
                                 </div>
-                                {canDelete && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteCommentDirect(post._id, comment._id)}
-                                    disabled={deletingCommentId === comment._id}
-                                    className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors opacity-70 group-hover:opacity-100 shrink-0 ml-1.5 cursor-pointer"
-                                    title="Delete this comment"
-                                    aria-label="Delete comment"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                )}
+                                <div className="flex items-center gap-1 shrink-0 ml-1.5">
+                                  <PulseHeart
+                                    liked={cLiked}
+                                    count={cLikesCount}
+                                    onToggle={() => toggleCommentLikeInProfile(post._id, comment._id)}
+                                    onCountClick={() => setActiveLikersPostId(post._id)}
+                                    ariaLabel="Like comment"
+                                    countAriaLabel="View who liked this comment"
+                                    size={12}
+                                  />
+                                  {canDelete && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteCommentDirect(post._id, comment._id)}
+                                      disabled={deletingCommentId === comment._id}
+                                      className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors opacity-70 group-hover:opacity-100 cursor-pointer"
+                                      title="Delete this comment"
+                                      aria-label="Delete comment"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}
@@ -2111,6 +2140,9 @@ const PublicProfile = () => {
                             const isAdmin = (currentUser?.role || '').toLowerCase() === 'admin';
                             const canDelete = currentUserId && (commentAuthorId === currentUserId || postAuthorId === currentUserId || isAdmin);
 
+                            const cLiked = (comment.likes || []).some((id) => (id?._id || id)?.toString() === currentUserId);
+                            const cLikesCount = comment.likes?.length || 0;
+
                             return (
                               <div key={comment._id || ci} className="group flex items-center justify-between text-[11px] bg-white dark:bg-slate-900/50 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
                                 <div className="flex items-start gap-1.5 min-w-0 flex-1">
@@ -2123,18 +2155,29 @@ const PublicProfile = () => {
                                     <strong className="text-app font-semibold">{ca.name || 'User'}:</strong> <span className="text-muted">{comment.content}</span>
                                   </span>
                                 </div>
-                                {canDelete && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteCommentDirect(post._id, comment)}
-                                    disabled={deletingCommentId === comment._id}
-                                    className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors opacity-70 group-hover:opacity-100 shrink-0 ml-1.5 cursor-pointer"
-                                    title="Delete this comment"
-                                    aria-label="Delete comment"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                )}
+                                <div className="flex items-center gap-1 shrink-0 ml-1.5">
+                                  <PulseHeart
+                                    liked={cLiked}
+                                    count={cLikesCount}
+                                    onToggle={() => toggleCommentLikeInProfile(post._id, comment._id)}
+                                    onCountClick={() => setActiveLikersPostId(post._id)}
+                                    ariaLabel="Like comment"
+                                    countAriaLabel="View who liked this comment"
+                                    size={12}
+                                  />
+                                  {canDelete && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteCommentDirect(post._id, comment)}
+                                      disabled={deletingCommentId === comment._id}
+                                      className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors opacity-70 group-hover:opacity-100 cursor-pointer"
+                                      title="Delete this comment"
+                                      aria-label="Delete comment"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}

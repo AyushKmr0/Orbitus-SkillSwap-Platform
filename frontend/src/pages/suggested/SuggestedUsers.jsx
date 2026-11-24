@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
-import SlidingSegment from '../../components/common/SlidingSegment.jsx';
+import RubberSegment from '../../components/common/react-bits/RubberSegment.jsx';
 import { setCurrentRoom } from '../../features/chatSlice.js';
 import {
   Users,
@@ -289,7 +289,7 @@ const SuggestedUsers = () => {
         </div>
 
         {/* Tabs */}
-        <SlidingSegment
+        <RubberSegment
           ariaLabel="Suggested peer filter"
           value={activeTab}
           onChange={setActiveTab}

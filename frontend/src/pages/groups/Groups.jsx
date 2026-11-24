@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
-import SlidingSegment from '../../components/common/SlidingSegment.jsx';
+import RubberSegment from '../../components/common/react-bits/RubberSegment.jsx';
 import {
   Users,
   Plus,
@@ -318,7 +318,7 @@ const Groups = () => {
         </form>
 
         {/* Filter Tabs */}
-        <SlidingSegment
+        <RubberSegment
           ariaLabel="Study group filter"
           value={filterTab}
           onChange={setFilterTab}
@@ -327,13 +327,13 @@ const Groups = () => {
             { value: 'joined', label: 'My Groups' },
             { value: 'admin', label: 'Groups I Manage' }
           ]}
-          className="self-start rounded-2xl border border-slate-200 bg-slate-100 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:self-auto"
+          className="self-start shadow-sm md:self-auto"
         />
       </div>
 
       {/* Category Pills Bar */}
       <div className="overflow-x-auto pb-2 scrollbar-none">
-        <SlidingSegment
+        <RubberSegment
           ariaLabel="Study group category"
           value={selectedCategory}
           onChange={setSelectedCategory}

@@ -3,7 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { updateProfileSuccess } from '../../features/authSlice.js';
 import apiClient from '../../services/apiClient.js';
-import SlidingSegment from '../../components/common/SlidingSegment.jsx';
+import RubberSegment from '../../components/common/react-bits/RubberSegment.jsx';
 import { Search, Plus, Check, X, BookPlus, Send } from 'lucide-react';
 import { useDocumentHead } from '../../hooks/useDocumentHead.js';
 
@@ -243,7 +243,7 @@ const SkillCatalog = () => {
       <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
         {/* Category filters */}
         <div className="w-full overflow-x-auto scrollbar-none md:w-auto">
-          <SlidingSegment
+          <RubberSegment
             ariaLabel="Skill category"
             value={selectedCategory}
             onChange={setSelectedCategory}

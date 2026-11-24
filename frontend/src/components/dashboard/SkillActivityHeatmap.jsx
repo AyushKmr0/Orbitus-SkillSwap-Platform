@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Info, Sparkles } from 'lucide-react';
-import SlidingSegment from '../common/SlidingSegment.jsx';
+import RubberSegment from '../common/react-bits/RubberSegment.jsx';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -279,7 +279,7 @@ export const SkillActivityHeatmap = ({
         </div>
 
         {/* Year Selector Pill Tabs */}
-        <SlidingSegment
+        <RubberSegment
           ariaLabel="Heatmap year"
           value={selectedYear}
           onChange={handleYearChange}

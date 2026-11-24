@@ -3,7 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
 import { authSuccess } from '../../features/authSlice.js';
-import SlidingSegment from '../../components/common/SlidingSegment.jsx';
+import RubberSegment from '../../components/common/react-bits/RubberSegment.jsx';
 import AdminLogin from '../auth/AdminLogin.jsx';
 import {
   Shield,
@@ -541,7 +541,7 @@ const AdminDashboard = () => {
 
       {/* Admin Navigation Tabs */}
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs scrollbar-none dark:border-slate-800/80 dark:bg-[#181d28]">
-        <SlidingSegment
+        <RubberSegment
           ariaLabel="Admin Hub sections"
           value={activeTab}
           onChange={setActiveTab}
@@ -636,7 +636,7 @@ const AdminDashboard = () => {
             </div>
 
             {/* Filter status */}
-            <SlidingSegment
+            <RubberSegment
               ariaLabel="Feedback status filter"
               value={feedbackStatusFilter}
               onChange={setFeedbackStatusFilter}
@@ -1022,7 +1022,7 @@ const AdminDashboard = () => {
             </div>
 
             {/* Filter Status Pills */}
-            <SlidingSegment
+            <RubberSegment
               ariaLabel="Course request status filter"
               value={skillRequestStatusFilter}
               onChange={setSkillRequestStatusFilter}

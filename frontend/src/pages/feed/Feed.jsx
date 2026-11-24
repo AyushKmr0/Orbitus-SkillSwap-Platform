@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
-import SlidingSegment from '../../components/common/SlidingSegment.jsx';
+import RubberSegment from '../../components/common/react-bits/RubberSegment.jsx';
+import BranchedMenu from '../../components/common/react-bits/BranchedMenu.jsx';
 import {
   Globe,
   MessageCircle,
@@ -19,7 +20,9 @@ import {
   Award,
   BookOpen,
   ArrowRight,
-  Copy
+  Copy,
+  SlidersHorizontal,
+  Reply
 } from 'lucide-react';
 import { useSocket } from '../../context/SocketContext.jsx';
 import Marquee from '../../components/motion/Marquee.jsx';
@@ -72,12 +75,26 @@ const Feed = () => {
   const [isComposerFocused, setIsComposerFocused] = useState(false);
   const [copiedPostId, setCopiedPostId] = useState('');
   const [activeLikersPostId, setActiveLikersPostId] = useState(null);
+  const [activeCommentLikersTarget, setActiveCommentLikersTarget] = useState(null);
+  const [openCommentFilterPostId, setOpenCommentFilterPostId] = useState(null);
+  const [postCommentFilters, setPostCommentFilters] = useState({});
   const [activeCommentsPost, setActiveCommentsPost] = useState(null);
   const [commentToDeleteTarget, setCommentToDeleteTarget] = useState(null);
   const [deletingCommentId, setDeletingCommentId] = useState('');
   const lastScrollY = useRef(0);
   const pageShellRef = useRef(null);
   const closeMenuTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (!openCommentFilterPostId) return;
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.branched-menu') && !e.target.closest('button[data-filter-btn]')) {
+        setOpenCommentFilterPostId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openCommentFilterPostId]);
 
   const handleMenuMouseEnter = (id) => {
     if (closeMenuTimerRef.current) {
@@ -268,6 +285,31 @@ const Feed = () => {
     } catch (err) {
       console.error('Error liking post:', err);
     }
+  };
+
+  const toggleCommentLike = async (postId, commentId) => {
+    try {
+      const res = await apiClient.put(`/api/posts/${postId}/comments/${commentId}/like`);
+      const updatedPost = res.data?.data?.post || res.data?.post;
+      if (updatedPost) {
+        replacePost(updatedPost);
+        if (activeCommentsPost && activeCommentsPost._id === postId) {
+          setActiveCommentsPost(updatedPost);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to toggle comment like:', err);
+    }
+  };
+
+  const handleQuickReplyComment = (postId, username) => {
+    if (!username) return;
+    setCommentDrafts((prev) => {
+      const current = prev[postId] || '';
+      const prefix = `@${username} `;
+      if (current.includes(prefix)) return prev;
+      return { ...prev, [postId]: prefix + current };
+    });
   };
 
   const startEditPost = (post) => {
@@ -537,8 +579,8 @@ const Feed = () => {
               <p className="text-xs text-muted">Share progress, questions, and insights</p>
             </div>
 
-            {/* Full-width sliding segmented pill */}
-            <SlidingSegment
+            {/* Full-width rubbery segmented pill with spring physics */}
+            <RubberSegment
               ariaLabel="Feed posts"
               value={feedScope}
               onChange={setFeedScope}
@@ -546,9 +588,9 @@ const Feed = () => {
                 { value: 'all', label: 'All', icon: Globe },
                 { value: 'following', label: 'Following', icon: Users }
               ]}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900/80 sm:w-64"
-              buttonClassName="flex-1 py-2"
-              indicatorClassName="bg-blue-600 shadow-md"
+              className="w-full sm:w-64"
+              buttonClassName="flex-1 py-2 text-xs font-semibold"
+              indicatorClassName="bg-blue-600 shadow-md shadow-blue-600/30"
             />
           </div>
 
@@ -840,63 +882,216 @@ const Feed = () => {
 
                   {/* Comments Section */}
                   <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800/40">
-                    {post.comments && post.comments.length > 3 && (
-                      <button
-                        type="button"
-                        onClick={() => setActiveCommentsPost(post)}
-                        className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline block mb-1 text-left cursor-pointer"
-                      >
-                        View all {post.comments.length} comments...
-                      </button>
-                    )}
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      {post.comments && post.comments.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setActiveCommentsPost(post)}
+                          className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline block text-left cursor-pointer"
+                        >
+                          {post.comments.length > 3
+                            ? `View all ${post.comments.length} comments...`
+                            : `${post.comments.length} comment${post.comments.length === 1 ? '' : 's'}`}
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-muted">No comments yet. Start the conversation!</span>
+                      )}
 
-                    {(post.comments || []).slice(-3).map((comment, index) => {
-                      const cAuthor = comment.author || comment.user || {
-                        _id: '',
-                        name: 'Member',
-                        profileImage: ''
-                      };
-                      const cAuthorId = (cAuthor._id || cAuthor || '').toString();
-                      const currentUserId = (user?._id || user?.id || '').toString();
-                      const postAuthorId = (post.author?._id || post.author || '').toString();
-                      const isAdmin = (user?.role || '').toLowerCase() === 'admin';
-                      const canDelete = cAuthorId === currentUserId || postAuthorId === currentUserId || isAdmin;
-                      const cProfileUrl = cAuthor._id ? `/profile/${cAuthor._id}` : (cAuthor.username ? `/profile/${cAuthor.username}` : '#');
+                      {/* BranchedMenu Discussion & Comment Filter */}
+                      {post.comments && post.comments.length > 1 && (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            data-filter-btn
+                            onClick={() =>
+                              setOpenCommentFilterPostId((prev) =>
+                                prev === post._id ? null : post._id
+                              )
+                            }
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 py-0.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-800/70 hover:bg-slate-200/70 transition-colors cursor-pointer"
+                            title="Filter comments and open discussion branches"
+                          >
+                            <SlidersHorizontal size={11} />
+                            <span>
+                              {postCommentFilters[post._id] === 'popular'
+                                ? 'Top Liked'
+                                : postCommentFilters[post._id] === 'oldest'
+                                ? 'Oldest'
+                                : 'Latest'}
+                            </span>
+                          </button>
 
-                      return (
-                        <div key={comment._id || index} className="flex items-start justify-between gap-2 text-xs bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800/60 group">
-                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                            <Link to={cProfileUrl} className="shrink-0 mt-0.5 hover:scale-105 transition-transform" title={`View ${cAuthor.name}'s profile`}>
-                              <Avatar className="w-6 h-6 border border-slate-200 dark:border-slate-700">
-                                <AvatarImage src={cAuthor.profileImage} alt={cAuthor.name} />
-                                <AvatarFallback className="bg-indigo-600 text-white text-[10px] font-bold">
-                                  {cAuthor.name?.slice(0, 2).toUpperCase() || 'U'}
-                                </AvatarFallback>
-                              </Avatar>
-                            </Link>
-                            <div className="min-w-0 flex-1">
-                              <Link to={cProfileUrl} className="font-bold text-app hover:text-blue-600 dark:hover:text-blue-400 mr-1.5 inline-block">
-                                {cAuthor.name || 'User'}:
-                              </Link>
-                              <span className="text-muted-strong leading-snug break-words">{comment.content}</span>
+                          {openCommentFilterPostId === post._id && (
+                            <div className="absolute right-0 top-full mt-1.5 z-40 bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-slate-800 p-2 rounded-2xl shadow-xl animate-fade-in min-w-[210px]">
+                              <BranchedMenu
+                                items={[
+                                  {
+                                    label: 'Comment View',
+                                    children: [
+                                      { value: 'recent', label: 'Latest Comments' },
+                                      { value: 'popular', label: 'Top Liked Comments' },
+                                      { value: 'oldest', label: 'First / Oldest Comments' },
+                                      { value: 'all', label: 'Open Threaded Modal' }
+                                    ]
+                                  }
+                                ]}
+                                defaultOpen={0}
+                                defaultActive={postCommentFilters[post._id] || 'recent'}
+                                onSelect={(val) => {
+                                  if (val === 'all') {
+                                    setActiveCommentsPost(post);
+                                  } else {
+                                    setPostCommentFilters((prev) => ({
+                                      ...prev,
+                                      [post._id]: val
+                                    }));
+                                  }
+                                  setOpenCommentFilterPostId(null);
+                                }}
+                                width={200}
+                                rowHeight={30}
+                                color="currentColor"
+                                accentColor="#2563eb"
+                                lineColor="#3b82f6"
+                                fontSize={12}
+                                className="text-slate-800 dark:text-slate-200"
+                              />
                             </div>
-                          </div>
-
-                          {canDelete && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteCommentDirect(post._id, comment)}
-                              disabled={deletingCommentId === comment._id}
-                              className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors opacity-70 group-hover:opacity-100 shrink-0 cursor-pointer"
-                              title="Delete this comment"
-                              aria-label="Delete comment"
-                            >
-                              <Trash2 size={12} />
-                            </button>
                           )}
                         </div>
-                      );
-                    })}
+                      )}
+                    </div>
+
+                    {(() => {
+                      const filterMode = postCommentFilters[post._id] || 'recent';
+                      let displayedComments = [...(post.comments || [])];
+                      if (filterMode === 'popular') {
+                        displayedComments.sort(
+                          (a, b) => (b.likes?.length || 0) - (a.likes?.length || 0)
+                        );
+                        displayedComments = displayedComments.slice(0, 3);
+                      } else if (filterMode === 'oldest') {
+                        displayedComments.sort(
+                          (a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+                        );
+                        displayedComments = displayedComments.slice(0, 3);
+                      } else {
+                        displayedComments = displayedComments.slice(-3);
+                      }
+
+                      return displayedComments.map((comment, index) => {
+                        const cAuthor = comment.author || comment.user || {
+                          _id: '',
+                          name: 'Member',
+                          username: 'user',
+                          profileImage: ''
+                        };
+                        const cAuthorId = (cAuthor._id || cAuthor || '').toString();
+                        const currentUserId = (user?._id || user?.id || '').toString();
+                        const postAuthorId = (post.author?._id || post.author || '').toString();
+                        const isAdmin = (user?.role || '').toLowerCase() === 'admin';
+                        const canDelete =
+                          cAuthorId === currentUserId || postAuthorId === currentUserId || isAdmin;
+                        const cProfileUrl = cAuthor._id
+                          ? `/profile/${cAuthor._id}`
+                          : cAuthor.username
+                          ? `/profile/${cAuthor.username}`
+                          : '#';
+                        const commentLiked = (comment.likes || []).some(
+                          (id) => (id?._id || id)?.toString() === currentUserId
+                        );
+                        const commentLikesCount = comment.likes?.length || 0;
+
+                        return (
+                          <div
+                            key={comment._id || index}
+                            className="flex items-start justify-between gap-2 text-xs bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800/60 group"
+                          >
+                            <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                              <Link
+                                to={cProfileUrl}
+                                className="shrink-0 mt-0.5 hover:scale-105 transition-transform"
+                                title={`View ${cAuthor.name}'s profile`}
+                              >
+                                <Avatar className="w-6 h-6 border border-slate-200 dark:border-slate-700">
+                                  <AvatarImage src={cAuthor.profileImage} alt={cAuthor.name} />
+                                  <AvatarFallback className="bg-indigo-600 text-white text-[10px] font-bold">
+                                    {cAuthor.name?.slice(0, 2).toUpperCase() || 'U'}
+                                  </AvatarFallback>
+                                </Avatar>
+                              </Link>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <Link
+                                    to={cProfileUrl}
+                                    className="font-bold text-app hover:text-blue-600 dark:hover:text-blue-400 inline-block"
+                                  >
+                                    {cAuthor.name || 'User'}:
+                                  </Link>
+                                  {cAuthor.username && (
+                                    <span className="text-[10px] text-muted font-mono">
+                                      @{cAuthor.username}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-muted-strong leading-snug break-words">
+                                  {comment.content}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1 shrink-0 ml-1">
+                              {/* PulseHeart for comment likes in daily feed */}
+                              <PulseHeart
+                                liked={commentLiked}
+                                count={commentLikesCount}
+                                onToggle={() => toggleCommentLike(post._id, comment._id)}
+                                onCountClick={() => {
+                                  if (commentLikesCount > 0) {
+                                    setActiveCommentLikersTarget({
+                                      postId: post._id,
+                                      commentId: comment._id
+                                    });
+                                  }
+                                }}
+                                ariaLabel="Like comment"
+                                countAriaLabel="View who liked this comment"
+                                size={14}
+                              />
+
+                              {/* Quick Reply citation trigger */}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleQuickReplyComment(
+                                    post._id,
+                                    cAuthor.username || cAuthor.name
+                                  )
+                                }
+                                className="p-1 rounded text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors opacity-70 group-hover:opacity-100 cursor-pointer"
+                                title={`Reply to ${cAuthor.name}`}
+                                aria-label="Reply to comment"
+                              >
+                                <Reply size={12} />
+                              </button>
+
+                              {canDelete && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCommentDirect(post._id, comment)}
+                                  disabled={deletingCommentId === comment._id}
+                                  className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors opacity-70 group-hover:opacity-100 shrink-0 cursor-pointer"
+                                  title="Delete this comment"
+                                  aria-label="Delete comment"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
 
                     {/* Add Comment Input */}
                     <div className="flex gap-2 pt-1">
@@ -1185,11 +1380,15 @@ const Feed = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Post Likers Modal */}
+      {/* Post & Comment Likers Modal */}
       <PostLikersDialog
-        postId={activeLikersPostId}
-        isOpen={Boolean(activeLikersPostId)}
-        onClose={() => setActiveLikersPostId(null)}
+        postId={activeCommentLikersTarget?.postId || activeLikersPostId}
+        commentId={activeCommentLikersTarget?.commentId || null}
+        isOpen={Boolean(activeLikersPostId || activeCommentLikersTarget)}
+        onClose={() => {
+          setActiveLikersPostId(null);
+          setActiveCommentLikersTarget(null);
+        }}
       />
 
       {/* Post Full Comments Modal */}

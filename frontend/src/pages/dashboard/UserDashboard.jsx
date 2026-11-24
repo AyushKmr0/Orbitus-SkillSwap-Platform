@@ -15,7 +15,7 @@ import {
 	Award
 } from "lucide-react";
 import SkillActivityHeatmap from "../../components/dashboard/SkillActivityHeatmap.jsx";
-import SlidingSegment from "../../components/common/SlidingSegment.jsx";
+import RubberSegment from "../../components/common/react-bits/RubberSegment.jsx";
 import { Avatar, AvatarImage, AvatarFallback, Badge } from "../../components/ui/index.js";
 import { optimizeCloudinaryUrl } from "../../lib/utils.js";
 
@@ -474,7 +474,7 @@ const UserDashboard = () => {
 										Timelines tracking hours exchanged
 									</p>
 								</div>
-								<SlidingSegment
+								<RubberSegment
 									ariaLabel="Learning progress view"
 									value={progressViewMode}
 									onChange={setProgressViewMode}
