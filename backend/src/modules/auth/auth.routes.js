@@ -47,5 +47,8 @@ router.post('/update-password-with-otp', protect, validateRequest(updatePassword
 
 // Admin Master Secret Key Management
 router.post('/admin-change-secret-key', protect, adminOnly, validateRequest(adminChangeSecretKeySchema), adminChangeSecretKey);
+router.put('/admin-change-secret-key', protect, adminOnly, validateRequest(adminChangeSecretKeySchema), adminChangeSecretKey);
+router.post('/change-secret-key', protect, adminOnly, validateRequest(adminChangeSecretKeySchema), adminChangeSecretKey);
+router.put('/change-secret-key', protect, adminOnly, validateRequest(adminChangeSecretKeySchema), adminChangeSecretKey);
 
 export default router;

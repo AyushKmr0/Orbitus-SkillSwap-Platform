@@ -119,3 +119,15 @@ export const getPostComments = asyncHandler(async (req, res) => {
     new ApiResponse(200, { comments: post.comments || [], commentsCount: post.commentsCount || (post.comments || []).length }, 'Comments retrieved successfully')
   );
 });
+
+export const getSingleCommentPost = asyncHandler(async (req, res) => {
+  const post = await postService.getPostById(req.params.id);
+  const comment = (post.comments || []).find((c) => (c._id?.toString() || '') === req.params.commentId);
+  if (!comment) {
+    throw new AppError(404, 'Comment not found');
+  }
+
+  return res.status(200).json(
+    new ApiResponse(200, { comment }, 'Comment retrieved successfully')
+  );
+});

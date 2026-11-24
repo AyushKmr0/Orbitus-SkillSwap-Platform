@@ -7,7 +7,10 @@ if (backendUrl) {
   axios.defaults.baseURL = backendUrl;
 }
 
-export const API_BASE_URL = backendUrl || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://orbitus-skillswap-platform.onrender.com');
+const isBrowser = typeof window !== 'undefined';
+const isLocalhost = isBrowser && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '0.0.0.0');
+
+export const API_BASE_URL = backendUrl || (import.meta.env.DEV || isLocalhost ? 'http://localhost:5000' : 'https://orbitus-skillswap-platform.onrender.com');
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

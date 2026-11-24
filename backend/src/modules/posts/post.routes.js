@@ -12,7 +12,8 @@ import {
   sharePost,
   getPostLikers,
   deleteCommentPost,
-  getPostComments
+  getPostComments,
+  getSingleCommentPost
 } from './post.controller.js';
 import { protect } from '../../middlewares/authMiddleware.js';
 import { validateRequest } from '../../shared/validation/validate-request.js';
@@ -44,6 +45,7 @@ router.post('/:id/comments', validateRequest(addCommentSchema), addCommentPost);
 router.put('/:id/comments/:commentId', validateRequest(editCommentSchema), editCommentPost);
 router.put('/:id/comments/:commentId/like', validateRequest(likeCommentSchema), toggleLikeCommentPost);
 router.get('/:id/comments/:commentId/likes', validateRequest(getCommentLikersQuerySchema), getCommentLikers);
+router.get('/:id/comments/:commentId', validateRequest(deleteCommentSchema), getSingleCommentPost);
 router.delete('/:id/comments/:commentId', validateRequest(deleteCommentSchema), deleteCommentPost);
 router.put('/:id/share', validateRequest(postIdParamSchema), sharePost);
 
