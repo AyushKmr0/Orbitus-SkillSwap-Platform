@@ -22,7 +22,7 @@ export const ProtectedRoute = ({ redirectPath = '/login' }) => {
   return <Outlet />;
 };
 
-export const AdminRoute = ({ redirectPath = '/dashboard' }) => {
+export const AdminRoute = ({ redirectPath = '/admin' }) => {
   const { user, token, loading } = useSelector((state) => state.auth);
   const location = useLocation();
   const dispatch = useDispatch();
@@ -98,7 +98,7 @@ export const AdminRoute = ({ redirectPath = '/dashboard' }) => {
 
   if (!token && !user) {
     const redirect = encodeURIComponent(location.pathname + location.search);
-    return <Navigate to={`/login?redirect=${redirect}`} replace />;
+    return <Navigate to={`/admin?redirect=${redirect}`} replace />;
   }
 
   if (loading) {

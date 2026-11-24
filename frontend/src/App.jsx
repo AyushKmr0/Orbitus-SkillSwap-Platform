@@ -1,21 +1,17 @@
 import React, { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { ProtectedRoute, AdminRoute } from './components/layout/RouteGuard.jsx';
 import AppShadcnSidebar from './components/layout/AppShadcnSidebar.jsx';
 import ProfileCompletionGate from './components/layout/ProfileCompletionGate.jsx';
 import ErrorBoundary from './components/common/ErrorBoundary.jsx';
 import PageTransition from './components/common/PageTransition.jsx';
 
-const AdminRedirect = () => {
-  const location = useLocation();
-  return <Navigate to={`/admin${location.search}`} replace />;
-};
-
-
 // Core auth pages loaded directly for instant login flow
 import Login from './pages/auth/Login.jsx';
 import Register from './pages/auth/Register.jsx';
 import AuthCallback from './pages/auth/AuthCallback.jsx';
+import AdminLogin from './pages/auth/AdminLogin.jsx';
 
 // Lazy-loaded pages for code-splitting and faster bundle load times
 const LandingPage = lazy(() => import('./pages/landing/LandingPage.jsx'));
@@ -46,6 +42,25 @@ const PageLoader = () => (
 const withPageTransition = (page, dashboard = false, contained = false) => (
   <PageTransition dashboard={dashboard} contained={contained}>{page}</PageTransition>
 );
+
+// Admin Portal Gate: /admin shows AdminLogin if not logged in as Admin, or opens AdminDashboard in sidebar layout if verified Admin
+const AdminPortalGate = () => {
+  const { user, token } = useSelector((state) => state.auth);
+  const isAdmin = Boolean(token && user && String(user?.role || '').toLowerCase() === 'admin');
+
+  if (!isAdmin) {
+    return withPageTransition(<AdminLogin />);
+  }
+
+  return (
+    <AppShadcnSidebar>
+      <Suspense fallback={<PageLoader />}>
+        {withPageTransition(<AdminDashboard />, true)}
+      </Suspense>
+      <ProfileCompletionGate />
+    </AppShadcnSidebar>
+  );
+};
 
 // Layout Wrapper inside Dashboard (toggleable between top nav trial and classic sidebar)
 const DashboardLayout = () => {
@@ -78,9 +93,9 @@ const DashboardLayout = () => {
         <Route element={<AdminRoute />}>
           <Route path="admin" element={withPageTransition(<AdminDashboard />, true)} />
           <Route path="admin/*" element={withPageTransition(<AdminDashboard />, true)} />
-          <Route path="admin-portal" element={<AdminRedirect />} />
-          <Route path="admin-panel" element={<AdminRedirect />} />
-          <Route path="admin-panel/*" element={<AdminRedirect />} />
+          <Route path="admin-portal" element={<Navigate to="/admin" replace />} />
+          <Route path="admin-panel" element={<Navigate to="/admin" replace />} />
+          <Route path="admin-panel/*" element={<Navigate to="/admin" replace />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -109,9 +124,12 @@ function App() {
           <Route path="/register" element={withPageTransition(<Register />)} />
           <Route path="/auth/callback" element={withPageTransition(<AuthCallback />)} />
 
-          {/* Top-Level Admin Route Aliases redirect into authenticated layout */}
-          <Route path="/admin-portal" element={<AdminRedirect />} />
-          <Route path="/admin-panel" element={<AdminRedirect />} />
+          {/* Top-Level Admin Portal */}
+          <Route path="/admin" element={<AdminPortalGate />} />
+          <Route path="/admin/*" element={<AdminPortalGate />} />
+          <Route path="/admin-portal" element={<Navigate to="/admin" replace />} />
+          <Route path="/admin-panel" element={<Navigate to="/admin" replace />} />
+          <Route path="/admin-panel/*" element={<Navigate to="/admin" replace />} />
 
           {/* Protected Pages wrapped in Layout */}
           <Route element={<ProtectedRoute />}>

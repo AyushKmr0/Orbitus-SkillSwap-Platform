@@ -247,7 +247,7 @@ export class AuthService {
       throw new AppError('Please enter all fields', 400);
     }
 
-    const user = await User.findOne({ email }).populate('skillsTeach.skill skillsLearn.skill');
+    const user = await User.findOne({ email });
     if (!user) {
       throw new AppError('Invalid email or password', 401);
     }
@@ -383,25 +383,47 @@ export class AuthService {
     return true;
   }
 
-  async verifyAdminKeyAndLogin(res, reqUser, { email, password, key, adminKey } = {}) {
+  async verifyAdminKeyAndLogin(res, reqUser, { email, username, password, key, adminKey, secretKey } = {}) {
     let user = reqUser;
-    const providedKey = String(key || adminKey || '').trim();
+    const providedKey = String(key || adminKey || secretKey || '').trim();
     const configuredKey = String(process.env.ADMIN_SECRET_KEY || 'orbitus-v2-secret710').trim();
 
-    if (providedKey && providedKey === configuredKey) {
+    if (!providedKey || providedKey !== configuredKey) {
+      throw new AppError('Access denied: Invalid administrator secret key', 403);
+    }
+
+    const identifier = String(username || email || '').trim().toLowerCase();
+    const providedPassword = String(password || '');
+
+    if (identifier && providedPassword) {
+      const candidateUser = await User.findOne({
+        $or: [
+          { email: identifier },
+          { username: identifier }
+        ]
+      });
+
+      if (!candidateUser) {
+        throw new AppError('Access denied: Administrator account not found', 404);
+      }
+
+      const isMatch = await candidateUser.comparePassword(providedPassword);
+      if (!isMatch) {
+        throw new AppError('Access denied: Invalid administrator password', 401);
+      }
+
+      if (String(candidateUser.role || '').toLowerCase() !== 'admin') {
+        throw new AppError('Access denied: Account does not have administrator privileges', 403);
+      }
+
+      user = candidateUser;
+    } else if (!user) {
       user = await User.findOne({
         $or: [
           { role: { $regex: /^admin$/i } },
           { email: process.env.ADMIN_EMAIL || 'admin@orbitus.com' }
         ]
       }).select('-password');
-    }
-
-    if (!user && email && password) {
-      const candidateUser = await User.findOne({ email: email.toLowerCase() });
-      if (candidateUser && (await candidateUser.matchPassword(password))) {
-        user = candidateUser;
-      }
     }
 
     if (!user || String(user.role || '').toLowerCase() !== 'admin') {

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
 import { authSuccess } from '../../features/authSlice.js';
 import SlidingSegment from '../../components/common/SlidingSegment.jsx';
+import AdminLogin from '../auth/AdminLogin.jsx';
 import {
   Shield,
   Users,
@@ -20,7 +21,6 @@ import {
   Eye,
   Radio,
   Send,
-  Lock,
   BarChart3,
   Layers,
   ChevronLeft,
@@ -47,50 +47,19 @@ const AdminDashboard = () => {
   const isAdmin = userRoleLower === 'admin';
   const [dataError, setDataError] = useState(null);
 
-  // Master key verification states
-  const [masterKeyInput, setMasterKeyInput] = useState('');
-  const [verifyingKey, setVerifyingKey] = useState(false);
-  const [keyErrorMsg, setKeyErrorMsg] = useState('');
-
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const urlKey = searchParams.get('key') || searchParams.get('adminKey');
     if (urlKey && !isAdmin) {
-      setMasterKeyInput(urlKey);
-      setVerifyingKey(true);
-      setKeyErrorMsg('');
       apiClient
         .post('/api/auth/verify-admin-key', { key: urlKey })
         .then((res) => {
           const data = res.data?.data || res.data;
           dispatch(authSuccess(data));
-          setVerifyingKey(false);
         })
-        .catch((err) => {
-          setVerifyingKey(false);
-          setKeyErrorMsg(err.response?.data?.message || 'Invalid administrator master key');
-        });
+        .catch(() => {});
     }
   }, [isAdmin, dispatch]);
-
-  const handleUnlockWithKey = async (e) => {
-    e?.preventDefault?.();
-    const keyToTest = (masterKeyInput || '').trim();
-    if (!keyToTest) return;
-
-    setVerifyingKey(true);
-    setKeyErrorMsg('');
-    try {
-      const res = await apiClient.post('/api/auth/verify-admin-key', { key: keyToTest });
-      const data = res.data?.data || res.data;
-      dispatch(authSuccess(data));
-      setVerifyingKey(false);
-      showAdminToast('Master admin key verified successfully!');
-    } catch (err) {
-      setVerifyingKey(false);
-      setKeyErrorMsg(err.response?.data?.message || 'Invalid administrator master key');
-    }
-  };
 
   // Active Tab
   const [activeTab, setActiveTab] = useState(() => (
@@ -464,71 +433,8 @@ const AdminDashboard = () => {
   // Administrator Account Required Gate
   if (!isAdmin) {
     return (
-      <div className="page-shell flex-1 p-4 sm:p-8 flex flex-col justify-center items-center min-h-[75vh] text-app">
-        <div className="w-full max-w-md bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl text-app text-center relative overflow-hidden">
-          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center">
-            <Lock size={26} />
-          </div>
-          <h2 className="text-xl font-extrabold text-app font-outfit">Administrator Account Required</h2>
-          <p className="text-xs text-muted leading-relaxed">
-            You must be logged in with an authorized Administrator account or unlock with the Master Admin Key.
-          </p>
-
-          <form onSubmit={handleUnlockWithKey} className="space-y-3 pt-2 text-left">
-            <div>
-              <label className="block text-[11px] font-bold text-muted mb-1">
-                Admin Master Secret Key
-              </label>
-              <input
-                type="password"
-                placeholder="Enter master key (e.g. orbitus-v2-secret710)..."
-                value={masterKeyInput}
-                onChange={(e) => setMasterKeyInput(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-app text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </div>
-            {keyErrorMsg && (
-              <p className="text-[11px] font-semibold text-rose-500">{keyErrorMsg}</p>
-            )}
-            <button
-              type="submit"
-              disabled={verifyingKey || !masterKeyInput.trim()}
-              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-bold transition-all shadow-md active:scale-98 cursor-pointer text-xs flex items-center justify-center gap-2"
-            >
-              {verifyingKey ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Verifying Master Key...</span>
-                </>
-              ) : (
-                'Unlock Admin Console'
-              )}
-            </button>
-          </form>
-
-          <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
-            <span className="flex-shrink mx-3 text-[10px] uppercase font-bold text-slate-400">or login</span>
-            <div className="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => navigate('/login?redirect=/admin')}
-              className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-app rounded-xl font-bold transition-all cursor-pointer text-xs"
-            >
-              Log In as Administrator
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/dashboard')}
-              className="w-full py-2.5 text-muted hover:text-app rounded-xl font-medium transition-all cursor-pointer text-xs"
-            >
-              Return to User Dashboard
-            </button>
-          </div>
-        </div>
+      <div className="flex-1 w-full min-h-[75vh] flex items-center justify-center p-4">
+        <AdminLogin onSuccess={() => loadDashboardData()} />
       </div>
     );
   }

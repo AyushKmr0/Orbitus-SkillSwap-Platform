@@ -115,6 +115,85 @@ describe('Admin Secret Key Validation Tests', () => {
       authService.verifyAdminKeyAndLogin(res, null, { key: 'invalid-secret-key-xyz' })
     ).rejects.toThrow('Access denied');
   });
+
+  it('should authenticate admin with username, password, and secretKey', async () => {
+    const { authService } = await import('../modules/auth/auth.service.js');
+    const mockAdmin = {
+      _id: 'admin_id_999',
+      name: 'System Admin',
+      username: 'admin',
+      email: 'admin@orbitus.com',
+      role: 'Admin',
+      points: 100,
+      comparePassword: vi.fn().mockResolvedValue(true),
+      save: vi.fn().mockResolvedValue(true)
+    };
+
+    const User = (await import('../models/User.js')).default;
+    const findOneSpy = vi.spyOn(User, 'findOne').mockResolvedValue(mockAdmin);
+
+    const res = { cookie: vi.fn() };
+    const result = await authService.verifyAdminKeyAndLogin(res, null, {
+      username: 'admin',
+      password: 'orbitus710',
+      secretKey: process.env.ADMIN_SECRET_KEY || 'orbitus-v2-secret710'
+    });
+
+    expect(result).toBeDefined();
+    expect(result.token).toBeDefined();
+    expect(result.user.email).toBe('admin@orbitus.com');
+    findOneSpy.mockRestore();
+  });
+
+  it('should reject admin when password is incorrect', async () => {
+    const { authService } = await import('../modules/auth/auth.service.js');
+    const mockAdmin = {
+      _id: 'admin_id_999',
+      username: 'admin',
+      email: 'admin@orbitus.com',
+      role: 'Admin',
+      comparePassword: vi.fn().mockResolvedValue(false)
+    };
+
+    const User = (await import('../models/User.js')).default;
+    const findOneSpy = vi.spyOn(User, 'findOne').mockResolvedValue(mockAdmin);
+
+    const res = { cookie: vi.fn() };
+    await expect(
+      authService.verifyAdminKeyAndLogin(res, null, {
+        username: 'admin',
+        password: 'wrongpassword',
+        secretKey: process.env.ADMIN_SECRET_KEY || 'orbitus-v2-secret710'
+      })
+    ).rejects.toThrow('Invalid administrator password');
+
+    findOneSpy.mockRestore();
+  });
+
+  it('should reject non-admin account even with valid secret key', async () => {
+    const { authService } = await import('../modules/auth/auth.service.js');
+    const mockUser = {
+      _id: 'regular_user_1',
+      username: 'johndoe',
+      email: 'john@example.com',
+      role: 'User',
+      comparePassword: vi.fn().mockResolvedValue(true)
+    };
+
+    const User = (await import('../models/User.js')).default;
+    const findOneSpy = vi.spyOn(User, 'findOne').mockResolvedValue(mockUser);
+
+    const res = { cookie: vi.fn() };
+    await expect(
+      authService.verifyAdminKeyAndLogin(res, null, {
+        username: 'johndoe',
+        password: 'password123',
+        secretKey: process.env.ADMIN_SECRET_KEY || 'orbitus-v2-secret710'
+      })
+    ).rejects.toThrow('administrator privileges');
+
+    findOneSpy.mockRestore();
+  });
 });
 
 describe('Production Environment Validation Tests', () => {
