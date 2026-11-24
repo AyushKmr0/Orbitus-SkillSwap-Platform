@@ -6,6 +6,7 @@ import { GitBranch, UserPlus, User, Mail, Lock, ShieldAlert, CheckCircle2, Eye, 
 import { apiPath } from '../../config/env.js';
 import apiClient from '../../services/apiClient.js';
 import BrandLogo from '../../components/common/BrandLogo.jsx';
+import { toast } from '../../components/ui/use-toast.js';
 
 const Register = () => {
   const [name, setName] = useState('');
@@ -53,9 +54,14 @@ const Register = () => {
       const res = await apiClient.post('/api/auth/verify-otp', { email, code: otpCode });
       setSuccess(res.data.message);
       dispatch(authSuccess(res.data));
+      toast({
+        title: "Account Created! Welcome to Orbitus",
+        description: `You've joined Orbitus! Starting points balance: ${res.data?.user?.points ?? 50}`,
+        variant: "points"
+      });
       setTimeout(() => {
         navigate('/dashboard');
-      }, 2000);
+      }, 1000);
     } catch (err) {
       setError(err.response?.data?.message || 'OTP verification failed. Please try again.');
     } finally {
