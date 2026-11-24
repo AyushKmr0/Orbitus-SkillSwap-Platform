@@ -5,7 +5,9 @@ import {
   loginSchema,
   verifyOtpSchema,
   forgotPasswordSchema,
-  resetPasswordSchema
+  resetPasswordSchema,
+  updatePasswordWithOtpSchema,
+  adminChangeSecretKeySchema
 } from '../modules/auth/auth.schema.js';
 
 describe('Auth Domain & Schemas', () => {
@@ -69,5 +71,47 @@ describe('Auth Domain & Schemas', () => {
     await expect(
       service.loginUser({}, { email: 'unverified@example.com', password: 'Password123' })
     ).rejects.toThrow('Please verify your email before logging in');
+  });
+
+  it("validates updatePasswordWithOtp and adminChangeSecretKey schemas", () => {
+    expect(updatePasswordWithOtpSchema.safeParse({ body: { otp: "123456", newPassword: "Password123" } }).success).toBe(true);
+    expect(updatePasswordWithOtpSchema.safeParse({ body: { otp: "", newPassword: "short" } }).success).toBe(false);
+    expect(adminChangeSecretKeySchema.safeParse({ body: { currentPassword: "pass", newSecretKey: "secret-key-123" } }).success).toBe(true);
+    expect(adminChangeSecretKeySchema.safeParse({ body: { currentPassword: "", newSecretKey: "123" } }).success).toBe(false);
+  });
+
+  it("successfully updates password when valid OTP is provided", async () => {
+    const service = new AuthService({});
+    const mockUser = {
+      _id: "user_123",
+      email: "test@example.com",
+      otp: { code: "654321", expiresAt: new Date(Date.now() + 60000) },
+      save: vi.fn().mockResolvedValue(true)
+    };
+    const User = (await import("../models/User.js")).default;
+    const findByIdSpy = vi.spyOn(User, "findById").mockResolvedValue(mockUser);
+
+    const updated = await service.updatePasswordWithOtp({ _id: "user_123" }, { otp: "654321", newPassword: "NewSecretPassword123" });
+    expect(mockUser.password).toBe("NewSecretPassword123");
+    expect(mockUser.otp.code).toBe("");
+    expect(updated).toBeDefined();
+    findByIdSpy.mockRestore();
+  });
+
+  it("rejects password update when OTP is expired or invalid", async () => {
+    const service = new AuthService({});
+    const mockUser = {
+      _id: "user_123",
+      email: "test@example.com",
+      otp: { code: "654321", expiresAt: new Date(Date.now() - 60000) },
+      save: vi.fn().mockResolvedValue(true)
+    };
+    const User = (await import("../models/User.js")).default;
+    const findByIdSpy = vi.spyOn(User, "findById").mockResolvedValue(mockUser);
+
+    await expect(
+      service.updatePasswordWithOtp({ _id: "user_123" }, { otp: "654321", newPassword: "NewSecretPassword123" })
+    ).rejects.toThrow("Invalid or expired verification code");
+    findByIdSpy.mockRestore();
   });
 });

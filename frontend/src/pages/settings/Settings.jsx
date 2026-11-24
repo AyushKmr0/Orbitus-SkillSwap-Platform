@@ -20,12 +20,15 @@ import {
   CheckCheck,
   RefreshCw,
   FolderDown,
-  X
+  X,
+  Lock,
+  KeyRound,
+  EyeOff
 } from 'lucide-react';
 import { playNotificationChime } from '../../context/SocketContext.jsx';
-import { logout } from '../../features/authSlice.js';
+import { logout, authSuccess } from '../../features/authSlice.js';
 import BellToggle from '../../components/common/react-bits/BellToggle.jsx';
-import SlidingSegment from '../../components/common/SlidingSegment.jsx';
+import RubberSegment from '../../components/common/react-bits/RubberSegment.jsx';
 
 const SETTING_TABS = [
   { id: 'feedback', label: 'Feedback & Support', icon: MessageSquare },
@@ -77,6 +80,84 @@ const Settings = () => {
   const [deleting, setDeleting] = useState(false);
 
   const normalizedConfirm = confirmUsername.trim().toLowerCase();
+
+  // ── 5. Account Password State (OTP verified) ──────────────────────────────
+  const [passwordOtp, setPasswordOtp] = useState('');
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [sendingPasswordOtp, setSendingPasswordOtp] = useState(false);
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [passwordOtpSent, setPasswordOtpSent] = useState(false);
+  const [passwordSuccessMsg, setPasswordSuccessMsg] = useState('');
+  const [passwordErrorMsg, setPasswordErrorMsg] = useState('');
+  const [passwordCooldown, setPasswordCooldown] = useState(0);
+
+  useEffect(() => {
+    let timer;
+    if (passwordCooldown > 0) {
+      timer = setInterval(() => {
+        setPasswordCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [passwordCooldown]);
+
+  const handleSendPasswordOtp = async () => {
+    setSendingPasswordOtp(true);
+    setPasswordErrorMsg('');
+    setPasswordSuccessMsg('');
+    try {
+      const res = await apiClient.post('/api/auth/send-password-otp');
+      setPasswordOtpSent(true);
+      setPasswordCooldown(60);
+      setPasswordSuccessMsg(res.data?.message || 'Verification OTP code sent to your registered email.');
+    } catch (err) {
+      setPasswordErrorMsg(err.response?.data?.message || 'Failed to send verification code. Please try again.');
+    } finally {
+      setSendingPasswordOtp(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+    if (!passwordOtp.trim()) {
+      setPasswordErrorMsg('Please enter the 6-digit OTP sent to your email.');
+      return;
+    }
+    if (newPasswordInput.length < 6) {
+      setPasswordErrorMsg('Password must be at least 6 characters long.');
+      return;
+    }
+    if (newPasswordInput !== confirmPasswordInput) {
+      setPasswordErrorMsg('New password and confirmation do not match.');
+      return;
+    }
+
+    setUpdatingPassword(true);
+    setPasswordErrorMsg('');
+    setPasswordSuccessMsg('');
+    try {
+      const res = await apiClient.post('/api/auth/update-password-with-otp', {
+        otp: passwordOtp.trim(),
+        newPassword: newPasswordInput
+      });
+      setPasswordSuccessMsg(res.data?.message || 'Password updated successfully!');
+      setPasswordOtp('');
+      setNewPasswordInput('');
+      setConfirmPasswordInput('');
+      setPasswordOtpSent(false);
+      if (res.data?.data?.user) {
+        dispatch(authSuccess({ user: res.data.data.user }));
+      }
+    } catch (err) {
+      setPasswordErrorMsg(err.response?.data?.message || 'Failed to update password. Please check your OTP.');
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
+
   const canDelete = useMemo(() => normalizedConfirm === user?.username?.toLowerCase(), [normalizedConfirm, user?.username]);
 
   // Load user's previous feedbacks when feedback tab is active
@@ -228,16 +309,16 @@ const Settings = () => {
 
         {/* Tab Navigation */}
         <div className="overflow-x-auto border-b border-slate-200 pb-2 scrollbar-none dark:border-slate-800">
-          <SlidingSegment
+          <RubberSegment
             ariaLabel="Settings sections"
             value={activeTab}
             onChange={setActiveTab}
             options={SETTING_TABS.map(({ id, label, icon }) => ({ value: id, label, icon }))}
-            className="w-max rounded-2xl"
-            buttonClassName="gap-2 px-4 py-2.5 text-xs font-bold"
+            className="w-max p-1 rounded-2xl"
+            buttonClassName="gap-2 px-4 py-2.5 text-xs font-bold transition-all"
             activeTextClassName="text-white"
-            inactiveTextClassName="border border-slate-200 bg-white text-muted hover:text-app dark:border-slate-800 dark:bg-[#22242a]"
-            indicatorClassName="bg-indigo-600 shadow-sm"
+            inactiveTextClassName="text-muted hover:text-app"
+            indicatorClassName="bg-indigo-600 shadow-md shadow-indigo-600/30"
           />
         </div>
 
@@ -585,6 +666,168 @@ const Settings = () => {
         {/* ── TAB 4: ACCOUNT & DATA / DANGER ZONE ─────────────────────────── */}
         {activeTab === 'account' && (
           <div className="space-y-6 settings-tab-motion">
+            
+            {/* Account Password & Security Card */}
+            <section className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-7 space-y-5 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-2xl bg-indigo-500/10 p-3 text-indigo-600 dark:text-indigo-400 shrink-0">
+                    <Lock size={22} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-app font-outfit">
+                      {user?.hasPassword ? "Change Account Password" : "Set Up Account Password"}
+                    </h2>
+                    <p className="mt-1 text-xs text-muted leading-relaxed">
+                      {user?.hasPassword
+                        ? "Update your password securely. A 6-digit OTP code will be sent to your registered email to verify your identity."
+                        : "Set a password so you can sign in directly with your email and password across all devices."}
+                    </p>
+                  </div>
+                </div>
+                <span className={`px-2.5 py-1 text-[11px] font-bold rounded-full self-start shrink-0 ${user?.hasPassword ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"}`}>
+                  {user?.hasPassword ? "Password Active" : "No Password Set"}
+                </span>
+              </div>
+
+              {passwordSuccessMsg && (
+                <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl text-xs flex items-center gap-2 font-medium">
+                  <CheckCircle size={16} className="shrink-0" />
+                  <span>{passwordSuccessMsg}</span>
+                </div>
+              )}
+
+              {passwordErrorMsg && (
+                <div className="p-3.5 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 rounded-2xl text-xs flex items-center gap-2 font-medium">
+                  <AlertTriangle size={16} className="shrink-0" />
+                  <span>{passwordErrorMsg}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleUpdatePassword} className="space-y-4 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2 space-y-2">
+                    <label className="block text-xs font-bold text-muted">
+                      Registered Email Address
+                    </label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative flex-1">
+                        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input
+                          type="email"
+                          disabled
+                          value={user?.email || ""}
+                          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-muted text-xs cursor-not-allowed"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSendPasswordOtp}
+                        disabled={sendingPasswordOtp || passwordCooldown > 0}
+                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer shadow-sm flex items-center justify-center gap-2"
+                      >
+                        {sendingPasswordOtp
+                          ? "Sending OTP..."
+                          : passwordCooldown > 0
+                          ? `Resend in ${passwordCooldown}s`
+                          : passwordOtpSent
+                          ? "Resend OTP Code"
+                          : "Send Verification OTP"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {passwordOtpSent && (
+                    <>
+                      <div className="sm:col-span-2 space-y-1.5">
+                        <label className="block text-xs font-bold text-app">
+                          Enter 6-Digit OTP Code
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={6}
+                          value={passwordOtp}
+                          onChange={(e) => setPasswordOtp(e.target.value.replace(/[^0-9]/g, ""))}
+                          placeholder="123456"
+                          className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-app text-sm font-mono tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <p className="text-[11px] text-muted">
+                          Enter the code sent to your email to authorize setting this password.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-bold text-app">
+                          New Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showNewPassword ? "text" : "password"}
+                            required
+                            value={newPasswordInput}
+                            onChange={(e) => setNewPasswordInput(e.target.value)}
+                            placeholder="At least 6 characters..."
+                            className="w-full pl-4 pr-10 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-app text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewPassword((prev) => !prev)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-app p-1 cursor-pointer"
+                          >
+                            {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-bold text-app">
+                          Confirm New Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showConfirmPassword ? "text" : "password"}
+                            required
+                            value={confirmPasswordInput}
+                            onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                            placeholder="Re-enter password..."
+                            className="w-full pl-4 pr-10 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-app text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword((prev) => !prev)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-app p-1 cursor-pointer"
+                          >
+                            {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-2 pt-2 flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={updatingPassword || !passwordOtp || !newPasswordInput}
+                          className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-98 cursor-pointer flex items-center gap-2"
+                        >
+                          {updatingPassword ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <span>Verifying & Updating...</span>
+                            </>
+                          ) : (
+                            <>
+                              <KeyRound size={14} />
+                              <span>{user?.hasPassword ? "Update Password" : "Set Password"}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </form>
+            </section>
+
             {/* Export Data Card */}
             <section className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-7 space-y-4 shadow-sm">
               <div className="flex items-start gap-3">

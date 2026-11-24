@@ -17,7 +17,21 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [forgotStep, setForgotStep] = useState(1); // 1: Send email, 2: Reset password
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [modalError, setModalError] = useState('');
+  const [modalLoading, setModalLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [successMsg, setSuccessMsg] = useState('');
+
+  useEffect(() => {
+    let timer;
+    if (resendCooldown > 0) {
+      timer = setInterval(() => {
+        setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
   
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -83,35 +97,66 @@ const Login = () => {
   };
 
   const handleForgotPasswordInitiate = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (!resetEmail) return;
 
+    setModalLoading(true);
+    setModalError("");
+    setSuccessMsg("");
+
     try {
-      await apiClient.post('/api/auth/forgot-password', { email: resetEmail });
-      setSuccessMsg('Recovery code sent to your email.');
+      const res = await apiClient.post("/api/auth/forgot-password", { email: resetEmail });
+      setSuccessMsg(res.data?.message || "6-digit recovery OTP sent to your email.");
       setForgotStep(2);
+      setResendCooldown(60);
     } catch (err) {
-      dispatch(authFailure(err.response?.data?.message || 'Password reset request failed.'));
+      setModalError(err.response?.data?.message || "Password recovery request failed.");
+    } finally {
+      setModalLoading(false);
     }
   };
 
   const handleForgotPasswordComplete = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (!resetEmail || !resetCode || !newPassword) return;
 
+    if (newPassword.length < 6) {
+      setModalError("Password must be at least 6 characters long.");
+      return;
+    }
+
+    if (confirmNewPassword && newPassword !== confirmNewPassword) {
+      setModalError("New password and confirmation do not match.");
+      return;
+    }
+
+    setModalLoading(true);
+    setModalError("");
+    setSuccessMsg("");
+
     try {
-      await apiClient.post('/api/auth/reset-password', { email: resetEmail, code: resetCode, newPassword });
-      setSuccessMsg('Password updated successfully! You can now log in.');
+      const res = await apiClient.post("/api/auth/reset-password", {
+        email: resetEmail,
+        code: resetCode.trim(),
+        newPassword
+      });
+      setSuccessMsg(res.data?.message || "Password reset successfully! You can now log in.");
+      setEmail(resetEmail);
+      setPassword("");
       setTimeout(() => {
         setShowForgotModal(false);
         setForgotStep(1);
-        setResetEmail('');
-        setResetCode('');
-        setNewPassword('');
-        setSuccessMsg('');
-      }, 3000);
+        setResetEmail("");
+        setResetCode("");
+        setNewPassword("");
+        setConfirmNewPassword("");
+        setSuccessMsg("");
+        setModalError("");
+      }, 2000);
     } catch (err) {
-      dispatch(authFailure(err.response?.data?.message || 'Resetting password failed.'));
+      setModalError(err.response?.data?.message || "Failed to reset password. Please check your code.");
+    } finally {
+      setModalLoading(false);
     }
   };
 
@@ -248,79 +293,133 @@ const Login = () => {
 
       {/* Forgot Password Modal */}
       {showForgotModal && (
-        <div data-modal="true" className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md glass-panel p-6 rounded-3xl space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-lg text-slate-200">Password Recovery</h3>
+        <div data-modal="true" className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 p-6 rounded-3xl space-y-4 shadow-2xl text-app">
+            <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="font-bold text-lg text-app font-outfit">Password Recovery</h3>
               <button
+                type="button"
                 onClick={() => {
                   setShowForgotModal(false);
                   setForgotStep(1);
-                  setSuccessMsg('');
+                  setSuccessMsg("");
+                  setModalError("");
                 }}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-app p-1 rounded-lg"
               >
                 ✕
               </button>
             </div>
 
             {successMsg && (
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-sm flex items-center gap-2">
-                <CheckCircle2 size={16} />
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs flex items-center gap-2 font-medium">
+                <CheckCircle2 size={16} className="shrink-0" />
                 <span>{successMsg}</span>
+              </div>
+            )}
+
+            {modalError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl text-xs flex items-center gap-2 font-medium">
+                <ShieldAlert size={16} className="shrink-0" />
+                <span>{modalError}</span>
               </div>
             )}
 
             {forgotStep === 1 ? (
               <form onSubmit={handleForgotPasswordInitiate} className="space-y-4">
-                <p className="text-sm text-slate-400">Enter your registered email address to receive a 6-digit verification code.</p>
-                <div className="space-y-2">
+                <p className="text-xs text-muted leading-relaxed">
+                  Enter your registered account email. We will send you a 6-digit OTP verification code to reset your password.
+                </p>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted">Email Address</label>
                   <input
                     type="email"
                     required
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
                     placeholder="you@example.com"
-                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-800 rounded-xl text-slate-200 outline-none"
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-app text-xs outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
-                <button type="submit" className="w-full py-3 bg-indigo-600 rounded-xl font-semibold text-white hover:bg-indigo-500 transition-all">
-                  Send Recovery Code
+                <button
+                  type="submit"
+                  disabled={modalLoading || !resetEmail}
+                  className="w-full py-2.5 bg-indigo-600 rounded-xl font-bold text-xs text-white hover:bg-indigo-500 transition-all cursor-pointer shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {modalLoading ? "Sending OTP Code..." : "Send Recovery Code"}
                 </button>
               </form>
             ) : (
-              <form onSubmit={handleForgotPasswordComplete} className="space-y-4">
-                <p className="text-sm text-slate-400">Enter the code sent to your email and select a secure new password.</p>
-                <div className="space-y-3">
+              <form onSubmit={handleForgotPasswordComplete} className="space-y-3.5">
+                <p className="text-xs text-muted leading-relaxed">
+                  Enter the 6-digit OTP code sent to <strong className="text-app">{resetEmail}</strong> and your new password.
+                </p>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted">6-Digit OTP Code</label>
                   <input
                     type="text"
                     required
+                    maxLength={6}
                     value={resetCode}
-                    onChange={(e) => setResetCode(e.target.value)}
-                    placeholder="Enter 6-digit OTP code"
-                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-800 rounded-xl text-slate-200 outline-none text-center font-mono tracking-widest"
+                    onChange={(e) => setResetCode(e.target.value.replace(/[^0-9]/g, ""))}
+                    placeholder="123456"
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-app text-sm font-mono tracking-widest text-center outline-none focus:ring-2 focus:ring-indigo-500"
                   />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted">New Password</label>
                   <div className="relative">
                     <input
-                    type={showNewPassword ? 'text' : 'password'}
-                    required
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Secure new password"
-                    className="field-input px-4 py-3 pr-12"
-                  />
+                      type={showNewPassword ? "text" : "password"}
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="At least 6 characters..."
+                      className="w-full px-4 py-2.5 pr-10 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-app text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
                     <button
                       type="button"
-                      onClick={() => setShowNewPassword((value) => !value)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 hover:text-app"
-                      title={showNewPassword ? 'Hide password' : 'Show password'}
+                      onClick={() => setShowNewPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-app p-1 cursor-pointer"
                     >
-                      {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
                 </div>
-                <button type="submit" className="w-full py-3 bg-indigo-600 rounded-xl font-semibold text-white hover:bg-indigo-500 transition-all">
-                  Set New Password
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted">Confirm New Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    placeholder="Re-enter password..."
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-app text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <button
+                    type="button"
+                    disabled={resendCooldown > 0 || modalLoading}
+                    onClick={handleForgotPasswordInitiate}
+                    className="text-indigo-600 dark:text-indigo-400 hover:underline disabled:opacity-50 cursor-pointer"
+                  >
+                    {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend OTP Code"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setForgotStep(1); setModalError(""); }}
+                    className="text-muted hover:text-app"
+                  >
+                    Change Email
+                  </button>
+                </div>
+                <button
+                  type="submit"
+                  disabled={modalLoading || !resetCode || !newPassword}
+                  className="w-full py-2.5 bg-indigo-600 rounded-xl font-bold text-xs text-white hover:bg-indigo-500 transition-all cursor-pointer shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {modalLoading ? "Resetting Password..." : "Set New Password"}
                 </button>
               </form>
             )}

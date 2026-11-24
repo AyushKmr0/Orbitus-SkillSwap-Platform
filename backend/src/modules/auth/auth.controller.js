@@ -67,6 +67,27 @@ export class AuthController {
     );
   });
 
+
+  sendPasswordOtp = asyncHandler(async (req, res) => {
+    await this.service.sendPasswordOtp(req.user);
+    return res.status(200).json(
+      new ApiResponse(200, null, "Verification code sent to your registered email.")
+    );
+  });
+
+  updatePasswordWithOtp = asyncHandler(async (req, res) => {
+    const updatedUser = await this.service.updatePasswordWithOtp(req.user, req.body);
+    return res.status(200).json(
+      new ApiResponse(200, { user: updatedUser }, "Password updated successfully!")
+    );
+  });
+
+  adminChangeSecretKey = asyncHandler(async (req, res) => {
+    await this.service.adminChangeSecretKey(req.user, req.body);
+    return res.status(200).json(
+      new ApiResponse(200, null, "Master Admin secret key updated successfully!")
+    );
+  });
   resetPassword = asyncHandler(async (req, res) => {
     await this.service.resetPassword(req.body);
     return res.status(200).json(
@@ -248,5 +269,8 @@ export const {
   resetPassword,
   startOAuth,
   handleOAuthCallback,
-  verifyAdminKeyAndLogin
+  verifyAdminKeyAndLogin,
+  sendPasswordOtp,
+  updatePasswordWithOtp,
+  adminChangeSecretKey
 } = authController;

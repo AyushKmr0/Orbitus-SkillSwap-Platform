@@ -36,9 +36,31 @@ export const forgotPasswordSchema = z.object({
 });
 
 export const resetPasswordSchema = z.object({
+  body: z
+    .object({
+      email: emailSchema.optional(),
+      token: z.string().optional(),
+      code: z.string().optional(),
+      otp: z.string().optional(),
+      newPassword: passwordSchema
+    })
+    .refine((data) => Boolean(data.token || data.code || data.otp), {
+      message: 'Reset verification code is required',
+      path: ['code']
+    })
+});
+
+export const updatePasswordWithOtpSchema = z.object({
   body: z.object({
-    token: z.string().min(1, 'Reset token is required'),
+    otp: z.string().min(4, 'Verification OTP code is required'),
     newPassword: passwordSchema
+  })
+});
+
+export const adminChangeSecretKeySchema = z.object({
+  body: z.object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newSecretKey: z.string().min(6, 'New secret key must be at least 6 characters long')
   })
 });
 

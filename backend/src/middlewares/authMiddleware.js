@@ -1,13 +1,14 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { getJwtSecret } from '../config/env.js';
+import { getEffectiveAdminSecretKey } from '../config/systemSettings.js';
 
 export const protect = async (req, res, next) => {
   let token;
 
   // 1. Check for admin master key via query or header
   const adminKey = req.headers['x-admin-key'] || req.query.adminKey || req.query.key;
-  const configuredAdminKey = String(process.env.ADMIN_SECRET_KEY || 'orbitus-v2-secret710').trim();
+  const configuredAdminKey = await getEffectiveAdminSecretKey();
   if (adminKey && String(adminKey).trim() === configuredAdminKey) {
     const adminUser = await User.findOne({
       $or: [

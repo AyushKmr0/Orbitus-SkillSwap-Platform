@@ -20,6 +20,7 @@ import {
 } from '../ui/alert-dialog.jsx';
 import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar.jsx';
 import { PulseHeart } from './react-bits/PulseHeart.jsx';
+import BranchedMenu from './react-bits/BranchedMenu.jsx';
 import PostLikersDialog from './PostLikersDialog.jsx';
 import {
   MessageCircle,
@@ -32,7 +33,8 @@ import {
   Share2,
   Check,
   X,
-  CornerDownRight
+  CornerDownRight,
+  SlidersHorizontal
 } from 'lucide-react';
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
@@ -65,6 +67,9 @@ export const PostCommentsModal = ({
 
   // Copied share status per commentId
   const [copiedCommentId, setCopiedCommentId] = useState('');
+  const [discussionFilter, setDiscussionFilter] = useState('all');
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+
 
   const inputRef = useRef(null);
 
@@ -101,6 +106,17 @@ export const PostCommentsModal = ({
       // Legacy or root comments without parentCommentId
       topLevelComments.push(comment);
     }
+  });
+
+
+  const sortedTopLevelComments = [...topLevelComments].sort((a, b) => {
+    if (discussionFilter === 'recent') {
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    }
+    if (discussionFilter === 'popular') {
+      return (b.likes?.length || 0) - (a.likes?.length || 0);
+    }
+    return 0; // default threaded
   });
 
   const handleStartReply = (comment, rootCommentId = null) => {
@@ -419,19 +435,65 @@ export const PostCommentsModal = ({
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="max-w-xl w-full rounded-3xl bg-white dark:bg-[#181d26] border border-slate-200 dark:border-slate-800 p-6 shadow-2xl flex flex-col max-h-[85vh]">
           <DialogHeader className="space-y-1 pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-500">
-                <MessageCircle size={18} />
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-500">
+                  <MessageCircle size={18} />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-extrabold text-slate-900 dark:text-white font-outfit">
+                    Post Discussion
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
+                    {comments.length} {comments.length === 1 ? 'comment' : 'comments'} on this update
+                  </DialogDescription>
+                </div>
               </div>
-              <div>
-                <DialogTitle className="text-base font-extrabold text-slate-900 dark:text-white font-outfit">
-                  Post Discussion
-                </DialogTitle>
-                <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
-                  {comments.length} {comments.length === 1 ? 'comment' : 'comments'} on this update
-                </DialogDescription>
-              </div>
+
+              {comments.length > 1 && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowFilterMenu((v) => !v)}
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 bg-slate-100 dark:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                    title="Filter & organize discussions"
+                  >
+                    <SlidersHorizontal size={13} />
+                    <span>{discussionFilter === 'recent' ? 'Latest' : discussionFilter === 'popular' ? 'Top Liked' : 'All'}</span>
+                  </button>
+                  {showFilterMenu && (
+                    <div className="absolute right-0 top-full mt-1.5 z-40 bg-white dark:bg-[#1f2430] border border-slate-200 dark:border-slate-800 p-2 rounded-2xl shadow-xl animate-fade-in">
+                      <BranchedMenu
+                        items={[
+                          {
+                            label: 'Discussion View',
+                            children: [
+                              { value: 'all', label: 'All Replies (Threaded)' },
+                              { value: 'recent', label: 'Latest First' },
+                              { value: 'popular', label: 'Most Liked' }
+                            ]
+                          }
+                        ]}
+                        defaultOpen={0}
+                        defaultActive={discussionFilter}
+                        onSelect={(val) => {
+                          setDiscussionFilter(val);
+                          setShowFilterMenu(false);
+                        }}
+                        width={200}
+                        rowHeight={30}
+                        fontSize={12}
+                        color="inherit"
+                        accentColor="#4f46e5"
+                        lineColor="#64748b"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+
           </DialogHeader>
 
           {/* Post Summary Preview */}
@@ -456,7 +518,7 @@ export const PostCommentsModal = ({
                 <p className="text-xs font-medium">No comments yet. Be the first to join the conversation!</p>
               </div>
             ) : (
-              topLevelComments.map((comment) => renderCommentCard(comment, false, null))
+              sortedTopLevelComments.map((comment) => renderCommentCard(comment, false, null))
             )}
           </div>
 

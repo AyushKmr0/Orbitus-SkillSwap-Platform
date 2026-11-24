@@ -5,6 +5,8 @@ import { authRepository } from './auth.repository.js';
 import { sendOtpEmail } from '../../infrastructure/email/mailer.js';
 import { getJwtSecret, getJwtRefreshSecret } from '../../config/env.js';
 import User from '../../models/User.js';
+import SystemSetting from '../../models/SystemSetting.js';
+import { getEffectiveAdminSecretKey, setCachedAdminSecretKey } from '../../config/systemSettings.js';
 import Leaderboard from '../../models/Leaderboard.js';
 import { activityService } from '../../services/activityService.js';
 
@@ -99,6 +101,8 @@ export const publicUserPayload = (user, viewerId = null, options = {}) => {
     timezone: user.timezone || 'Asia/Kolkata',
     isFollowing:
       options.isFollowing ?? (viewerId ? followerIds.includes(viewerId.toString()) : false),
+    hasPassword: Boolean(user.password && user.password.length > 0),
+    authProvider: user.authProvider || 'local',
     profileComplete: isProfileComplete(user)
   };
 };
@@ -360,15 +364,26 @@ export class AuthService {
     return true;
   }
 
-  async resetPassword({ email, code, newPassword }) {
-    const user = await User.findOne({ email });
+  async resetPassword({ email, code, token, otp, newPassword }) {
+    const resetCode = String(code || token || otp || '').trim();
+    if (!resetCode) {
+      throw new AppError('Reset verification code is required', 400);
+    }
+
+    let user = null;
+    if (email) {
+      user = await User.findOne({ email: String(email).trim().toLowerCase() });
+    }
     if (!user) {
-      throw new AppError('User not found', 404);
+      user = await User.findOne({ 'otp.code': resetCode });
+    }
+    if (!user) {
+      throw new AppError('No account found for this reset request', 404);
     }
 
     if (
       !user.otp?.code ||
-      user.otp.code !== code ||
+      user.otp.code !== resetCode ||
       !user.otp.expiresAt ||
       new Date() > user.otp.expiresAt
     ) {
@@ -383,10 +398,104 @@ export class AuthService {
     return true;
   }
 
+  async sendPasswordOtp(user) {
+    if (!user) {
+      throw new AppError('Unauthorized: User not found', 401);
+    }
+    const freshUser = await User.findById(user._id);
+    if (!freshUser) {
+      throw new AppError('User not found', 404);
+    }
+
+    const previousOtp = freshUser.otp ? { code: freshUser.otp.code, expiresAt: freshUser.otp.expiresAt } : null;
+    const otpChallenge = generateOtpChallenge();
+    freshUser.otp = otpChallenge;
+    await freshUser.save();
+
+    const purpose = freshUser.password ? 'change your account password' : 'set up a password for your account';
+
+    try {
+      await sendOtpEmail({
+        to: freshUser.email,
+        name: freshUser.name,
+        code: otpChallenge.code,
+        purpose
+      });
+    } catch (mailError) {
+      freshUser.otp = previousOtp || { code: '', expiresAt: null };
+      await freshUser.save();
+      console.error('[PASSWORD OTP MAIL ERROR]:', mailError.message);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[DEV ONLY] OTP Code for ${freshUser.email}:`, otpChallenge.code);
+      }
+      throw new AppError('Failed to send verification code email. Please try again.', 500);
+    }
+
+    return true;
+  }
+
+  async updatePasswordWithOtp(user, { otp, newPassword }) {
+    if (!user) {
+      throw new AppError('Unauthorized: User not found', 401);
+    }
+    const freshUser = await User.findById(user._id);
+    if (!freshUser) {
+      throw new AppError('User not found', 404);
+    }
+
+    const code = String(otp || '').trim();
+    if (
+      !freshUser.otp?.code ||
+      freshUser.otp.code !== code ||
+      !freshUser.otp.expiresAt ||
+      new Date() > freshUser.otp.expiresAt
+    ) {
+      throw new AppError('Invalid or expired verification code', 400);
+    }
+
+    freshUser.password = newPassword;
+    freshUser.otp.code = '';
+    freshUser.otp.expiresAt = null;
+    await freshUser.save();
+
+    return publicUserPayload(freshUser, freshUser._id);
+  }
+
+  async adminChangeSecretKey(adminUser, { currentPassword, newSecretKey }) {
+    if (!adminUser || String(adminUser.role || '').toLowerCase() !== 'admin') {
+      throw new AppError('Access denied: Administrator privileges required', 403);
+    }
+
+    const userInDb = await User.findById(adminUser._id);
+    if (!userInDb) {
+      throw new AppError('Administrator account not found', 404);
+    }
+
+    const isMatch = await userInDb.comparePassword(currentPassword);
+    if (!isMatch) {
+      throw new AppError('Invalid administrator password', 401);
+    }
+
+    const cleanKey = String(newSecretKey || '').trim();
+    if (!cleanKey || cleanKey.length < 6) {
+      throw new AppError('New secret key must be at least 6 characters long', 400);
+    }
+
+    await SystemSetting.findOneAndUpdate(
+      { key: 'admin_secret_key' },
+      { key: 'admin_secret_key', value: cleanKey, updatedBy: userInDb._id },
+      { upsert: true, new: true }
+    );
+
+    setCachedAdminSecretKey(cleanKey);
+    return true;
+  }
+
+
   async verifyAdminKeyAndLogin(res, reqUser, { email, username, password, key, adminKey, secretKey } = {}) {
     let user = reqUser;
     const providedKey = String(key || adminKey || secretKey || '').trim();
-    const configuredKey = String(process.env.ADMIN_SECRET_KEY || 'orbitus-v2-secret710').trim();
+    const configuredKey = await getEffectiveAdminSecretKey();
 
     if (!providedKey || providedKey !== configuredKey) {
       throw new AppError('Access denied: Invalid administrator secret key', 403);

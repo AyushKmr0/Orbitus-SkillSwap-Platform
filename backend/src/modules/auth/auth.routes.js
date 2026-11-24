@@ -9,7 +9,10 @@ import {
   resetPassword,
   startOAuth,
   handleOAuthCallback,
-  verifyAdminKeyAndLogin
+  verifyAdminKeyAndLogin,
+  sendPasswordOtp,
+  updatePasswordWithOtp,
+  adminChangeSecretKey
 } from './auth.controller.js';
 import { validateRequest } from '../../shared/validation/validate-request.js';
 import {
@@ -17,8 +20,11 @@ import {
   loginSchema,
   verifyOtpSchema,
   forgotPasswordSchema,
-  resetPasswordSchema
+  resetPasswordSchema,
+  updatePasswordWithOtpSchema,
+  adminChangeSecretKeySchema
 } from './auth.schema.js';
+import { protect, adminOnly } from '../../middlewares/authMiddleware.js';
 
 const router = express.Router();
 
@@ -34,5 +40,12 @@ router.post('/forgot-password', validateRequest(forgotPasswordSchema), forgotPas
 router.post('/reset-password', validateRequest(resetPasswordSchema), resetPassword);
 router.get('/oauth/:provider', startOAuth);
 router.get('/oauth/:provider/callback', handleOAuthCallback);
+
+// Authenticated Password Management (OTP-verified)
+router.post('/send-password-otp', protect, sendPasswordOtp);
+router.post('/update-password-with-otp', protect, validateRequest(updatePasswordWithOtpSchema), updatePasswordWithOtp);
+
+// Admin Master Secret Key Management
+router.post('/admin-change-secret-key', protect, adminOnly, validateRequest(adminChangeSecretKeySchema), adminChangeSecretKey);
 
 export default router;

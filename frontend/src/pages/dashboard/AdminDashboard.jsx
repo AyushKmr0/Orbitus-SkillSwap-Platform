@@ -13,6 +13,7 @@ import {
   Star,
   Plus,
   CheckCircle,
+  AlertTriangle,
   Database,
   Trash2,
   X,
@@ -25,7 +26,9 @@ import {
   Layers,
   ChevronLeft,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  KeyRound,
+  EyeOff
 } from 'lucide-react';
 import {
   Dialog,
@@ -46,6 +49,55 @@ const AdminDashboard = () => {
   const userRoleLower = String(user?.role || '').trim().toLowerCase();
   const isAdmin = userRoleLower === 'admin';
   const [dataError, setDataError] = useState(null);
+  // Master Secret Key management state
+  const [showSecretKeyModal, setShowSecretKeyModal] = useState(false);
+  const [currentAdminPassword, setCurrentAdminPassword] = useState('');
+  const [newSecretKeyInput, setNewSecretKeyInput] = useState('');
+  const [confirmSecretKeyInput, setConfirmSecretKeyInput] = useState('');
+  const [showAdminPass, setShowAdminPass] = useState(false);
+  const [showSecretPass, setShowSecretPass] = useState(false);
+  const [savingSecretKey, setSavingSecretKey] = useState(false);
+  const [secretKeySuccess, setSecretKeySuccess] = useState('');
+  const [secretKeyError, setSecretKeyError] = useState('');
+
+  const handleUpdateAdminSecretKey = async (e) => {
+    e.preventDefault();
+    if (!currentAdminPassword || !newSecretKeyInput) {
+      setSecretKeyError('Please enter both your admin password and a new secret key.');
+      return;
+    }
+    if (newSecretKeyInput.length < 6) {
+      setSecretKeyError('New secret key must be at least 6 characters long.');
+      return;
+    }
+    if (newSecretKeyInput !== confirmSecretKeyInput) {
+      setSecretKeyError('New secret key and confirmation do not match.');
+      return;
+    }
+
+    setSavingSecretKey(true);
+    setSecretKeyError('');
+    setSecretKeySuccess('');
+    try {
+      const res = await apiClient.post('/api/auth/admin-change-secret-key', {
+        currentPassword: currentAdminPassword,
+        newSecretKey: newSecretKeyInput.trim()
+      });
+      setSecretKeySuccess(res.data?.message || 'Master Admin secret key updated successfully!');
+      setCurrentAdminPassword('');
+      setNewSecretKeyInput('');
+      setConfirmSecretKeyInput('');
+      setTimeout(() => {
+        setShowSecretKeyModal(false);
+        setSecretKeySuccess('');
+      }, 2500);
+    } catch (err) {
+      setSecretKeyError(err.response?.data?.message || 'Failed to update master secret key. Verify your password.');
+    } finally {
+      setSavingSecretKey(false);
+    }
+  };
+
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -465,6 +517,19 @@ const AdminDashboard = () => {
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>System Operational</span>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              setShowSecretKeyModal(true);
+              setSecretKeyError('');
+              setSecretKeySuccess('');
+            }}
+            className="flex items-center gap-2 text-xs font-bold bg-white/20 hover:bg-white/30 text-white backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/25 transition-all cursor-pointer shadow-sm active:scale-95"
+          >
+            <KeyRound size={14} />
+            <span>Change Secret Key</span>
+          </button>
+
 
           {statusMsg && (
             <span className="px-4 py-2 bg-emerald-500 text-white text-xs font-bold rounded-2xl shadow-md animate-fade-in">
@@ -1359,6 +1424,130 @@ const AdminDashboard = () => {
           </DialogContent>
         )}
       </Dialog>
+
+      {/* Admin Secret Key Modal */}
+      {showSecretKeyModal && (
+        <div data-modal="true" className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-7 space-y-4 shadow-2xl text-app">
+            <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                  <KeyRound size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base font-outfit text-app">Change Master Secret Key</h3>
+                  <p className="text-[11px] text-muted">Update platform administrative master key</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSecretKeyModal(false);
+                  setSecretKeyError('');
+                  setSecretKeySuccess('');
+                }}
+                className="text-slate-400 hover:text-app p-1 rounded-lg cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {secretKeySuccess && (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs flex items-center gap-2 font-medium">
+                <CheckCircle size={16} className="shrink-0" />
+                <span>{secretKeySuccess}</span>
+              </div>
+            )}
+
+            {secretKeyError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl text-xs flex items-center gap-2 font-medium">
+                <AlertTriangle size={16} className="shrink-0" />
+                <span>{secretKeyError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleUpdateAdminSecretKey} className="space-y-3.5 pt-1">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-app">Current Admin Password</label>
+                <div className="relative">
+                  <input
+                    type={showAdminPass ? "text" : "password"}
+                    required
+                    value={currentAdminPassword}
+                    onChange={(e) => setCurrentAdminPassword(e.target.value)}
+                    placeholder="Enter your current password..."
+                    className="w-full px-4 py-2.5 pr-10 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-app text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPass((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-app p-1 cursor-pointer"
+                  >
+                    {showAdminPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-app">New Master Secret Key</label>
+                <div className="relative">
+                  <input
+                    type={showSecretPass ? "text" : "password"}
+                    required
+                    value={newSecretKeyInput}
+                    onChange={(e) => setNewSecretKeyInput(e.target.value)}
+                    placeholder="Enter at least 6 characters..."
+                    className="w-full px-4 py-2.5 pr-10 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-app text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSecretPass((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-app p-1 cursor-pointer"
+                  >
+                    {showSecretPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-app">Confirm New Secret Key</label>
+                <input
+                  type="password"
+                  required
+                  value={confirmSecretKeyInput}
+                  onChange={(e) => setConfirmSecretKeyInput(e.target.value)}
+                  placeholder="Re-enter new secret key..."
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-app text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowSecretKeyModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-app rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingSecretKey || !currentAdminPassword || !newSecretKeyInput}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-bold text-xs transition-all shadow-md active:scale-98 cursor-pointer flex items-center gap-2"
+                >
+                  {savingSecretKey ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Updating Key...</span>
+                    </>
+                  ) : (
+                    "Save Secret Key"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
