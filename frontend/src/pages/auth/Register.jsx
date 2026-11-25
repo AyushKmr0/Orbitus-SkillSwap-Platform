@@ -6,7 +6,7 @@ import { GitBranch, UserPlus, User, Mail, Lock, ShieldAlert, CheckCircle2, Eye, 
 import { apiPath } from '../../config/env.js';
 import apiClient from '../../services/apiClient.js';
 import BrandLogo from '../../components/common/BrandLogo.jsx';
-import { toast } from '../../components/ui/use-toast.js';
+import { showDailyLoginToast } from '../../lib/dailyLoginToast.js';
 
 const Register = () => {
   const [name, setName] = useState('');
@@ -53,11 +53,13 @@ const Register = () => {
     try {
       const res = await apiClient.post('/api/auth/verify-otp', { email, code: otpCode });
       setSuccess(res.data.message);
-      dispatch(authSuccess(res.data));
-      toast({
-        title: "Account Created! Welcome to Orbitus",
-        description: `You've joined Orbitus! Starting points balance: ${res.data?.user?.points ?? 50}`,
-        variant: "points"
+      const payload = res.data?.data || res.data;
+      dispatch(authSuccess(payload));
+      showDailyLoginToast({
+        dailyReward: payload?.dailyReward,
+        user: payload?.user,
+        fallbackTitle: 'Account created! Welcome to Orbitus',
+        fallbackDescription: `You have joined Orbitus. Starting points balance: ${payload?.user?.points ?? 0}.`
       });
       setTimeout(() => {
         navigate('/dashboard');

@@ -176,7 +176,7 @@ export const socketHandler = (io) => {
       refreshUserPresence(userId, 120).catch(() => {});
     }, 45000);
 
-    Promise.resolve(presenceRegistration).finally(() => getOnlineUserIds())
+    Promise.resolve(presenceRegistration).then(() => getOnlineUserIds())
       .then((initialOnlineList) => socket.emit('online_users_list', initialOnlineList))
       .catch(() => socket.emit('online_users_list', Array.from(onlineUsers.keys())));
 

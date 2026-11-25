@@ -2,13 +2,14 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { AppError } from '../../shared/errors/app-error.js';
 import { authRepository } from './auth.repository.js';
-import { sendOtpEmail } from '../../infrastructure/email/mailer.js';
+import { sendOtpEmail, sendEmailChangeNotice } from '../../infrastructure/email/mailer.js';
 import { getJwtSecret, getJwtRefreshSecret } from '../../config/env.js';
 import User from '../../models/User.js';
 import SystemSetting from '../../models/SystemSetting.js';
 import { getEffectiveAdminSecretKey, setCachedAdminSecretKey } from '../../config/systemSettings.js';
 import Leaderboard from '../../models/Leaderboard.js';
 import { activityService } from '../../services/activityService.js';
+import { isAccountSuspended } from '../../shared/auth/accountStatus.js';
 
 export const USERNAME_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 export const OTP_TTL_MS = 15 * 60 * 1000;
@@ -43,6 +44,15 @@ export const generateOtpChallenge = () => {
     code,
     expiresAt: new Date(Date.now() + OTP_TTL_MS)
   };
+};
+
+export const hashEmailChangeOtp = (otp) =>
+  crypto.createHmac('sha256', getJwtSecret()).update(String(otp || '').trim()).digest('hex');
+
+const matchesEmailChangeOtp = (storedHash, otp) => {
+  const expected = Buffer.from(hashEmailChangeOtp(otp));
+  const actual = Buffer.from(String(storedHash || ''));
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
 };
 
 export const buildUsernameFromName = async (name, email = '') => {
@@ -91,6 +101,7 @@ export const publicUserPayload = (user, viewerId = null, options = {}) => {
     skillsLearn: user.skillsLearn,
     socialLinks: user.socialLinks,
     experienceLevel: user.experienceLevel,
+    streak: user.streak || 0,
     education: user.education,
     resumeFile: user.resumeFile,
     projects: user.projects,
@@ -103,16 +114,40 @@ export const publicUserPayload = (user, viewerId = null, options = {}) => {
       options.isFollowing ?? (viewerId ? followerIds.includes(viewerId.toString()) : false),
     hasPassword: Boolean(user.password && user.password.length > 0),
     authProvider: user.authProvider || 'local',
+    ...(String(user.role || '').toLowerCase() === 'admin'
+      ? {
+          adminAccessLevel: user.adminAccessLevel || 'full',
+          adminPermissions: user.adminPermissions || []
+        }
+      : {}),
     profileComplete: isProfileComplete(user)
   };
 };
 
 export class AuthService {
-  constructor(repo = authRepository) {
+  constructor(
+    repo = authRepository,
+    mailer = { sendOtpEmail, sendEmailChangeNotice }
+  ) {
     this.repo = repo;
+    this.mailer = mailer;
   }
 
   async issueSession(res, user) {
+    const loginReward = await activityService.recordDailyLogin({
+      userId: user._id,
+      timeZone: user.timezone || 'Asia/Kolkata'
+    });
+    if (loginReward.totalPoints !== undefined && loginReward.totalPoints !== null) {
+      user.points = loginReward.totalPoints;
+    }
+    if (loginReward.streak !== undefined && loginReward.streak !== null) {
+      user.streak = loginReward.streak;
+    }
+    if (loginReward.awarded) {
+      user.dailyLoginTracker = new Date();
+    }
+
     const accessToken = generateAccessToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
 
@@ -126,7 +161,16 @@ export class AuthService {
       });
     }
 
-    return { accessToken, refreshToken };
+    return {
+      accessToken,
+      refreshToken,
+      dailyReward: {
+        awarded: Boolean(loginReward.awarded),
+        pointsAwarded: loginReward.awarded ? (loginReward.pointsAwarded ?? 10) : 0,
+        totalPoints: user.points || 0,
+        streak: user.streak || 0
+      }
+    };
   }
 
   async registerUser({ name, email, password, username }) {
@@ -192,7 +236,7 @@ export class AuthService {
     }
 
     try {
-      await sendOtpEmail({
+      await this.mailer.sendOtpEmail({
         to: normalizedEmail,
         name,
         code: otp.code,
@@ -212,8 +256,9 @@ export class AuthService {
     return { email: user.email };
   }
 
-  async verifyOtp(res, { email, code }) {
-    if (!email || !code) {
+  async verifyOtp(res, { email, code, otp }) {
+    const verificationCode = String(code || otp || '').trim();
+    if (!email || !verificationCode) {
       throw new AppError('Please provide email and verification code', 400);
     }
 
@@ -228,7 +273,7 @@ export class AuthService {
 
     if (
       !user.otp?.code ||
-      user.otp.code !== code ||
+      user.otp.code !== verificationCode ||
       !user.otp.expiresAt ||
       new Date() > user.otp.expiresAt
     ) {
@@ -239,15 +284,11 @@ export class AuthService {
     user.otp.code = '';
     user.otp.expiresAt = null;
 
-    const { accessToken } = await this.issueSession(res, user);
+    const { accessToken, dailyReward } = await this.issueSession(res, user);
     return {
       accessToken,
       user: publicUserPayload(user, user._id),
-      dailyReward: {
-        awarded: Boolean(loginReward?.awarded),
-        pointsAwarded: loginReward?.pointsAwarded ?? 10,
-        totalPoints: user.points
-      }
+      dailyReward
     };
   }
 
@@ -269,23 +310,20 @@ export class AuthService {
     if (!isMatch) {
       throw new AppError('Invalid email or password', 401);
     }
-
-    const userTimezone = user.timezone || 'Asia/Kolkata';
-    const loginReward = await activityService.recordDailyLogin({
-      userId: user._id,
-      timeZone: userTimezone
-    });
-    if (loginReward.totalPoints !== undefined && loginReward.totalPoints !== null) {
-      user.points = loginReward.totalPoints;
-    }
-    if (loginReward.awarded) {
-      user.dailyLoginTracker = new Date();
+    if (isAccountSuspended(user)) {
+      throw new AppError(
+        user.suspendedUntil
+          ? `Account suspended until ${new Date(user.suspendedUntil).toISOString()}`
+          : 'Account suspended',
+        403
+      );
     }
 
-    const { accessToken } = await this.issueSession(res, user);
+    const { accessToken, dailyReward } = await this.issueSession(res, user);
     return {
       accessToken,
-      user: publicUserPayload(user, user._id)
+      user: publicUserPayload(user, user._id),
+      dailyReward
     };
   }
 
@@ -300,6 +338,11 @@ export class AuthService {
 
       if (!user || user.refreshToken !== incomingToken) {
         throw new AppError('Invalid refresh token signature', 401);
+      }
+      if (isAccountSuspended(user)) {
+        user.refreshToken = '';
+        await user.save();
+        throw new AppError('Account suspended. Contact support for assistance.', 403);
       }
 
       const newAccessToken = generateAccessToken(user._id);
@@ -345,7 +388,7 @@ export class AuthService {
     await user.save();
 
     try {
-      await sendOtpEmail({
+      await this.mailer.sendOtpEmail({
         to: user.email,
         name: user.name,
         code: resetOtp.code,
@@ -420,7 +463,7 @@ export class AuthService {
     const purpose = freshUser.password ? 'change your account password' : 'set up a password for your account';
 
     try {
-      await sendOtpEmail({
+      await this.mailer.sendOtpEmail({
         to: freshUser.email,
         name: freshUser.name,
         code: otpChallenge.code,
@@ -462,6 +505,194 @@ export class AuthService {
     freshUser.otp.code = '';
     freshUser.otp.expiresAt = null;
     await freshUser.save();
+
+    return publicUserPayload(freshUser, freshUser._id);
+  }
+
+  async requestEmailChange(user, { newEmail }) {
+    if (!user?._id) {
+      throw new AppError('Unauthorized: User not found', 401);
+    }
+
+    const freshUser = await User.findById(user._id);
+    if (!freshUser) {
+      throw new AppError('User not found', 404);
+    }
+    if (!freshUser.isVerified) {
+      throw new AppError('Verify your current email before changing it', 403);
+    }
+
+    const normalizedEmail = String(newEmail || '').trim().toLowerCase();
+    if (!normalizedEmail || normalizedEmail === freshUser.email) {
+      throw new AppError('Enter a different email address', 400);
+    }
+    if (await User.exists({ email: normalizedEmail, _id: { $ne: freshUser._id } })) {
+      throw new AppError('That email address is already in use', 409);
+    }
+
+    const challenge = generateOtpChallenge();
+    freshUser.emailChange = {
+      pendingEmail: normalizedEmail,
+      currentOtpHash: hashEmailChangeOtp(challenge.code),
+      currentOtpExpiresAt: challenge.expiresAt,
+      newOtpHash: '',
+      newOtpExpiresAt: null,
+      currentVerifiedAt: null
+    };
+    await freshUser.save();
+
+    try {
+      await this.mailer.sendOtpEmail({
+        to: freshUser.email,
+        name: freshUser.name,
+        code: challenge.code,
+        purpose: 'authorize changing your account email'
+      });
+    } catch (mailError) {
+      freshUser.emailChange = undefined;
+      await freshUser.save();
+      console.error('[EMAIL CHANGE OTP ERROR]:', mailError.message);
+      throw new AppError('Could not send verification code to your current email', 500);
+    }
+
+    return { pendingEmail: normalizedEmail, step: 'verify_current' };
+  }
+
+  async verifyCurrentEmailChange(user, { otp }) {
+    const freshUser = await User.findById(user?._id);
+    if (!freshUser) {
+      throw new AppError('User not found', 404);
+    }
+
+    const emailChange = freshUser.emailChange;
+    if (
+      !emailChange?.pendingEmail ||
+      !emailChange.currentOtpHash ||
+      !matchesEmailChangeOtp(emailChange.currentOtpHash, otp) ||
+      !emailChange.currentOtpExpiresAt ||
+      new Date() > emailChange.currentOtpExpiresAt
+    ) {
+      throw new AppError('Invalid or expired current-email verification code', 400);
+    }
+
+    if (await User.exists({ email: emailChange.pendingEmail, _id: { $ne: freshUser._id } })) {
+      freshUser.emailChange = undefined;
+      await freshUser.save();
+      throw new AppError('That email address is already in use', 409);
+    }
+
+    const challenge = generateOtpChallenge();
+    emailChange.currentOtpHash = '';
+    emailChange.currentOtpExpiresAt = null;
+    emailChange.currentVerifiedAt = new Date();
+    emailChange.newOtpHash = hashEmailChangeOtp(challenge.code);
+    emailChange.newOtpExpiresAt = challenge.expiresAt;
+    await freshUser.save();
+
+    try {
+      await this.mailer.sendOtpEmail({
+        to: emailChange.pendingEmail,
+        name: freshUser.name,
+        code: challenge.code,
+        purpose: 'verify your new account email'
+      });
+    } catch (mailError) {
+      emailChange.newOtpHash = '';
+      emailChange.newOtpExpiresAt = null;
+      await freshUser.save();
+      console.error('[NEW EMAIL VERIFICATION ERROR]:', mailError.message);
+      throw new AppError('Could not send verification code to the new email address', 500);
+    }
+
+    return { pendingEmail: emailChange.pendingEmail, step: 'verify_new' };
+  }
+
+  async resendEmailChangeCode(user) {
+    const freshUser = await User.findById(user?._id);
+    if (!freshUser?.emailChange?.pendingEmail) {
+      throw new AppError('Start an email change request first', 400);
+    }
+
+    const emailChange = freshUser.emailChange;
+    const verifyNewAddress = Boolean(emailChange.currentVerifiedAt);
+    const challenge = generateOtpChallenge();
+    if (verifyNewAddress) {
+      emailChange.newOtpHash = hashEmailChangeOtp(challenge.code);
+      emailChange.newOtpExpiresAt = challenge.expiresAt;
+    } else {
+      emailChange.currentOtpHash = hashEmailChangeOtp(challenge.code);
+      emailChange.currentOtpExpiresAt = challenge.expiresAt;
+    }
+    await freshUser.save();
+
+    try {
+      await this.mailer.sendOtpEmail({
+        to: verifyNewAddress ? emailChange.pendingEmail : freshUser.email,
+        name: freshUser.name,
+        code: challenge.code,
+        purpose: verifyNewAddress
+          ? 'verify your new account email'
+          : 'authorize changing your account email'
+      });
+    } catch (mailError) {
+      if (verifyNewAddress) {
+        emailChange.newOtpHash = '';
+        emailChange.newOtpExpiresAt = null;
+      } else {
+        emailChange.currentOtpHash = '';
+        emailChange.currentOtpExpiresAt = null;
+      }
+      await freshUser.save();
+      console.error('[EMAIL CHANGE OTP RESEND ERROR]:', mailError.message);
+      throw new AppError('Could not resend the verification code', 500);
+    }
+
+    return { step: verifyNewAddress ? 'verify_new' : 'verify_current' };
+  }
+
+  async verifyNewEmailChange(user, { otp }) {
+    const freshUser = await User.findById(user?._id);
+    if (!freshUser) {
+      throw new AppError('User not found', 404);
+    }
+
+    const emailChange = freshUser.emailChange;
+    if (
+      !emailChange?.pendingEmail ||
+      !emailChange.currentVerifiedAt ||
+      !emailChange.newOtpHash ||
+      !matchesEmailChangeOtp(emailChange.newOtpHash, otp) ||
+      !emailChange.newOtpExpiresAt ||
+      new Date() > emailChange.newOtpExpiresAt
+    ) {
+      throw new AppError('Invalid or expired new-email verification code', 400);
+    }
+    if (await User.exists({ email: emailChange.pendingEmail, _id: { $ne: freshUser._id } })) {
+      throw new AppError('That email address is already in use', 409);
+    }
+
+    const previousEmail = freshUser.email;
+    freshUser.email = emailChange.pendingEmail;
+    freshUser.isVerified = true;
+    freshUser.emailChange = undefined;
+    try {
+      await freshUser.save();
+    } catch (error) {
+      if (error.code === 11000) {
+        throw new AppError('That email address is already in use', 409);
+      }
+      throw error;
+    }
+
+    try {
+      await this.mailer.sendEmailChangeNotice({
+        to: previousEmail,
+        name: freshUser.name,
+        newEmail: freshUser.email
+      });
+    } catch (mailError) {
+      console.error('[EMAIL CHANGE NOTICE ERROR]:', mailError.message);
+    }
 
     return publicUserPayload(freshUser, freshUser._id);
   }
@@ -544,10 +775,10 @@ export class AuthService {
       throw new AppError('Access denied: invalid administrator key or credentials', 403);
     }
 
-    const { accessToken } = await this.issueSession(res, user);
+    const { accessToken, dailyReward } = await this.issueSession(res, user);
     const userData = publicUserPayload(user);
 
-    return { token: accessToken, user: userData };
+    return { token: accessToken, user: userData, dailyReward };
   }
 }
 

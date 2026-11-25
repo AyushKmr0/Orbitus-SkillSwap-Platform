@@ -192,21 +192,18 @@ const Bookings = () => {
   }
 
   return (
-    <div className="page-shell space-y-6 overflow-y-auto animate-fade-in">
-      {/* Header bar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-[#22242a] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+    <div className="space-y-6 max-w-7xl mx-auto min-w-0">
+      {/* ── Page Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-app tracking-tight flex items-center gap-2.5">
-            <Calendar size={26} className="text-blue-500" />
-            My Bookings & Study Calls
-          </h1>
-          <p className="text-xs sm:text-sm text-muted mt-1">
-            Accept session bookings, share your meeting link, and track actual study duration
+          <h1 className="orb-page-title">My Bookings</h1>
+          <p className="orb-page-subtitle">
+            Manage upcoming study sessions, join live calls, and verify exchange hours.
           </p>
         </div>
 
         {msg && (
-          <span className="px-4 py-2 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-bold rounded-2xl animate-pulse">
+          <span className="px-3.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-full">
             {msg}
           </span>
         )}
@@ -214,16 +211,16 @@ const Bookings = () => {
 
       {/* Bookings stream grid */}
       {sessions.length === 0 ? (
-        <div className="text-center py-20 text-muted border border-dashed border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-[#22242a]/50 rounded-3xl p-8 space-y-3">
-          <Calendar size={36} className="mx-auto text-muted" />
-          <p className="text-sm font-semibold text-app">No bookings scheduled yet.</p>
-          <Link to="/ai-match" className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline">
-            Find peers in Suggested Users and book a session!
+        <div className="text-center py-20 orb-card p-8 space-y-3">
+          <Calendar size={36} className="mx-auto text-slate-300 dark:text-slate-600" />
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No bookings scheduled yet.</p>
+          <Link to="/suggested-users" className="orb-btn-ghost text-xs">
+            Find peers in Suggested Peers to schedule a session!
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sessions.map((session, idx) => {
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 min-w-0">
+          {sessions.map((session) => {
             const isMentor = session.mentor?._id?.toString() === user?._id?.toString();
             const partner = (isMentor ? session.learner : session.mentor) || {
               _id: '',
@@ -238,7 +235,7 @@ const Bookings = () => {
             else if (status === 'Accepted') statusStyles = 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20';
             else if (status === 'Pending') statusStyles = 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-400/10 border-amber-200 dark:border-amber-500/20';
             else if (status === 'Cancelled') statusStyles = 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20';
-            else statusStyles = 'text-muted bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700';
+            else statusStyles = 'text-slate-400 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700';
 
             const startObj = new Date(session.startTime);
             const canChangeTime = !['Completed', 'Rejected', 'Cancelled'].includes(status);
@@ -250,7 +247,7 @@ const Bookings = () => {
             return (
               <div
                 key={session._id}
-                className={`bg-white dark:bg-[#181d26] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 transition-all duration-300 hover:border-indigo-400/60 dark:hover:border-indigo-500/60 shadow-xs hover:shadow-md flex flex-col justify-between interactive-card animate-card-enter stagger-${(idx % 6) + 1} space-y-4 relative overflow-hidden group`}
+                className="orb-card p-5 flex flex-col justify-between min-w-0 space-y-4"
               >
                 {/* Header: Partner Avatar + Name + Role Badge & Status Pill */}
                 <div className="flex items-start justify-between gap-3">

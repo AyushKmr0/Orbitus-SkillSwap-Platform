@@ -7,6 +7,19 @@ import Post from '../models/Post.js';
 import { invalidateUserDashboard as invalidateDashboard, invalidateLeaderboard, invalidateUserAndLeaderboard } from './cacheService.js';
 import { getDateKey, getYearInTimezone, DEFAULT_APP_TIMEZONE } from '../utils/timezone.js';
 
+const getPreviousDateKey = (dateKey) => {
+  const previousDate = new Date(`${dateKey}T00:00:00.000Z`);
+  previousDate.setUTCDate(previousDate.getUTCDate() - 1);
+  return previousDate.toISOString().slice(0, 10);
+};
+
+export const getNextLoginStreak = (lastLoginAt, currentStreak, dateKey, timeZone) => {
+  const lastLoginDateKey = lastLoginAt ? getDateKey(lastLoginAt, timeZone) : null;
+  const streak = Math.max(0, Number(currentStreak) || 0);
+  if (lastLoginDateKey === dateKey) return streak;
+  return lastLoginDateKey === getPreviousDateKey(dateKey) ? streak + 1 : 1;
+};
+
 export class ActivityService {
   /**
    * Awards +10 points on the first successful login of each calendar day in the user's timezone.
@@ -21,6 +34,8 @@ export class ActivityService {
     const tz = timeZone || DEFAULT_APP_TIMEZONE;
     const dateKey = getDateKey(now, tz);
     const idempotencyKey = `daily_login:${userId}:${dateKey}`;
+    const databaseConnected = mongoose.connection?.readyState !== 0;
+    const canReadUser = databaseConnected || User.findById?._isMockFunction || User.findById?.mock;
 
     let session = null;
     const isMock = Boolean(UserActivity.create?._isMockFunction || UserActivity.create?.mock);
@@ -36,6 +51,38 @@ export class ActivityService {
     }
 
     try {
+      let existingUser = null;
+      if (canReadUser) {
+        let userQuery = User.findById(userId);
+        if (session && typeof userQuery?.session === 'function') {
+          userQuery = userQuery.session(session);
+        }
+        if (typeof userQuery?.select === 'function') {
+          userQuery = userQuery.select('points dailyLoginTracker streak');
+        }
+        existingUser = await userQuery;
+      }
+
+      if (databaseConnected && !existingUser) {
+        if (session) await session.commitTransaction();
+        return { awarded: false, reason: 'user_not_found', dateKey };
+      }
+
+      const lastLoginDateKey = existingUser?.dailyLoginTracker
+        ? getDateKey(existingUser.dailyLoginTracker, tz)
+        : null;
+      if (lastLoginDateKey === dateKey) {
+        if (session) await session.commitTransaction();
+        await invalidateDashboard(userId).catch(() => {});
+        return {
+          awarded: false,
+          reason: 'already_awarded_today',
+          totalPoints: existingUser.points,
+          streak: existingUser.streak || 0,
+          dateKey
+        };
+      }
+
       const actDoc = {
         user: userId,
         activityType: 'daily_login',
@@ -51,14 +98,21 @@ export class ActivityService {
         await UserActivity.create(actDoc);
       }
 
-      const updatedUser = await User.findByIdAndUpdate(
+      const rewardResult = await this.applyDailyLoginReward({
         userId,
-        {
-          $inc: { points: 10 },
-          $set: { dailyLoginTracker: now }
-        },
-        { new: true, select: 'points dailyLoginTracker', ...(session ? { session } : {}) }
-      );
+        existingUser: existingUser || { dailyLoginTracker: null, streak: 0 },
+        dateKey,
+        timeZone: tz,
+        now,
+        session,
+        databaseConnected
+      });
+
+      if (!rewardResult.awarded) {
+        if (session) await session.commitTransaction();
+        await invalidateDashboard(userId).catch(() => {});
+        return rewardResult;
+      }
 
       await Leaderboard.findOneAndUpdate(
         { user: userId },
@@ -75,12 +129,7 @@ export class ActivityService {
         invalidateLeaderboard()
       ]);
 
-      return {
-        awarded: true,
-        pointsAwarded: 10,
-        totalPoints: updatedUser?.points ?? 10,
-        dateKey
-      };
+      return rewardResult;
     } catch (err) {
       if (session) {
         try { await session.abortTransaction(); } catch {}
@@ -89,10 +138,16 @@ export class ActivityService {
       if (err.code === 11000 || (err.message && err.message.includes('E11000'))) {
         // Reconcile and heal if a previous partial write occurred
         let existingUser = null;
-        try {
-          existingUser = await User.findById(userId).select('points dailyLoginTracker');
-        } catch {
-          existingUser = null;
+        if (canReadUser) {
+          try {
+            let userQuery = User.findById(userId);
+            if (typeof userQuery?.select === 'function') {
+              userQuery = userQuery.select('points dailyLoginTracker streak');
+            }
+            existingUser = await userQuery;
+          } catch (readError) {
+            console.error('[ACTIVITY SERVICE ERROR] Daily login recovery read failed:', readError.message);
+          }
         }
 
         const lastLoginDate = existingUser?.dailyLoginTracker
@@ -102,33 +157,27 @@ export class ActivityService {
         // If UserActivity exists for today but user tracker wasn't updated, repair points and tracker
         if (existingUser && lastLoginDate !== dateKey) {
           try {
-            const repairedUser = await User.findByIdAndUpdate(
+            const repairResult = await this.applyDailyLoginReward({
               userId,
-              {
-                $inc: { points: 10 },
-                $set: { dailyLoginTracker: now }
-              },
-              { new: true, select: 'points dailyLoginTracker' }
-            );
-
-            await Leaderboard.findOneAndUpdate(
-              { user: userId },
-              { $inc: { points: 10 }, $setOnInsert: { user: userId } },
-              { upsert: true, new: true }
-            );
-
-            await Promise.allSettled([
-              invalidateDashboard(userId),
-              invalidateLeaderboard()
-            ]);
-
-            return {
-              awarded: true,
+              existingUser,
+              dateKey,
+              timeZone: tz,
+              now,
               reconciled: true,
-              pointsAwarded: 10,
-              totalPoints: repairedUser?.points ?? existingUser.points ?? 10,
-              dateKey
-            };
+              databaseConnected
+            });
+            if (repairResult.awarded) {
+              await Leaderboard.findOneAndUpdate(
+                { user: userId },
+                { $inc: { points: 10 }, $setOnInsert: { user: userId } },
+                { upsert: true, new: true }
+              );
+              await Promise.allSettled([
+                invalidateDashboard(userId),
+                invalidateLeaderboard()
+              ]);
+            }
+            return repairResult;
           } catch (repairErr) {
             console.error('[ACTIVITY SERVICE ERROR] Reconciliation repair failed:', repairErr.message);
           }
@@ -140,6 +189,7 @@ export class ActivityService {
           awarded: false,
           reason: 'already_awarded_today',
           totalPoints: existingUser?.points,
+          streak: existingUser?.streak || 0,
           dateKey
         };
       }
@@ -151,6 +201,72 @@ export class ActivityService {
         try { await session.endSession(); } catch {}
       }
     }
+  }
+
+  async applyDailyLoginReward({
+    userId,
+    existingUser,
+    dateKey,
+    timeZone,
+    now,
+    session = null,
+    reconciled = false,
+    databaseConnected = mongoose.connection?.readyState !== 0
+  }) {
+    const previousLoginDateKey = existingUser.dailyLoginTracker
+      ? getDateKey(existingUser.dailyLoginTracker, timeZone)
+      : null;
+    if (previousLoginDateKey === dateKey) {
+      return {
+        awarded: false,
+        reason: 'already_awarded_today',
+        totalPoints: existingUser.points,
+        streak: existingUser.streak || 0,
+        dateKey
+      };
+    }
+
+    const streak = getNextLoginStreak(
+      existingUser.dailyLoginTracker,
+      existingUser.streak,
+      dateKey,
+      timeZone
+    );
+    const update = {
+      $inc: { points: 10 },
+      $set: { dailyLoginTracker: now, streak }
+    };
+    const options = {
+      new: true,
+      select: 'points dailyLoginTracker streak',
+      ...(session ? { session } : {})
+    };
+    const updatedUser = databaseConnected
+      ? await User.findOneAndUpdate(
+          { _id: userId, dailyLoginTracker: existingUser.dailyLoginTracker || null },
+          update,
+          options
+        )
+      : await User.findByIdAndUpdate(userId, update, options);
+
+    if (!updatedUser) {
+      return {
+        awarded: false,
+        reason: 'already_awarded_today',
+        totalPoints: existingUser.points,
+        streak: existingUser.streak || 0,
+        dateKey
+      };
+    }
+
+    return {
+      awarded: true,
+      ...(reconciled ? { reconciled: true } : {}),
+      pointsAwarded: 10,
+      totalPoints: updatedUser.points ?? existingUser.points ?? 10,
+      streak: updatedUser.streak ?? streak,
+      dateKey
+    };
   }
 
   /**

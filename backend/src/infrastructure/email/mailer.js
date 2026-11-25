@@ -63,6 +63,14 @@ const describeMailError = (error) => ({
   responseCode: error.responseCode
 });
 
+const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (character) => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;'
+}[character]));
+
 export const logEmailConfigStatus = () => {
   const port = Number(process.env.EMAIL_PORT);
   const missing = requiredEmailEnv.filter((key) => !process.env[key]);
@@ -173,7 +181,41 @@ export const sendOtpEmail = async ({ to, name, code, purpose = 'verify your emai
   }
 };
 
+export const sendEmailChangeNotice = async ({ to, name, newEmail }) => {
+  const transporter = createTransporter();
+  const appName = process.env.APP_NAME || 'Orbitus';
+  const from = process.env.EMAIL_FROM || `"${appName}" <${process.env.EMAIL_USER}>`;
+  const safeName = escapeHtml(name || 'there');
+  const safeNewEmail = escapeHtml(newEmail);
+
+  try {
+    return await transporter.sendMail({
+      from,
+      to,
+      subject: `${appName} account email changed`,
+      text: `Hi ${name || 'there'},\n\nYour account email was changed to ${newEmail}. If you did not make this change, contact support immediately.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+          <h2>${appName}</h2>
+          <p>Hi ${safeName},</p>
+          <p>Your account email was changed to <strong>${safeNewEmail}</strong>.</p>
+          <p>If you did not make this change, contact support immediately.</p>
+        </div>
+      `
+    });
+  } catch (error) {
+    emailLog('Email change notice failed', {
+      to,
+      ...describeMailError(error)
+    });
+    throw error;
+  } finally {
+    transporter.close();
+  }
+};
+
 export default {
   logEmailConfigStatus,
-  sendOtpEmail
+  sendOtpEmail,
+  sendEmailChangeNotice
 };

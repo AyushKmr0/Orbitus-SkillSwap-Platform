@@ -16,6 +16,7 @@ import {
   getSingleCommentPost
 } from './post.controller.js';
 import { protect } from '../../middlewares/authMiddleware.js';
+import { requireFeatureFlag } from '../../config/featureFlags.js';
 import { validateRequest } from '../../shared/validation/validate-request.js';
 import {
   createPostSchema,
@@ -35,7 +36,7 @@ const router = express.Router();
 router.use(protect);
 
 router.get('/', validateRequest(getFeedPostsQuerySchema), getFeedPosts);
-router.post('/', validateRequest(createPostSchema), createPost);
+router.post('/', requireFeatureFlag('postsEnabled'), validateRequest(createPostSchema), createPost);
 router.put('/:id', validateRequest(updatePostSchema), updatePost);
 router.delete('/:id', validateRequest(postIdParamSchema), deletePost);
 router.put('/:id/like', validateRequest(postIdParamSchema), toggleLikePost);

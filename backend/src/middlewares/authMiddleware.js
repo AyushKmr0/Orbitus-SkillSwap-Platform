@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { getJwtSecret } from '../config/env.js';
 import { getEffectiveAdminSecretKey } from '../config/systemSettings.js';
+import { isAccountSuspended } from '../shared/auth/accountStatus.js';
 
 export const protect = async (req, res, next) => {
   let token;
@@ -18,6 +19,7 @@ export const protect = async (req, res, next) => {
     }).select('-password');
     if (adminUser) {
       req.user = adminUser;
+      req.adminKeyAuthenticated = true;
       return next();
     }
   }
@@ -38,6 +40,16 @@ export const protect = async (req, res, next) => {
     req.user = await User.findById(decoded.id).select('-password');
     if (!req.user) {
       return res.status(401).json({ success: false, message: 'Not authorized, user not found' });
+    }
+    if (isAccountSuspended(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is suspended',
+        suspension: {
+          reason: req.user.suspensionReason || '',
+          until: req.user.suspendedUntil || null
+        }
+      });
     }
     return next();
   } catch (error) {

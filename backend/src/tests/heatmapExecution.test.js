@@ -325,8 +325,8 @@ describe('Daily Login Reward Consistency & Self-Healing Reconciliation', () => {
     expect(result.totalPoints).toBe(60);
     expect(userUpdateSpy).toHaveBeenCalledWith(
       userId,
-      { $inc: { points: 10 }, $set: { dailyLoginTracker: now } },
-      { new: true, select: 'points dailyLoginTracker' }
+      { $inc: { points: 10 }, $set: { dailyLoginTracker: now, streak: 1 } },
+      { new: true, select: 'points dailyLoginTracker streak' }
     );
     expect(leaderboardSpy).toHaveBeenCalled();
   });

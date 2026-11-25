@@ -57,6 +57,18 @@ export const updatePasswordWithOtpSchema = z.object({
   })
 });
 
+export const emailChangeRequestSchema = z.object({
+  body: z.object({
+    newEmail: emailSchema
+  })
+});
+
+export const emailChangeOtpSchema = z.object({
+  body: z.object({
+    otp: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit verification code')
+  })
+});
+
 export const adminChangeSecretKeySchema = z.object({
   body: z.object({
     currentPassword: z.string().min(1, 'Current password is required'),

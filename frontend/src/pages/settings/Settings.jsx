@@ -26,7 +26,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { playNotificationChime } from '../../context/SocketContext.jsx';
-import { logout, authSuccess } from '../../features/authSlice.js';
+import { logout, updateProfileSuccess } from '../../features/authSlice.js';
 import BellToggle from '../../components/common/react-bits/BellToggle.jsx';
 import RubberSegment from '../../components/common/react-bits/RubberSegment.jsx';
 
@@ -93,6 +93,16 @@ const Settings = () => {
   const [passwordSuccessMsg, setPasswordSuccessMsg] = useState('');
   const [passwordErrorMsg, setPasswordErrorMsg] = useState('');
   const [passwordCooldown, setPasswordCooldown] = useState(0);
+  const [emailChangeAddress, setEmailChangeAddress] = useState(user?.email || '');
+  const [emailChangeOtp, setEmailChangeOtp] = useState('');
+  const [emailChangeStep, setEmailChangeStep] = useState('idle');
+  const [emailChangeBusy, setEmailChangeBusy] = useState(false);
+  const [emailChangeMessage, setEmailChangeMessage] = useState('');
+  const [emailChangeError, setEmailChangeError] = useState('');
+
+  useEffect(() => {
+    setEmailChangeAddress(user?.email || '');
+  }, [user?.email]);
 
   useEffect(() => {
     let timer;
@@ -149,12 +159,93 @@ const Settings = () => {
       setConfirmPasswordInput('');
       setPasswordOtpSent(false);
       if (res.data?.data?.user) {
-        dispatch(authSuccess({ user: res.data.data.user }));
+        dispatch(updateProfileSuccess(res.data.data.user));
       }
     } catch (err) {
       setPasswordErrorMsg(err.response?.data?.message || 'Failed to update password. Please check your OTP.');
     } finally {
       setUpdatingPassword(false);
+    }
+  };
+
+  const handleStartEmailChange = async (event) => {
+    event.preventDefault();
+    const newEmail = emailChangeAddress.trim().toLowerCase();
+    if (!newEmail || newEmail === user?.email?.toLowerCase()) {
+      setEmailChangeError('Enter an email address different from your current one.');
+      return;
+    }
+
+    setEmailChangeBusy(true);
+    setEmailChangeError('');
+    setEmailChangeMessage('');
+    try {
+      const response = await apiClient.post('/api/auth/email-change/request', { newEmail });
+      setEmailChangeStep('current');
+      setEmailChangeOtp('');
+      setEmailChangeMessage(response.data?.message || 'Verification code sent to your current email.');
+    } catch (error) {
+      setEmailChangeError(error.response?.data?.message || 'Could not start the email change.');
+    } finally {
+      setEmailChangeBusy(false);
+    }
+  };
+
+  const handleVerifyCurrentEmail = async () => {
+    setEmailChangeBusy(true);
+    setEmailChangeError('');
+    setEmailChangeMessage('');
+    try {
+      const response = await apiClient.post('/api/auth/email-change/verify-current', {
+        otp: emailChangeOtp.trim()
+      });
+      setEmailChangeStep('new');
+      setEmailChangeOtp('');
+      setEmailChangeMessage(response.data?.message || 'A verification code was sent to your new email.');
+    } catch (error) {
+      if (error.response?.status === 500) setEmailChangeStep('new');
+      setEmailChangeError(error.response?.data?.message || 'Could not verify your current email.');
+    } finally {
+      setEmailChangeBusy(false);
+    }
+  };
+
+  const handleResendEmailChangeCode = async () => {
+    setEmailChangeBusy(true);
+    setEmailChangeError('');
+    setEmailChangeMessage('');
+    try {
+      const response = await apiClient.post('/api/auth/email-change/resend');
+      setEmailChangeOtp('');
+      setEmailChangeMessage(response.data?.message || 'Verification code resent.');
+    } catch (error) {
+      setEmailChangeError(error.response?.data?.message || 'Could not resend the verification code.');
+    } finally {
+      setEmailChangeBusy(false);
+    }
+  };
+
+  const handleVerifyNewEmail = async () => {
+    setEmailChangeBusy(true);
+    setEmailChangeError('');
+    setEmailChangeMessage('');
+    try {
+      const response = await apiClient.post('/api/auth/email-change/verify-new', {
+        otp: emailChangeOtp.trim()
+      });
+      const updatedUser = response.data?.data?.user;
+      if (!updatedUser) {
+        throw new Error('The server did not return the updated account.');
+      }
+      dispatch(updateProfileSuccess(updatedUser));
+      setEmailChangeAddress(updatedUser.email);
+      setEmailChangeOtp('');
+      setEmailChangeStep('idle');
+      setEmailChangeMessage(response.data?.message || 'Account email updated successfully.');
+    } catch (error) {
+      setEmailChangeError(error.response?.data?.message || error.message || 'Could not update your email.');
+    } finally {
+      setEmailChangeBusy(false);
     }
   };
 
@@ -295,32 +386,29 @@ const Settings = () => {
   };
 
   return (
-    <div className="page-shell animate-fade-in pb-12">
-      <div className="mx-auto max-w-4xl space-y-6">
-        {/* Header */}
-        <div className="page-header">
-          <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-app">Settings & Preferences</h1>
-            <p className="mt-1 text-xs sm:text-sm text-muted">
-              Customize your learning experience, send direct feedback to platform admins, and manage security.
-            </p>
-          </div>
-        </div>
+    <div className="space-y-6 max-w-4xl mx-auto min-w-0">
+      {/* ── Page Header ── */}
+      <div>
+        <h1 className="orb-page-title">Settings & Preferences</h1>
+        <p className="orb-page-subtitle">
+          Customize your learning preferences, send feedback to admins, and manage security.
+        </p>
+      </div>
 
-        {/* Tab Navigation */}
-        <div className="overflow-x-auto border-b border-slate-200 pb-2 scrollbar-none dark:border-slate-800">
-          <RubberSegment
-            ariaLabel="Settings sections"
-            value={activeTab}
-            onChange={setActiveTab}
-            options={SETTING_TABS.map(({ id, label, icon }) => ({ value: id, label, icon }))}
-            className="w-max p-1 rounded-2xl"
-            buttonClassName="gap-2 px-4 py-2.5 text-xs font-bold transition-all"
-            activeTextClassName="text-white"
-            inactiveTextClassName="text-muted hover:text-app"
-            indicatorClassName="bg-indigo-600 shadow-md shadow-indigo-600/30"
-          />
-        </div>
+      {/* Tab Navigation */}
+      <div className="overflow-x-auto pb-1 scrollbar-none">
+        <RubberSegment
+          ariaLabel="Settings sections"
+          value={activeTab}
+          onChange={setActiveTab}
+          options={SETTING_TABS.map(({ id, label, icon }) => ({ value: id, label, icon }))}
+          className="w-max p-1 rounded-full bg-slate-100 dark:bg-slate-800/80"
+          buttonClassName="gap-2 px-4 py-2 text-xs font-bold transition-all"
+          activeTextClassName="text-white"
+          inactiveTextClassName="text-slate-500 hover:text-slate-900 dark:hover:text-white"
+          indicatorClassName="bg-indigo-600 shadow-sm"
+        />
+      </div>
 
         {/* ── TAB 1: FEEDBACK & SUPPORT ────────────────────────────────────── */}
         {activeTab === 'feedback' && (
@@ -666,6 +754,109 @@ const Settings = () => {
         {/* ── TAB 4: ACCOUNT & DATA / DANGER ZONE ─────────────────────────── */}
         {activeTab === 'account' && (
           <div className="space-y-6 settings-tab-motion">
+
+            <section className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-7 space-y-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="rounded-2xl bg-indigo-500/10 p-3 text-indigo-600 dark:text-indigo-400 shrink-0">
+                  <Mail size={22} />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-app font-outfit">Change Account Email</h2>
+                  <p className="mt-1 text-xs text-muted leading-relaxed">
+                    We verify your current email first, then confirm the new address. A security notice is sent to your old email after the change.
+                  </p>
+                </div>
+              </div>
+
+              {emailChangeMessage && (
+                <div role="status" className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl text-xs font-medium">
+                  {emailChangeMessage}
+                </div>
+              )}
+              {emailChangeError && (
+                <div role="alert" className="p-3.5 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 rounded-2xl text-xs font-medium">
+                  {emailChangeError}
+                </div>
+              )}
+
+              {emailChangeStep === 'idle' ? (
+                <form onSubmit={handleStartEmailChange} className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input
+                      type="email"
+                      required
+                      value={emailChangeAddress}
+                      onChange={(event) => setEmailChangeAddress(event.target.value)}
+                      placeholder="New email address"
+                      autoComplete="email"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-app text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={emailChangeBusy}
+                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all"
+                  >
+                    {emailChangeBusy ? 'Sending code…' : 'Start email change'}
+                  </button>
+                </form>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted">
+                    {emailChangeStep === 'current'
+                      ? `Enter the 6-digit code sent to ${user?.email}.`
+                      : `Enter the 6-digit code sent to ${emailChangeAddress}.`}
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={emailChangeOtp}
+                      onChange={(event) => setEmailChangeOtp(event.target.value.replace(/\D/g, ''))}
+                      placeholder="6-digit code"
+                      className="flex-1 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-app text-sm font-mono tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      disabled={emailChangeBusy || emailChangeOtp.length !== 6}
+                      onClick={emailChangeStep === 'current' ? handleVerifyCurrentEmail : handleVerifyNewEmail}
+                      className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all"
+                    >
+                      {emailChangeBusy
+                        ? 'Verifying…'
+                        : emailChangeStep === 'current'
+                        ? 'Verify current email'
+                        : 'Confirm new email'}
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={handleResendEmailChangeCode}
+                      disabled={emailChangeBusy}
+                      className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline disabled:opacity-50"
+                    >
+                      Resend code
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmailChangeStep('idle');
+                        setEmailChangeOtp('');
+                        setEmailChangeError('');
+                        setEmailChangeMessage('');
+                      }}
+                      className="text-xs font-semibold text-muted hover:text-app"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
             
             {/* Account Password & Security Card */}
             <section className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-7 space-y-5 shadow-sm">
@@ -896,7 +1087,6 @@ const Settings = () => {
             </section>
           </div>
         )}
-      </div>
 
       {/* Delete Account Custom Confirmation Modal */}
       {showDeleteModal && (

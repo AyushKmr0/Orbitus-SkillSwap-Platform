@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authSuccess, authFailure } from '../../features/authSlice.js';
-import { toast } from '../../components/ui/use-toast.js';
+import { showDailyLoginToast } from '../../lib/dailyLoginToast.js';
 
 const AuthCallback = () => {
   const [searchParams] = useSearchParams();
@@ -26,10 +26,17 @@ const AuthCallback = () => {
         user: parsedUser
       }));
 
-      toast({
-        title: "Daily Login Active!",
-        description: `Welcome back, ${parsedUser?.name || 'Explorer'}! Current points: ${parsedUser?.points ?? 0}`,
-        variant: "points"
+      const dailyReward = {
+        awarded: searchParams.get('dailyRewardAwarded') === 'true',
+        pointsAwarded: Number(searchParams.get('dailyRewardPoints')) || 0,
+        totalPoints: parsedUser?.points ?? 0,
+        streak: parsedUser?.streak ?? 0
+      };
+      showDailyLoginToast({
+        dailyReward,
+        user: parsedUser,
+        fallbackTitle: `Welcome back, ${parsedUser?.name || 'Explorer'}!`,
+        fallbackDescription: `Current points: ${parsedUser?.points ?? 0}. Login streak: ${parsedUser?.streak ?? 0} days.`
       });
 
       navigate('/dashboard', { replace: true });

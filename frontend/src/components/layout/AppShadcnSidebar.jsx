@@ -1,48 +1,33 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../../features/authSlice.js';
 import { toggleTheme } from '../../features/themeSlice.js';
 import { useSocket } from '../../context/SocketContext.jsx';
 import {
-  LayoutDashboard,
-  GraduationCap,
-  MessageSquare,
-  Calendar,
-  Sparkles,
-  Map,
-  Users,
+  Home,
+  LayoutGrid,
   Trophy,
-  ShieldAlert,
-  LogOut,
-  Sun,
-  Moon,
-  Newspaper,
+  BookOpen,
+  Sparkles,
+  Compass,
+  Calendar,
+  MessageSquare,
   Bell,
   Settings,
-  PanelLeft,
+  ShieldAlert,
+  Search,
+  Plus,
+  Zap,
+  Gift,
+  Sun,
+  Moon,
+  LogOut,
+  Menu,
   X
 } from 'lucide-react';
 import BrandLogo from '../common/BrandLogo.jsx';
 import { optimizeCloudinaryUrl } from '../../lib/utils.js';
-import {
-  Sidebar,
-  SidebarProvider,
-  SidebarHeader,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarGroupContent,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarMenuBadge,
-  SidebarRail,
-  SidebarInset,
-  SidebarTrigger,
-  useSidebar
-} from '../ui/sidebar.jsx';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,9 +39,8 @@ import {
   AlertDialogTitle
 } from '../ui/alert-dialog.jsx';
 import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar.jsx';
-import { Badge } from '../ui/badge.jsx';
 
-const AppShadcnSidebarInner = ({ children }) => {
+export const AppShadcnSidebar = ({ children }) => {
   const { user } = useSelector((state) => state.auth);
   const { mode } = useSelector((state) => state.theme);
   const { unreadCount } = useSelector((state) => state.chat);
@@ -65,32 +49,61 @@ const AppShadcnSidebarInner = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { isMobile, open, setOpen, setOpenMobile } = useSidebar();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [topSearchQuery, setTopSearchQuery] = useState(
+    () => new URLSearchParams(location.search).get('search') || ''
+  );
+  const topSearchInputRef = useRef(null);
+
+  useEffect(() => {
+    setTopSearchQuery(new URLSearchParams(location.search).get('search') || '');
+  }, [location.search]);
+
+  useEffect(() => {
+    const handleSearchShortcut = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        topSearchInputRef.current?.focus();
+        topSearchInputRef.current?.select();
+      }
+    };
+
+    window.addEventListener('keydown', handleSearchShortcut);
+    return () => window.removeEventListener('keydown', handleSearchShortcut);
+  }, []);
+
+  const handleTopSearch = (event) => {
+    event.preventDefault();
+    const query = topSearchQuery.trim();
+    const search = query ? `?search=${encodeURIComponent(query)}` : '';
+    navigate(`/skills${search}#search`);
+  };
+
   const confirmLogout = () => {
     setShowLogoutModal(false);
     dispatch(logout());
     navigate('/login');
   };
 
-  const navItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, role: 'User' },
-    { name: 'Suggested Peers', path: '/suggested-users', icon: Sparkles, role: 'User' },
-    { name: 'Daily Feed', path: '/feed', icon: Newspaper, role: 'User' },
-    { name: 'Browse Skills', path: '/skills', icon: GraduationCap, role: 'User' },
-    { name: 'Study Groups', path: '/groups', icon: Users, role: 'User' },
-    { name: 'Chat Room', path: '/chat', icon: MessageSquare, role: 'User' },
-    { name: 'Notifications', path: '/notifications', icon: Bell, role: 'User' },
-    { name: 'My Bookings', path: '/bookings', icon: Calendar, role: 'User' },
-    { name: 'Learning Roadmap', path: '/roadmap', icon: Map, role: 'User' },
-    { name: 'Leaderboard', path: '/leaderboard', icon: Trophy, role: 'User' },
-    { name: 'Admin Hub', path: '/admin', icon: ShieldAlert, role: 'Admin' }
+  const userRoleLower = (user?.role || '').toLowerCase();
+  const isAdmin = userRoleLower === 'admin';
+
+  const mainNavItems = [
+    { name: 'Home', path: '/dashboard', icon: Home },
+    { name: 'Showcase', path: '/feed', icon: LayoutGrid },
+    { name: 'Peers', path: '/suggested-users', icon: Sparkles },
+    { name: 'Leaderboards', path: '/leaderboard', icon: Trophy }
   ];
 
-  const userRoleLower = (user?.role || '').toLowerCase();
-  const filteredItems = navItems.filter(
-    (item) => item.role !== 'Admin' || userRoleLower === 'admin'
-  );
+  const learnNavItems = [
+    { name: 'Courses', path: '/skills', icon: BookOpen },
+    { name: 'Study Groups', path: '/groups', icon: Compass },
+    { name: 'Sessions', path: '/bookings', icon: Calendar },
+    { name: 'Career Paths', path: '/roadmap', icon: Sparkles },
+    { name: 'Messages', path: '/chat', icon: MessageSquare },
+    ...(isAdmin ? [{ name: 'Admin', path: '/admin', icon: ShieldAlert }] : [])
+  ];
 
   const getUnreadBadge = (path) => {
     if (path === '/chat' && unreadCount > 0) return unreadCount;
@@ -105,378 +118,325 @@ const AppShadcnSidebarInner = ({ children }) => {
     return null;
   };
 
-  const getPageTitle = () => {
-    const current = navItems.find(
-      (item) =>
-        location.pathname === item.path ||
-        (item.path !== '/dashboard' && location.pathname.startsWith(item.path))
+  const isItemActive = (path) => {
+    if (path === '/dashboard') return location.pathname === '/dashboard';
+    if (path === '/skills') return location.pathname === '/skills' || location.pathname === '/explore';
+    if (path === '/suggested-users') return location.pathname === '/suggested-users' || location.pathname === '/ai-match';
+    if (path === '/feed') return location.pathname.startsWith('/feed');
+    if (path === '/groups') return location.pathname.startsWith('/groups');
+    if (path.startsWith('/profile')) return location.pathname.startsWith('/profile');
+    if (path === '/admin') return location.pathname.startsWith('/admin');
+    if (path === '/chat') return location.pathname.startsWith('/chat');
+    if (path === '/bookings') return location.pathname.startsWith('/bookings');
+    if (path === '/roadmap') return location.pathname.startsWith('/roadmap');
+    if (path === '/leaderboard') return location.pathname.startsWith('/leaderboard');
+    if (path === '/notifications') return location.pathname.startsWith('/notifications');
+    if (path === '/settings') return location.pathname.startsWith('/settings');
+    return location.pathname === path;
+  };
+
+  const NavLink = ({ item, onClick }) => {
+    const active = isItemActive(item.path);
+    const Icon = item.icon;
+    const badge = getUnreadBadge(item.path);
+    return (
+      <Link
+        to={item.path}
+        onClick={onClick}
+        className={`orb-nav-item${active ? ' orb-active' : ''}`}
+      >
+        <span className="flex items-center gap-2.5 min-w-0">
+          <Icon
+            size={16}
+            className={`shrink-0 ${active ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'}`}
+          />
+          <span className="truncate text-[13px]">{item.name}</span>
+        </span>
+        <span className="flex items-center gap-1 shrink-0">
+          {badge && <span className="orb-unread-dot">{badge > 99 ? '99+' : badge}</span>}
+        </span>
+      </Link>
     );
-    return current ? current.name : 'Orbitus';
   };
 
-  const handleLinkClick = () => {
-    if (isMobile) {
-      setOpenMobile(false);
-    }
-  };
+  const renderSidebarNav = (onLinkClick) => (
+    <div className="flex flex-col gap-1">
+      {/* Main nav */}
+      <nav className="flex flex-col gap-0.5">
+        {mainNavItems.map((item) => (
+          <NavLink key={item.path} item={item} onClick={onLinkClick} />
+        ))}
+      </nav>
 
-  const handleLogoClick = (event) => {
-    if (isMobile) {
-      setOpenMobile(false);
-    } else if (!open) {
-      event.preventDefault();
-      setOpen(true);
-    }
-  };
+      {/* LEARN section */}
+      <div className="mt-3">
+        <p className="orb-nav-label">Learn</p>
+        <nav className="flex flex-col gap-0.5 mt-1">
+          {learnNavItems.map((item) => (
+            <NavLink key={item.path} item={item} onClick={onLinkClick} />
+          ))}
+        </nav>
+      </div>
+    </div>
+  );
+
+  const userPoints = user?.points
+    ? user.points > 999
+      ? `${(user.points / 1000).toFixed(1)}k`
+      : user.points
+    : '0';
 
   return (
-    <>
-      {/* shadcn Responsive Sidebar (Left rail on desktop, slide-over Sheet on mobile) */}
-      <Sidebar data-orbitus-sidebar="true" collapsible="icon" className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-        {/* Sidebar Header with Brand Logo */}
-          <SidebarHeader className="p-3 group-data-[collapsible=icon]:px-2 border-b border-sidebar-border orbitus-sidebar-header-motion">
-          <div className="flex items-center justify-between gap-2">
-            <Link
-              to="/"
-              onClick={handleLogoClick}
-              className="flex items-center gap-2.5 overflow-hidden rounded-lg p-1 transition-transform active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring cursor-pointer"
-              title={!open && !isMobile ? 'Expand sidebar' : 'Orbitus home'}
-              aria-label={!open && !isMobile ? 'Expand sidebar' : 'Orbitus home'}
+    <div className="orb-shell">
+      <div className="orb-frame">
+
+        {/* ── TOP BAR ── */}
+        <header className="orb-topbar">
+          <div className="orb-topbar-brand">
+            {/* Mobile hamburger */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+              aria-label="Open navigation"
             >
-              <BrandLogo size={40} className="h-10 w-10 shrink-0 object-contain" />
-              <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
-                <span className="truncate text-base font-extrabold tracking-tight text-app leading-tight font-outfit">
-                  Orbitus
-                </span>
-                <span className="truncate text-[10px] font-semibold text-muted leading-none">
-                  Where Skills Connect
-                </span>
-              </div>
+              <Menu size={18} />
+            </button>
+
+            {/* Orbitus wordmark */}
+            <Link
+              to="/dashboard"
+              className="orb-topbar-wordmark"
+              title="Orbitus"
+              aria-label="Orbitus home"
+            >
+              <BrandLogo size={36} className="orb-topbar-wordmark-logo" />
+              <span className="font-outfit text-[19px] font-bold tracking-tight text-slate-900 dark:text-white">
+                Orbitus
+              </span>
+            </Link>
+          </div>
+
+          <form className="orb-topbar-search" role="search" onSubmit={handleTopSearch}>
+            <Search size={15} className="orb-topbar-search-icon" aria-hidden="true" />
+            <input
+              ref={topSearchInputRef}
+              type="search"
+              value={topSearchQuery}
+              onChange={(event) => setTopSearchQuery(event.target.value)}
+              className="orb-topbar-search-input"
+              placeholder="Search courses and skills"
+              aria-label="Search courses and skills"
+            />
+            <kbd className="orb-topbar-search-shortcut">Ctrl K</kbd>
+            <button type="submit" className="orb-topbar-search-submit" aria-label="Search">
+              <Search size={14} />
+            </button>
+          </form>
+
+          <div className="orb-topbar-actions">
+            <Link
+              to="/feed#create"
+              className="orb-pill-btn orb-post-project"
+              aria-label="Post project"
+            >
+              <Plus size={18} strokeWidth={2.5} />
+              <span>Post project</span>
             </Link>
 
-            {isMobile ? (
-              <button
-                type="button"
-                onClick={() => setOpenMobile(false)}
-                className="p-1.5 rounded-lg text-muted hover:text-app hover:bg-sidebar-accent transition-colors"
-                aria-label="Close sidebar"
-              >
-                <X size={18} />
-              </button>
-            ) : (
-              <div className="group-data-[collapsible=icon]:hidden">
-                <SidebarTrigger className="p-1.5 rounded-lg text-muted hover:text-app hover:bg-sidebar-accent transition-colors" />
-              </div>
-            )}
-          </div>
-        </SidebarHeader>
+            {/* Streak */}
+            <div className="orb-stat-amber" title="Daily Streak">
+              <Zap size={13} className="fill-amber-500 text-amber-500" />
+              <span>{user?.streak || 0}</span>
+            </div>
 
-        {/* Sidebar Navigation Items */}
-        <SidebarContent className="p-2">
-          <SidebarGroup>
-            <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-wider text-muted px-2 py-1.5 group-data-[collapsible=icon]:hidden">
-              Navigation
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {filteredItems.map((item, index) => {
-                  const isActive =
-                    location.pathname === item.path ||
-                    (item.path !== '/dashboard' && location.pathname.startsWith(item.path)) ||
-                    (item.path === '/suggested-users' && location.pathname === '/ai-match');
-                  const Icon = item.icon;
-                  const badgeValue = getUnreadBadge(item.path);
+            {/* Credits */}
+            <div className="orb-stat-indigo" title="Platform Credits">
+              <Gift size={13} />
+              <span>{userPoints}</span>
+            </div>
 
-                  return (
-                    <SidebarMenuItem
-                      key={item.path}
-                      className="orbitus-sidebar-item-motion"
-                      style={{ animationDelay: `${Math.min(index, 8) * 70}ms` }}
-                    >
-                      <SidebarMenuButton
-                        asChild
-                        isActive={isActive}
-                          tooltip={{
-                            children: item.name,
-                            className: 'z-[100] min-h-8 whitespace-nowrap rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-white'
-                          }}
-                        className={`relative rounded-xl transition-all ${
-                          isActive
-                            ? 'bg-blue-600 text-white font-bold hover:bg-blue-600 hover:text-white shadow-sm'
-                            : 'text-muted-strong hover:bg-sidebar-accent hover:text-app'
-                        }`}
-                      >
-                          <Link
-                            to={item.path}
-                            onClick={handleLinkClick}
-                            className="flex items-center gap-3 w-full"
-                            title={item.name}
-                            aria-label={item.name}
-                          >
-                          <Icon size={18} className="shrink-0" />
-                          <span className="truncate text-xs font-semibold">{item.name}</span>
-                          {badgeValue && (
-                            <SidebarMenuBadge
-                              className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                                isActive
-                                  ? 'bg-white text-blue-600'
-                                  : 'bg-red-500 text-white'
-                              }`}
-                            >
-                              {badgeValue}
-                            </SidebarMenuBadge>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-
-        {/* Sidebar Footer: Theme Toggle, Profile, Settings & Logout */}
-        <SidebarFooter className="p-2 border-t border-sidebar-border space-y-2 orbitus-sidebar-footer-motion">
-          {/* Theme Toggle Button */}
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                onClick={() => dispatch(toggleTheme())}
-                tooltip={mode === 'dark' ? 'Light Mode' : 'Dark Mode'}
-                className="w-full rounded-xl text-muted-strong hover:bg-sidebar-accent hover:text-app transition-colors"
-              >
-                <div className="flex items-center gap-3 w-full">
-                  {mode === 'dark' ? <Sun size={18} className="shrink-0 text-amber-400" /> : <Moon size={18} className="shrink-0 text-indigo-500" />}
-                  <span className="truncate text-xs font-medium group-data-[collapsible=icon]:hidden">
-                    {mode === 'dark' ? 'Light Mode' : 'Dark Mode'}
-                  </span>
-                </div>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-
-          {/* User Profile Footer (Expanded State) */}
-          {user && (
-            <>
-              <div className="flex group-data-[collapsible=icon]:hidden items-center justify-between p-1.5 rounded-xl bg-sidebar-accent/50 border border-sidebar-border">
-                <Link
-                  to={`/profile/${user._id || 'me'}`}
-                  onClick={handleLinkClick}
-                  className="flex items-center gap-2.5 min-w-0 flex-1 hover:opacity-85 transition-opacity"
-                  title="View your public profile"
-                >
-                  <Avatar className="h-8 w-8 shrink-0 border border-sidebar-border">
-                    <AvatarImage src={optimizeCloudinaryUrl(user.profileImage, { width: 96, height: 96 })} alt={user.name} />
-                    <AvatarFallback className="bg-indigo-600 text-white text-xs font-bold">
-                      {user.name?.slice(0, 2).toUpperCase() || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-bold text-app leading-tight">{user.name}</p>
-                    {userRoleLower === 'admin' ? (
-                      <Badge variant="outline" className="text-[9px] px-1 py-0 border-indigo-400/40 text-indigo-500">
-                        Admin
-                      </Badge>
-                    ) : (
-                      <p className="truncate text-[10px] text-muted leading-tight">
-                        @{user.username || 'user'}
-                      </p>
-                    )}
-                  </div>
-                </Link>
-
-                <div className="flex items-center gap-1">
-                  <Link
-                    to="/settings"
-                    onClick={handleLinkClick}
-                    className="p-1 rounded-lg text-muted hover:text-app hover:bg-sidebar-accent transition-colors"
-                    title="Account Settings"
-                  >
-                    <Settings size={15} />
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => setShowLogoutModal(true)}
-                    className="p-1 rounded-lg text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
-                    title="Sign Out"
-                  >
-                    <LogOut size={15} />
-                  </button>
-                </div>
-              </div>
-
-              {/* User Profile Mini Actions (Collapsed / Icon State) */}
-              <div className="hidden group-data-[collapsible=icon]:flex flex-col items-center gap-1.5">
-                <SidebarMenuButton
-                  asChild
-                    tooltip={{
-                      children: `Profile (${user.name})`,
-                      className: 'z-[100] min-h-8 whitespace-nowrap rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-white'
-                    }}
-                  className="h-8 w-8 p-0 rounded-xl justify-center"
-                >
-                  <Link to={`/profile/${user._id || 'me'}`} onClick={handleLinkClick}>
-                    <Avatar className="h-7 w-7 border border-sidebar-border">
-                      <AvatarImage src={optimizeCloudinaryUrl(user.profileImage, { width: 84, height: 84 })} alt={user.name} />
-                      <AvatarFallback className="bg-indigo-600 text-white text-[10px] font-bold">
-                        {user.name?.slice(0, 2).toUpperCase() || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Link>
-                </SidebarMenuButton>
-
-                <SidebarMenuButton
-                  asChild
-                    tooltip={{
-                      children: 'Account Settings',
-                      className: 'z-[100] min-h-8 whitespace-nowrap rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-white'
-                    }}
-                  className="h-8 w-8 p-0 rounded-xl justify-center text-muted-strong hover:text-app"
-                >
-                  <Link to="/settings" onClick={handleLinkClick}>
-                    <Settings size={16} />
-                  </Link>
-                </SidebarMenuButton>
-
-                <SidebarMenuButton
-                    tooltip={{
-                      children: 'Sign Out',
-                      className: 'z-[100] min-h-8 whitespace-nowrap rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-white'
-                    }}
-                  onClick={() => setShowLogoutModal(true)}
-                  className="h-8 w-8 p-0 rounded-xl justify-center text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
-                >
-                  <LogOut size={16} />
-                </SidebarMenuButton>
-              </div>
-            </>
-          )}
-        </SidebarFooter>
-
-        <SidebarRail />
-      </Sidebar>
-
-      {/* Main Content Area via SidebarInset: starts beside desktop sidebar with min-w-0 */}
-      <SidebarInset className="flex-1 min-w-0 flex flex-col h-[var(--app-viewport-height,100dvh)] max-h-[var(--app-viewport-height,100dvh)] min-h-0 overflow-hidden bg-background">
-        {/* Mobile / Responsive Shell Header Bar (Hidden on md and desktop) */}
-        <header className="md:hidden flex items-center justify-between px-4 py-2.5 border-b border-sidebar-border bg-sidebar/95 backdrop-blur-sm z-30 shrink-0 orbitus-sidebar-mobile-header-motion">
-          <div className="flex items-center gap-2.5">
-            <SidebarTrigger className="p-1.5 rounded-lg text-muted hover:text-app hover:bg-sidebar-accent transition-colors">
-              <PanelLeft size={18} />
-            </SidebarTrigger>
-            <span className="text-sm font-bold text-app truncate font-outfit">
-              {getPageTitle()}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
+            {/* Bell */}
             <Link
               to="/notifications"
-              className="relative p-1.5 rounded-lg text-muted hover:text-app hover:bg-sidebar-accent transition-colors"
+              className="relative p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               title="Notifications"
             >
               <Bell size={17} />
               {(notificationSummary?.totalUnread || 0) > 0 && (
-                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
+                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500" />
               )}
             </Link>
+
+            {/* Avatar */}
+            <Link
+              to={`/profile/${user?._id || 'me'}`}
+              className="hover:opacity-85 transition-opacity"
+              title={user?.name || 'My Profile'}
+            >
+              <Avatar className="h-8 w-8 rounded-full border border-slate-200 dark:border-slate-700">
+                <AvatarImage
+                  src={optimizeCloudinaryUrl(user?.profileImage, { width: 96, height: 96 })}
+                  alt={user?.name}
+                />
+                <AvatarFallback className="bg-indigo-600 text-white text-xs font-bold">
+                  {user?.name?.slice(0, 2).toUpperCase() || 'U'}
+                </AvatarFallback>
+              </Avatar>
+            </Link>
+
+            {/* Theme toggle */}
             <button
               type="button"
               onClick={() => dispatch(toggleTheme())}
-              className="p-1.5 rounded-lg text-muted hover:text-app hover:bg-sidebar-accent transition-colors"
-              title="Toggle theme"
+              className="p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+              title={mode === 'dark' ? 'Light Mode' : 'Dark Mode'}
             >
-              {mode === 'dark' ? <Sun size={17} className="text-amber-400" /> : <Moon size={17} className="text-indigo-500" />}
+              {mode === 'dark' ? (
+                <Sun size={16} className="text-amber-400" />
+              ) : (
+                <Moon size={16} className="text-indigo-500" />
+              )}
             </button>
           </div>
         </header>
 
-        {/* Page Content Container: Starts beside desktop sidebar without clipping */}
-        <div className={`flex-1 min-w-0 flex flex-col min-h-0 ${location.pathname === '/chat' || /^\/groups\/[^/]+/.test(location.pathname) ? 'relative overflow-hidden' : 'overflow-y-auto'}`}>
-          {children}
-        </div>
-      </SidebarInset>
+        {/* ── BODY: sidebar + content ── */}
+        <div className="orb-body">
 
-      {/* Logout Confirmation AlertDialog */}
+          {/* Desktop Sidebar */}
+          <aside className="orb-sidebar hidden lg:flex">
+            <div className="flex-1 flex flex-col">
+              {renderSidebarNav(() => {})}
+            </div>
+
+            {/* Footer: user snippet */}
+            {user && (
+              <div className="mt-auto pt-3 border-t border-black/5 dark:border-white/5 flex items-center justify-between gap-2">
+                <Link
+                  to={`/profile/${user._id || 'me'}`}
+                  className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity"
+                  title="View Profile"
+                >
+                  <Avatar className="h-7 w-7 rounded-full border border-slate-200 dark:border-slate-700 shrink-0">
+                    <AvatarImage src={optimizeCloudinaryUrl(user.profileImage, { width: 72, height: 72 })} alt={user.name} />
+                    <AvatarFallback className="bg-indigo-600 text-white text-[10px] font-bold">
+                      {user.name?.slice(0, 2).toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{user.name}</p>
+                    <p className="text-[10px] text-slate-400 truncate">@{user.username || 'user'}</p>
+                  </div>
+                </Link>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <Link
+                    to="/settings"
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                    title="Settings"
+                  >
+                    <Settings size={14} />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setShowLogoutModal(true)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+                    title="Sign Out"
+                  >
+                    <LogOut size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </aside>
+
+          {/* Mobile Drawer */}
+          {mobileMenuOpen && (
+            <div className="lg:hidden fixed inset-0 z-50 flex">
+              <div
+                className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm"
+                onClick={() => setMobileMenuOpen(false)}
+              />
+              <div className="relative w-64 max-w-[80vw] bg-white dark:bg-[#1A1D27] flex flex-col shadow-2xl overflow-y-auto z-10">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-black/5 dark:border-white/5">
+                  <div className="flex items-center gap-2">
+                    <BrandLogo size={28} className="h-7 w-7 object-contain" />
+                    <span className="font-outfit text-base font-semibold tracking-tight text-slate-900 dark:text-white">
+                      Orbitus
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                    aria-label="Close navigation"
+                  >
+                    <X size={17} />
+                  </button>
+                </div>
+                <div className="flex-1 p-3">
+                  {renderSidebarNav(() => setMobileMenuOpen(false))}
+                </div>
+                {user && (
+                  <div className="p-3 border-t border-black/5 dark:border-white/5 flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Avatar className="h-7 w-7 rounded-full border border-slate-200 dark:border-slate-700 shrink-0">
+                        <AvatarImage src={optimizeCloudinaryUrl(user.profileImage, { width: 72, height: 72 })} alt={user.name} />
+                        <AvatarFallback className="bg-indigo-600 text-white text-[10px] font-bold">
+                          {user.name?.slice(0, 2).toUpperCase() || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs font-semibold text-slate-900 dark:text-white truncate">{user.name}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setMobileMenuOpen(false); setShowLogoutModal(true); }}
+                      className="p-1 rounded-lg text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                      title="Sign Out"
+                    >
+                      <LogOut size={15} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Main content */}
+          <main className="orb-content">
+            {children}
+          </main>
+        </div>
+      </div>
+
+      {/* Logout confirm dialog */}
       <AlertDialog open={showLogoutModal} onOpenChange={setShowLogoutModal}>
-        <AlertDialogContent className="max-w-sm rounded-2xl bg-white dark:bg-[#181d26] border border-slate-200 dark:border-slate-800 p-6 shadow-2xl">
+        <AlertDialogContent className="max-w-sm rounded-2xl bg-white dark:bg-[#1A1D27] border border-slate-200 dark:border-slate-800 p-6 shadow-2xl">
           <AlertDialogHeader className="space-y-2">
             <AlertDialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
               Confirm Sign Out
             </AlertDialogTitle>
             <AlertDialogDescription className="text-xs text-slate-500 dark:text-slate-400">
-              Are you sure you want to end your current session? You will need to sign in again to access your exchanges.
+              Are you sure you want to end your current session? You will need to sign in again to access Orbitus.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex gap-2 sm:justify-end pt-4">
             <AlertDialogCancel
               onClick={() => setShowLogoutModal(false)}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-0"
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-0 cursor-pointer"
             >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmLogout}
-              className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 text-white shadow-sm border-0"
+              className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 text-white shadow-sm border-0 cursor-pointer"
             >
               Sign Out
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
-  );
-};
-
-export const AppShadcnSidebar = ({ children }) => {
-  const [viewportBounds, setViewportBounds] = useState(null);
-
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    let frameId;
-    const updateViewportBounds = () => {
-      cancelAnimationFrame(frameId);
-      frameId = requestAnimationFrame(() => {
-        setViewportBounds({
-          width: Math.round(viewport?.width || window.innerWidth),
-          height: Math.round(viewport?.height || window.innerHeight),
-          top: Math.round(viewport?.offsetTop || 0),
-          left: Math.round(viewport?.offsetLeft || 0)
-        });
-      });
-    };
-
-    updateViewportBounds();
-    viewport?.addEventListener('resize', updateViewportBounds);
-    viewport?.addEventListener('scroll', updateViewportBounds);
-    window.addEventListener('resize', updateViewportBounds);
-    window.addEventListener('orientationchange', updateViewportBounds);
-    return () => {
-      cancelAnimationFrame(frameId);
-      viewport?.removeEventListener('resize', updateViewportBounds);
-      viewport?.removeEventListener('scroll', updateViewportBounds);
-      window.removeEventListener('resize', updateViewportBounds);
-      window.removeEventListener('orientationchange', updateViewportBounds);
-    };
-  }, []);
-
-  return (
-    <SidebarProvider
-      defaultOpen={true}
-      style={viewportBounds ? {
-        '--app-viewport-height': `${viewportBounds.height}px`,
-        minHeight: `${viewportBounds.height}px`,
-        width: `${viewportBounds.width}px`,
-        height: `${viewportBounds.height}px`,
-        position: 'fixed',
-        top: `${viewportBounds.top}px`,
-        left: `${viewportBounds.left}px`
-      } : undefined}
-      className="flex h-[var(--app-viewport-height,100dvh)] max-h-[var(--app-viewport-height,100dvh)] min-h-0 w-full overflow-hidden"
-    >
-      <AppShadcnSidebarInner>{children}</AppShadcnSidebarInner>
-    </SidebarProvider>
+    </div>
   );
 };
 

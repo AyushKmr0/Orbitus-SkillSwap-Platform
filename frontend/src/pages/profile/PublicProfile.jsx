@@ -628,20 +628,13 @@ const PublicProfile = () => {
     : (profileUser.education ? [{ degree: profileUser.education }] : []);
 
   return (
-    <div className="page-shell w-full flex-1 overflow-y-auto relative z-0">
-      {/* Subtle Fixed Ambient Glow Orbs on Viewport */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
-        <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-gradient-to-br from-indigo-500/18 via-purple-500/12 to-transparent blur-[120px]" />
-        <div className="absolute top-20 -right-32 w-[500px] h-[500px] rounded-full bg-gradient-to-bl from-blue-500/18 via-cyan-500/10 to-transparent blur-[120px]" />
-        <div className="absolute bottom-10 left-1/3 w-[550px] h-[350px] rounded-full bg-gradient-to-r from-amber-500/12 via-rose-500/10 to-transparent blur-[130px]" />
-      </div>
-
-      <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8 pb-36 sm:pb-24 space-y-6 animate-fade-in relative z-10">
+    <div className="w-full min-h-full">
+      <div className="max-w-7xl mx-auto px-0 sm:px-2 lg:px-4 pb-10 space-y-6 animate-fade-in">
         {/* 1. HERO IDENTITY BANNER (LinkedIn Style) */}
         <ScrollReveal direction="down" duration={0.5}>
-          <div className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+          <div className="orb-card overflow-hidden">
         {/* Decorative Cover Gradient / Image */}
-        <div className="h-52 sm:h-64 bg-slate-200 dark:bg-slate-800 relative overflow-hidden">
+        <div className="h-36 sm:h-48 bg-gradient-to-br from-indigo-950 via-indigo-800 to-violet-700 relative overflow-hidden">
           {profileUser.coverImage ? (
             <img
               src={optimizeCloudinaryUrl(profileUser.coverImage, { width: 1200, crop: 'fill' })}
@@ -652,7 +645,7 @@ const PublicProfile = () => {
               loading="eager"
             />
           ) : (
-            <div className="absolute inset-0 bg-black/10 backdrop-blur-[1px]" />
+            <div aria-hidden="true" className="absolute -right-20 -top-28 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
           )}
           <button
             type="button"
@@ -677,19 +670,19 @@ const PublicProfile = () => {
         </div>
 
         {/* Profile Details Container */}
-        <div className="px-6 pb-6 pt-0 relative">
+        <div className="px-5 pb-6 pt-0 relative sm:px-7">
           {/* Avatar Positioned Over Cover */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 -mt-20 sm:-mt-28 mb-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 -mt-14 sm:-mt-20 mb-5">
             <div className="relative">
-              <Avatar className="w-40 h-40 sm:w-52 sm:h-52 rounded-full border-4 border-white dark:border-[#22242a] shadow-2xl">
+              <Avatar className="w-28 h-28 sm:w-36 sm:h-36 rounded-3xl border-4 border-white dark:border-[#151821] shadow-xl">
                 <AvatarImage
-                  src={optimizeCloudinaryUrl(profileUser.profileImage, { width: 416, height: 416, crop: 'fill', gravity: 'face' })}
+                  src={optimizeCloudinaryUrl(profileUser.profileImage, { width: 288, height: 288, crop: 'fill', gravity: 'face' })}
                   alt={profileUser.name}
                   className="object-cover"
-                  width={208}
-                  height={208}
+                  width={144}
+                  height={144}
                 />
-                <AvatarFallback className="text-4xl font-extrabold bg-indigo-100 text-indigo-700">
+                <AvatarFallback className="rounded-3xl text-3xl font-extrabold bg-indigo-100 text-indigo-700">
                   {profileUser.name ? profileUser.name[0].toUpperCase() : 'U'}
                 </AvatarFallback>
               </Avatar>
@@ -701,9 +694,9 @@ const PublicProfile = () => {
                 <button
                   type="button"
                   onClick={() => setShowEditModal(true)}
-                  className="flex items-center gap-2 px-5 py-2.5 !bg-white dark:!bg-slate-800 hover:!bg-slate-50 dark:hover:!bg-slate-700/80 !text-slate-900 dark:!text-white border border-slate-200 dark:border-slate-700 text-xs font-bold rounded-2xl transition-all shadow-sm hover:shadow active:scale-95"
+                  className="orb-btn-primary min-h-10 rounded-xl px-4 text-xs"
                 >
-                  <Pencil size={14} className="text-indigo-600 dark:text-indigo-400" />
+                  <Pencil size={14} />
                   <span>Edit Profile</span>
                 </button>
               ) : (
@@ -1614,8 +1607,10 @@ const PublicProfile = () => {
         createPortal(
           <div
             role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-profile-title"
             data-modal="true"
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 overflow-y-auto scrollbar-none overscroll-contain animate-fade-in"
+            className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm z-[9999] flex items-stretch sm:items-center justify-center p-0 sm:p-4 overflow-y-auto scrollbar-none overscroll-contain animate-fade-in"
             onWheel={(e) => e.stopPropagation()}
             onClick={(e) => {
               if (e.target === e.currentTarget) setShowEditModal(false);
@@ -1624,20 +1619,21 @@ const PublicProfile = () => {
             <div
               onWheel={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-2xl bg-white dark:bg-[#22242a] p-6 rounded-3xl space-y-4 my-8 border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-none overscroll-contain text-app animate-modal-enter"
+              className="w-full h-full sm:h-auto max-w-4xl bg-white dark:bg-[#171a22] p-5 sm:p-7 rounded-none sm:rounded-3xl space-y-4 sm:my-8 border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto scrollbar-none overscroll-contain text-app animate-modal-enter"
             >
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="sticky top-0 z-10 -mx-5 -mt-5 flex justify-between items-center border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur dark:border-slate-800 dark:bg-[#171a22]/95 sm:-mx-7 sm:-mt-7 sm:px-7">
               <div>
-                <h3 className="font-bold text-app text-base flex items-center gap-2">
+                <h3 id="edit-profile-title" className="font-bold text-app text-base flex items-center gap-2">
                   <Pencil size={18} className="text-indigo-600" />
-                  Edit Public Profile
+                  Edit profile
                 </h3>
-                <p className="text-xs text-muted">Update your details</p>
+                <p className="mt-1 text-xs text-muted">Shape how your skills and experience appear to the community.</p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowEditModal(false)}
-                className="text-muted hover:text-app p-1 rounded-lg"
+                aria-label="Close edit profile"
+                className="flex h-10 w-10 items-center justify-center rounded-xl text-muted transition-colors hover:bg-slate-100 hover:text-app dark:hover:bg-slate-800"
               >
                 <X size={20} />
               </button>
@@ -1656,7 +1652,7 @@ const PublicProfile = () => {
               </div>
             )}
 
-            <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
+            <form onSubmit={handleSaveProfile} className="space-y-4 pb-20 text-xs">
               {/* Profile Visual Identity Card (Cover & Avatar) */}
               <div className="space-y-3 p-4 rounded-3xl bg-slate-50 dark:bg-[#1a1c24] border border-slate-200 dark:border-slate-800">
                 <div className="flex items-center justify-between">
@@ -2059,18 +2055,18 @@ const PublicProfile = () => {
                 ))}
               </div>
 
-              <div className="flex gap-3 pt-3">
+              <div className="sticky bottom-0 -mx-5 -mb-5 flex gap-3 border-t border-slate-200 bg-white/95 px-5 py-4 pt-3 backdrop-blur dark:border-slate-800 dark:bg-[#171a22]/95 sm:-mx-7 sm:-mb-7 sm:px-7">
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-app rounded-2xl font-bold transition-all"
+                  className="orb-btn-ghost min-h-11 flex-1 rounded-xl"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={savingProfile}
-                  className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold transition-all shadow-md disabled:opacity-50"
+                  className="orb-btn-primary min-h-11 flex-1 rounded-xl disabled:opacity-50"
                 >
                   {savingProfile ? 'Saving...' : 'Save Changes'}
                 </button>

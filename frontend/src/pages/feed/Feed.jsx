@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useSelector } from 'react-redux';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
 import RubberSegment from '../../components/common/react-bits/RubberSegment.jsx';
 import {
@@ -23,8 +23,6 @@ import {
   Reply
 } from 'lucide-react';
 import { useSocket } from '../../context/SocketContext.jsx';
-import Marquee from '../../components/motion/Marquee.jsx';
-import MorphingBlob from '../../components/motion/MorphingBlob.jsx';
 import {
   Avatar,
   AvatarImage,
@@ -41,6 +39,7 @@ import {
 } from '../../components/ui/index.js';
 import PostLikersDialog from '../../components/common/PostLikersDialog.jsx';
 import PostCommentsModal from '../../components/common/PostCommentsModal.jsx';
+import ReportContentButton from '../../components/common/ReportContentButton.jsx';
 import { PulseHeart } from '../../components/common/react-bits/PulseHeart.jsx';
 
 const MAX_POST_LENGTH = 2000;
@@ -48,6 +47,7 @@ const PREVIEW_LENGTH = 360;
 
 const Feed = () => {
   const { user, token } = useSelector((state) => state.auth);
+  const location = useLocation();
   const { sendMessage } = useSocket();
 
   const [posts, setPosts] = useState([]);
@@ -67,17 +67,15 @@ const Feed = () => {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef(null);
+  const composerRef = useRef(null);
 
-  const [isComposerVisible, setIsComposerVisible] = useState(true);
   const [isComposerSticky, setIsComposerSticky] = useState(false);
-  const [isComposerFocused, setIsComposerFocused] = useState(false);
   const [copiedPostId, setCopiedPostId] = useState('');
   const [activeLikersPostId, setActiveLikersPostId] = useState(null);
   const [activeCommentLikersTarget, setActiveCommentLikersTarget] = useState(null);
   const [activeCommentsPost, setActiveCommentsPost] = useState(null);
   const [commentToDeleteTarget, setCommentToDeleteTarget] = useState(null);
   const [deletingCommentId, setDeletingCommentId] = useState('');
-  const lastScrollY = useRef(0);
   const pageShellRef = useRef(null);
   const closeMenuTimerRef = useRef(null);
 
@@ -97,27 +95,7 @@ const Feed = () => {
   };
 
   const handlePageScroll = (e) => {
-    const currentScrollY = e.target.scrollTop;
-    const delta = currentScrollY - lastScrollY.current;
-
-    if (currentScrollY <= 80) {
-      setIsComposerSticky(false);
-      setIsComposerVisible(true);
-    } else {
-      setIsComposerSticky(true);
-
-      if (isComposerFocused || content.trim().length > 0) {
-        setIsComposerVisible(true);
-      } else if (Math.abs(delta) > 6) {
-        if (delta > 0 && currentScrollY > 120) {
-          setIsComposerVisible(false);
-        } else if (delta < 0) {
-          setIsComposerVisible(true);
-        }
-      }
-    }
-
-    lastScrollY.current = currentScrollY;
+    setIsComposerSticky(e.target.scrollTop > 80);
   };
 
   // Freeze background scrolling when share modal is open
@@ -183,6 +161,15 @@ const Feed = () => {
   useEffect(() => {
     fetchPosts();
   }, [token, fetchPosts]);
+
+  useEffect(() => {
+    if (location.hash !== '#create') return;
+    const frameId = window.requestAnimationFrame(() => {
+      composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      composerRef.current?.querySelector('textarea')?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [location.hash]);
 
   // Fetch sidebar widgets & active chats once on load, and auto-refresh silently every 10 mins
   useEffect(() => {
@@ -448,34 +435,37 @@ const Feed = () => {
   const userAvatar = user?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=6366f1&color=fff`;
 
   return (
-    <div ref={pageShellRef} onScroll={handlePageScroll} className="page-shell space-y-5 sm:space-y-6 overflow-y-auto relative">
-      {/* Ambient Morphing Blobs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <MorphingBlob size={320} color="rgba(59, 130, 246, 0.06)" className="-top-20 -left-16" />
-        <MorphingBlob size={280} color="rgba(168, 85, 247, 0.05)" className="top-64 -right-16" />
+    <div ref={pageShellRef} onScroll={handlePageScroll} className="space-y-6 max-w-7xl mx-auto min-w-0">
+      {/* ── Page Title & Subtitle ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="orb-page-title">Community Showcase</h1>
+          <p className="orb-page-subtitle">
+            Explore daily discoveries, project updates, and knowledge swaps from the community.
+          </p>
+        </div>
+
+        {/* Feed Scope Pill Toggle */}
+        <RubberSegment
+          ariaLabel="Feed posts scope"
+          value={feedScope}
+          onChange={setFeedScope}
+          options={[
+            { value: 'all', label: 'All Updates', icon: Globe },
+            { value: 'following', label: 'Following', icon: Users }
+          ]}
+          className="rounded-full bg-slate-100 dark:bg-slate-800/80 p-1"
+          buttonClassName="px-4 py-1.5 text-xs font-semibold"
+          indicatorClassName="bg-indigo-600 shadow-sm"
+        />
       </div>
 
-      {/* Infinite Seamless Marquee of Trending Topics & Skills */}
-      <div className="max-w-7xl mx-auto pt-1 sm:pt-0">
-        <Marquee speed={32} className="py-2 sm:py-2.5 px-3 sm:px-4 rounded-2xl bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 text-[11px] sm:text-xs shadow-sm">
-          <span className="flex items-center gap-1.5 font-bold text-blue-600 dark:text-blue-400 shrink-0">
-            <Sparkles size={14} /> Trending Swaps:
-          </span>
-          <span className="text-muted-strong font-medium">• System Design & Architecture</span>
-          <span className="text-muted-strong font-medium">• Next.js 14 App Router</span>
-          <span className="text-muted-strong font-medium">• Python Data Analytics</span>
-          <span className="text-muted-strong font-medium">• Machine Learning & LLMs</span>
-          <span className="text-muted-strong font-medium">• Spanish & French Speaking</span>
-          <span className="text-muted-strong font-medium">• Figma & UI/UX Systems</span>
-          <span className="text-muted-strong font-medium">• Docker & Cloud DevOps</span>
-        </Marquee>
-      </div>
       {/* 3-Column Responsive Layout */}
-      <div className="max-w-7xl mx-auto flex items-start gap-6">
+      <div className="flex items-start gap-6">
         {/* Left Column: Quick Profile Card (Desktop only) */}
-        <aside className="hidden xl:block w-72 shrink-0 space-y-4 sticky top-6">
+        <aside className="hidden xl:block w-72 shrink-0 space-y-4 sticky top-4">
           {/* User profile mini-card */}
-          <div className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-4">
+          <div className="orb-card p-5 space-y-4">
             <div className="flex items-center gap-3">
               <Link to={userProfileLink} className="hover:scale-105 transition-transform shrink-0">
                 <Avatar className="w-12 h-12 border border-slate-200 dark:border-slate-700">
@@ -488,11 +478,11 @@ const Feed = () => {
               <div className="min-w-0">
                 <Link
                   to={userProfileLink}
-                  className="font-bold text-sm text-app hover:text-blue-600 dark:hover:text-blue-400 truncate block"
+                  className="font-bold text-sm text-slate-900 dark:text-white hover:text-indigo-600 truncate block"
                 >
                   {userName}
                 </Link>
-                <p className="text-xs text-muted truncate">@{user?.username || 'user'}</p>
+                <p className="text-xs text-slate-400 truncate">@{user?.username || 'user'}</p>
                 <div className="mt-1">
                   <Badge variant="secondary" className="text-[10px] font-semibold">
                     {user?.experienceLevel || 'Learner'}
@@ -501,55 +491,55 @@ const Feed = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-200 dark:border-slate-800 text-center">
-              <div className="p-2 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800">
-                <span className="text-xs font-extrabold text-app block">{user?.points || 0}</span>
-                <span className="text-[10px] text-muted uppercase font-semibold">Points</span>
+            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 dark:border-slate-800 text-center">
+              <div className="p-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70">
+                <span className="text-xs font-extrabold text-slate-900 dark:text-white block">{user?.points || 0}</span>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold">Points</span>
               </div>
-              <div className="p-2 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800">
-                <span className="text-xs font-extrabold text-app block">{user?.followingCount || 0}</span>
-                <span className="text-[10px] text-muted uppercase font-semibold">Following</span>
+              <div className="p-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70">
+                <span className="text-xs font-extrabold text-slate-900 dark:text-white block">{user?.followingCount || 0}</span>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold">Following</span>
               </div>
             </div>
 
-            <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800 text-xs font-medium">
+            <div className="space-y-1 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs font-medium">
               <Link
                 to="/bookings"
-                className="flex items-center justify-between p-2 rounded-xl text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors"
+                className="flex items-center justify-between p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
               >
                 <span className="flex items-center gap-2">
-                  <Calendar size={14} className="text-blue-500" /> My Bookings
+                  <Calendar size={14} className="text-indigo-500" /> My Bookings
                 </span>
-                <ArrowRight size={12} className="text-muted" />
+                <ArrowRight size={12} className="text-slate-400" />
               </Link>
               <Link
                 to="/groups"
-                className="flex items-center justify-between p-2 rounded-xl text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors"
+                className="flex items-center justify-between p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
               >
                 <span className="flex items-center gap-2">
                   <Users size={14} className="text-purple-500" /> Study Groups
                 </span>
-                <ArrowRight size={12} className="text-muted" />
+                <ArrowRight size={12} className="text-slate-400" />
               </Link>
               <Link
                 to="/suggested-users"
-                className="flex items-center justify-between p-2 rounded-xl text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors"
+                className="flex items-center justify-between p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
               >
                 <span className="flex items-center gap-2">
                   <Sparkles size={14} className="text-amber-500" /> Suggested Peers
                 </span>
-                <ArrowRight size={12} className="text-muted" />
+                <ArrowRight size={12} className="text-slate-400" />
               </Link>
             </div>
           </div>
 
           {/* Quick learning tip */}
-          <div className="bg-blue-50/60 dark:bg-indigo-950/20 border border-blue-100 dark:border-indigo-900/40 rounded-3xl p-4 text-xs space-y-2">
-            <div className="flex items-center gap-2 text-blue-600 dark:text-indigo-400 font-bold">
+          <div className="bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-2xl p-4 text-xs space-y-1.5">
+            <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold">
               <Award size={15} />
               <span>Skill Exchange Tip</span>
             </div>
-            <p className="text-muted leading-relaxed text-[11px]">
+            <p className="text-slate-500 dark:text-slate-400 leading-relaxed text-[11px]">
               Teach a peer for 60+ minutes to earn +50 points and unlock verified skill certificates!
             </p>
           </div>
@@ -557,72 +547,48 @@ const Feed = () => {
 
         {/* Center Column: Feed Stream */}
         <main className="flex-1 max-w-2xl min-w-0 space-y-4">
-          {/* Feed Header */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-extrabold text-app">Learning Feed</h1>
-              <p className="text-xs text-muted">Share progress, questions, and insights</p>
-            </div>
-
-            {/* Full-width rubbery segmented pill with spring physics */}
-            <RubberSegment
-              ariaLabel="Feed posts"
-              value={feedScope}
-              onChange={setFeedScope}
-              options={[
-                { value: 'all', label: 'All', icon: Globe },
-                { value: 'following', label: 'Following', icon: Users }
-              ]}
-              className="w-full sm:w-64"
-              buttonClassName="flex-1 py-2 text-xs font-semibold"
-              indicatorClassName="bg-blue-600 shadow-md shadow-blue-600/30"
-            />
-          </div>
-
-          {/* Post Composer with Natural Smooth Reveal */}
+          {/* Post Composer */}
           <div
-            className={`transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-              isComposerSticky
-                ? 'sticky top-1 sm:top-2 z-20'
-                : 'relative z-10'
-            } ${
-              isComposerVisible
-                ? 'translate-y-0 opacity-100 shadow-xl'
-                : '-translate-y-24 opacity-0 pointer-events-none shadow-none'
+            ref={composerRef}
+            id="create"
+            className={`transition-all duration-300 ${
+              isComposerSticky ? 'sticky top-2 z-20 shadow-md' : 'relative z-10'
             }`}
           >
             <form
               onSubmit={createPost}
-              className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-3.5 sm:p-5 space-y-3 shadow-sm"
+              className="orb-card p-4 sm:p-5 space-y-3"
             >
-              <div className="flex gap-2.5 sm:gap-3">
+              <div className="flex gap-3">
                 <Link to={userProfileLink} className="shrink-0">
                   <img
                     src={userAvatar}
                     alt={userName}
-                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-800 object-cover border border-slate-200 dark:border-slate-700"
+                    className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 object-cover border border-slate-200 dark:border-slate-700"
                   />
                 </Link>
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  onFocus={() => setIsComposerFocused(true)}
-                  onBlur={() => setIsComposerFocused(false)}
                   maxLength={MAX_POST_LENGTH}
                   rows={isComposerSticky ? 2 : 3}
-                  placeholder="What did you learn today? Ask a question or share a breakthrough..."
-                  className="w-full bg-slate-50 dark:bg-[#12161f] border border-slate-200 dark:border-slate-800 rounded-2xl p-2.5 sm:p-3 text-xs sm:text-sm text-app placeholder:text-muted outline-none focus:border-blue-500 resize-none transition-all"
+                  placeholder="What did you learn today? Share a breakthrough or ask a question..."
+                  className="w-full bg-slate-50 dark:bg-[#12161f] border border-slate-200/80 dark:border-slate-700/80 rounded-xl p-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:border-indigo-500 resize-none transition-all"
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
-                <span className={`text-[10px] sm:text-[11px] font-mono ${content.length > MAX_POST_LENGTH - 80 ? 'text-amber-500' : 'text-muted'}`}>
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                <span
+                  className={`text-[10px] sm:text-[11px] font-mono ${
+                    content.length > MAX_POST_LENGTH - 80 ? 'text-amber-500' : 'text-slate-400'
+                  }`}
+                >
                   {content.length}/{MAX_POST_LENGTH}
                 </span>
                 <button
                   type="submit"
                   disabled={!content.trim()}
-                  className="btn-primary text-xs px-3.5 py-1.5 sm:px-4 sm:py-2"
+                  className="orb-btn-primary text-xs px-4 py-2"
                 >
                   <Send size={13} />
                   <span>Post Update</span>
@@ -665,7 +631,7 @@ const Feed = () => {
               return (
                 <article
                   key={post._id}
-                  className="bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 space-y-4 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm"
+                  className="orb-card p-5 space-y-4"
                 >
                   {/* Author Header (Clickable profile with @username) */}
                   <div className="flex items-start justify-between gap-3">
@@ -778,6 +744,9 @@ const Feed = () => {
                           >
                             <Share2 size={13} /> Share Post
                           </button>
+                          {!isMyPost && (
+                            <ReportContentButton targetType="post" targetId={post._id} compact />
+                          )}
                         </div>
                       )}
                     </div>

@@ -20,7 +20,9 @@ import {
   X,
   CheckSquare,
   Ban,
-  Plus
+  Plus,
+  Search,
+  MessageSquare
 } from 'lucide-react';
 
 const ChatRoom = () => {
@@ -32,27 +34,12 @@ const ChatRoom = () => {
   const { socket, sendMessage, sendTypingStatus, onlineUsersList } = useSocket();
 
   const [typedMessage, setTypedMessage] = useState('');
+  const [conversationSearch, setConversationSearch] = useState('');
   const [peerIsTyping, setPeerIsTyping] = useState(false);
   const [mobileShowSidebar, setMobileShowSidebar] = useState(true);
   const [openMessageMenu, setOpenMessageMenu] = useState('');
   const [menuPlacement, setMenuPlacement] = useState('down');
   const [activeReactionMsgId, setActiveReactionMsgId] = useState(null);
-  const closeConvMenuTimerRef = useRef(null);
-
-  const handleConvMenuMouseEnter = (menuId) => {
-    if (closeConvMenuTimerRef.current) {
-      clearTimeout(closeConvMenuTimerRef.current);
-      closeConvMenuTimerRef.current = null;
-    }
-    setOpenConversationMenu(menuId);
-  };
-
-  const handleConvMenuMouseLeave = () => {
-    if (closeConvMenuTimerRef.current) clearTimeout(closeConvMenuTimerRef.current);
-    closeConvMenuTimerRef.current = setTimeout(() => {
-      setOpenConversationMenu('');
-    }, 200);
-  };
   const [replyTarget, setReplyTarget] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [selectedMessageIds, setSelectedMessageIds] = useState([]);
@@ -63,6 +50,25 @@ const ChatRoom = () => {
   const [openConversationMenu, setOpenConversationMenu] = useState('');
   const [showBlockedModal, setShowBlockedModal] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState([]);
+
+  useEffect(() => {
+    if (!openConversationMenu) return undefined;
+
+    const closeOnOutsideClick = (event) => {
+      if (event.target instanceof Element && event.target.closest('[data-conversation-menu]')) return;
+      setOpenConversationMenu('');
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setOpenConversationMenu('');
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [openConversationMenu]);
 
   const messagesEndRef = useRef(null);
   const messageInputRef = useRef(null);
@@ -577,6 +583,10 @@ const ChatRoom = () => {
     return onlineUsersList[userId?.toString()] === true;
   };
 
+  const filteredChats = activeChats.filter((chat) =>
+    chat.partner?.name?.toLowerCase().includes(conversationSearch.trim().toLowerCase())
+  );
+
   const renderMessageText = (content) => {
     const parts = String(content || '').split(/(https?:\/\/[^\s]+)/g);
     return parts.map((part, index) => {
@@ -592,38 +602,52 @@ const ChatRoom = () => {
   };
 
   return (
-    <div className="flex h-full w-full min-h-0 p-0 overflow-hidden text-app">
-      <div className="relative flex h-full w-full min-h-0 overflow-hidden border-t border-slate-200 dark:border-slate-800">
+    <div className="flex h-full w-full min-h-0 overflow-hidden bg-white text-app dark:bg-[#111318]">
+      <div className="relative flex h-full w-full min-h-0 overflow-hidden">
         {/* Chats Sidebar */}
-        <div className={`h-full w-full flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#22242a] md:w-80 lg:w-[22rem] flex-col ${
+        <div className={`h-full w-full flex-shrink-0 border-r border-slate-200/80 bg-[#fbfcfe] dark:border-slate-800 dark:bg-[#15171d] md:w-80 lg:w-[22rem] flex-col ${
           mobileShowSidebar ? 'flex' : 'hidden md:flex'
         }`}>
           {/* Header search */}
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800">
+          <div className="border-b border-slate-200/80 p-5 dark:border-slate-800">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="font-bold text-app font-outfit">Messages</h3>
-                <p className="text-[10px] text-muted mt-0.5">Direct messages and study chats</p>
+                <h3 className="font-semibold tracking-tight text-app">Messages</h3>
+                <p className="mt-1 text-xs text-muted">Direct messages and study chats</p>
               </div>
               <button
                 type="button"
                 onClick={openBlockedUsersModal}
-                className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-900/5 hover:text-app dark:hover:bg-white/5"
+                className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-900/5 hover:text-app dark:hover:bg-white/5"
                 title="Blocked users"
               >
                 <Ban size={16} />
               </button>
             </div>
+            <label className="relative mt-4 block">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                type="search"
+                value={conversationSearch}
+                onChange={(event) => setConversationSearch(event.target.value)}
+                placeholder="Search conversations"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-xs text-app outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-[#1b1e26]"
+              />
+            </label>
           </div>
 
           {/* List items */}
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-900/60 p-2 space-y-1">
+          <div className="flex-1 space-y-1 overflow-y-auto p-3">
             {activeChats.length === 0 ? (
-              <div className="text-center py-20 text-slate-500 text-xs">
+              <div className="px-4 py-16 text-center text-xs text-muted">
                 No active conversations. Visit Suggested Peers to find learning partners and say hi!
               </div>
+            ) : filteredChats.length === 0 ? (
+              <div className="px-4 py-12 text-center text-xs text-muted">
+                No conversations match “{conversationSearch}”.
+              </div>
             ) : (
-              activeChats.map((chat) => {
+              filteredChats.map((chat) => {
                 const partner = chat.partner;
                 const isSelected = currentRoomId === chat.chatRoomId;
                 const online = isUserOnline(partner._id);
@@ -632,10 +656,10 @@ const ChatRoom = () => {
                 return (
                   <div
                     key={chat.chatRoomId}
-                    className={`relative w-full flex items-center gap-2 rounded-2xl p-2 transition-all sm:gap-3 sm:p-3 ${
+                    className={`relative w-full flex items-center gap-2 rounded-2xl border p-2.5 transition-all sm:gap-3 sm:p-3 ${
                       isSelected
-                        ? 'bg-blue-600 border border-blue-600 text-white shadow-sm'
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300 border border-transparent'
+                        ? 'border-indigo-200 bg-indigo-50 text-slate-900 shadow-sm dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-slate-100'
+                        : 'border-transparent text-slate-700 hover:border-slate-200 hover:bg-white dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-[#1b1e26]'
                     }`}
                   >
                     <button type="button" onClick={() => selectConversation(partner, chat.chatRoomId)} className="flex min-w-0 flex-1 items-center gap-2 text-left sm:gap-3">
@@ -650,45 +674,37 @@ const ChatRoom = () => {
                     </div>
                     <div className="flex-1 min-w-0 text-left">
                       <div className="flex justify-between items-center">
-                        <span className={`truncate text-xs font-semibold ${isSelected ? 'text-white' : 'text-slate-800 dark:text-slate-100'}`}>{partner.name}</span>
-                        <span className={`text-[9px] font-mono ${isSelected ? 'text-blue-100' : 'text-muted'}`}>
+                        <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{partner.name}</span>
+                        <span className="shrink-0 text-[10px] text-muted">
                           {new Date(chat.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      <p className={`text-[10px] truncate mt-1 ${unread ? 'font-bold text-blue-600 dark:text-white' : isSelected ? 'text-white/80' : 'text-muted'}`}>
+                      <p className={`mt-1 truncate text-xs ${unread ? 'font-semibold text-indigo-700 dark:text-indigo-300' : 'text-muted'}`}>
                         {chat.lastMessage.content}
                       </p>
                     </div>
                     </button>
-                  <div
-                    className="relative shrink-0"
-                    onMouseEnter={() => handleConvMenuMouseEnter(chat.chatRoomId)}
-                    onMouseLeave={handleConvMenuMouseLeave}
-                  >
+                  <div className="relative shrink-0" data-conversation-menu>
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (closeConvMenuTimerRef.current) clearTimeout(closeConvMenuTimerRef.current);
                         setOpenConversationMenu(openConversationMenu === chat.chatRoomId ? '' : chat.chatRoomId);
                       }}
                       className={`group/dots rounded-lg p-1.5 transition-all duration-200 sm:p-2 active:scale-95 ${
                         isSelected
-                          ? 'text-white/80 hover:bg-white/20 hover:text-white'
+                          ? 'text-indigo-600 hover:bg-indigo-100 dark:text-indigo-300 dark:hover:bg-indigo-500/20'
                           : 'text-slate-500 hover:bg-blue-50/80 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400'
                       }`}
                       title={`${partner.name} options`}
+                      aria-label={`${partner.name} options`}
+                      aria-expanded={openConversationMenu === chat.chatRoomId}
                     >
-                      <MoreVertical
-                        size={16}
-                        className="transition-transform duration-200 group-hover/dots:scale-110"
-                      />
+                      <MoreVertical size={16} />
                     </button>
                     {openConversationMenu === chat.chatRoomId && (
                       <div
                         className="absolute right-3 top-10 z-30 w-44 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#2a2c34] p-1.5 text-xs shadow-2xl animate-in fade-in zoom-in-95 duration-150"
-                        onMouseEnter={() => handleConvMenuMouseEnter(chat.chatRoomId)}
-                        onMouseLeave={handleConvMenuMouseLeave}
                       >
                         <button type="button" onClick={() => requestDeleteConversationByRoom(chat.chatRoomId, partner.name)} className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors">
                           <Trash2 size={13} /> Delete
@@ -707,13 +723,13 @@ const ChatRoom = () => {
         </div>
 
         {/* Message Window Panel */}
-        <div className={`h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50 dark:bg-slate-950/20 ${
+        <div className={`h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f7f8fb] dark:bg-[#111318] ${
           !mobileShowSidebar ? 'flex' : 'hidden md:flex'
         }`}>
           {chatPartner ? (
             <>
               {/* Partner details bar - pinned on mobile and desktop */}
-              <div className="z-30 shrink-0 flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#22242a] p-2 sm:px-5 sm:py-3.5 backdrop-blur-md">
+              <div className="z-30 shrink-0 flex items-center justify-between gap-1.5 border-b border-slate-200/80 bg-white p-2 dark:border-slate-800 dark:bg-[#15171d] sm:gap-2 sm:px-5 sm:py-3.5">
                 <div className="flex min-w-0 items-center gap-1.5 sm:gap-3.5">
                   <button
                     onClick={() => setMobileShowSidebar(true)}
@@ -747,30 +763,20 @@ const ChatRoom = () => {
                   >
                     <CheckSquare size={16} />
                   </button>
-                  <div
-                    className="relative"
-                    onMouseEnter={() => handleConvMenuMouseEnter('current')}
-                    onMouseLeave={handleConvMenuMouseLeave}
-                  >
+                  <div className="relative" data-conversation-menu>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (closeConvMenuTimerRef.current) clearTimeout(closeConvMenuTimerRef.current);
-                        setOpenConversationMenu(openConversationMenu === 'current' ? '' : 'current');
-                      }}
+                      onClick={() => setOpenConversationMenu(openConversationMenu === 'current' ? '' : 'current')}
                       className="group/dots rounded-lg p-1.5 sm:p-2 text-muted transition-all duration-200 hover:bg-blue-50/80 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95"
                       title="Chat options"
+                      aria-label="Chat options"
+                      aria-expanded={openConversationMenu === 'current'}
                     >
-                      <MoreVertical
-                        size={16}
-                        className="transition-transform duration-200 group-hover/dots:scale-110"
-                      />
+                      <MoreVertical size={16} />
                     </button>
                     {openConversationMenu === 'current' && (
                       <div
                         className="absolute right-0 top-10 sm:top-11 z-50 w-40 sm:w-44 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#2a2c34] p-1.5 text-xs shadow-2xl animate-in fade-in zoom-in-95 duration-150"
-                        onMouseEnter={() => handleConvMenuMouseEnter('current')}
-                        onMouseLeave={handleConvMenuMouseLeave}
                       >
                         <button type="button" onClick={requestDeleteCurrentConversation} className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors">
                           <Trash2 size={13} /> Delete chat
@@ -804,7 +810,7 @@ const ChatRoom = () => {
               )}
 
               {/* Chat Stream Bubble list */}
-              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-[#efeae2] p-3 pt-5 sm:p-4 dark:bg-[#1a1c22]">
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-[#f7f8fb] p-3 pt-5 sm:p-5 dark:bg-[#111318]">
                 {loading ? (
                   <div className="flex justify-center items-center py-20">
                     <div className="w-8 h-8 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
@@ -887,8 +893,8 @@ const ChatRoom = () => {
                             toggleMessageSelection(msg._id);
                           }
                         }}
-                        className={`group relative flex cursor-default items-center gap-2 rounded-lg px-1 py-1 sm:px-2 ${isOutgoing ? 'justify-end' : 'justify-start'} animate-fade-in ${
-                          selectedMessageIds.includes(msg._id) ? 'bg-[#d9fdd3]/80 dark:bg-emerald-900/30' : ''
+                        className={`group group/message relative flex cursor-default items-center gap-2 rounded-lg px-1 py-1 sm:px-2 ${isOutgoing ? 'justify-end' : 'justify-start'} animate-fade-in ${
+                          selectedMessageIds.includes(msg._id) ? 'bg-indigo-50/80 dark:bg-indigo-950/30' : ''
                         } ${isMenuOpen || activeReactionMsgId === msg._id ? 'z-50 relative' : 'relative z-0'} ${
                           msg.reactions?.length > 0 ? 'mb-2.5' : ''
                         }`}
@@ -912,7 +918,7 @@ const ChatRoom = () => {
                           msg.replyTo && !isDeleted ? 'min-w-[260px] sm:min-w-[300px]' : 'min-w-[100px]'
                         } ${
                           isOutgoing
-                            ? 'bg-[#d9fdd3] text-slate-900 rounded-br-sm dark:bg-[#1f3a2b] dark:text-slate-100'
+                            ? 'bg-indigo-600 text-white rounded-br-sm dark:bg-indigo-600'
                             : 'border border-slate-200 bg-white text-slate-900 dark:border-neutral-700 dark:bg-[#22242a] dark:text-slate-100 rounded-bl-sm'
                         } ${isMenuOpen ? 'z-50' : 'z-auto'}`}>
                           <div className="absolute right-1.5 top-1.5 z-30">
@@ -927,7 +933,7 @@ const ChatRoom = () => {
                               }}
                               className={`rounded-full border bg-transparent p-1 text-slate-600 transition-all hover:bg-black/10 dark:text-slate-200 dark:hover:bg-white/10 ${
                                 isOutgoing ? 'border-white/40' : 'border-slate-200 dark:border-slate-700'
-                              } ${isMenuOpen ? 'opacity-100' : 'opacity-90 sm:opacity-0 sm:group-hover:opacity-100'}`}
+                              } ${isMenuOpen ? 'opacity-100' : 'opacity-90 sm:opacity-0 sm:group-hover/message:opacity-100 focus-visible:opacity-100'}`}
                               title="Message actions"
                               aria-label="Message actions"
                             >
@@ -1172,7 +1178,7 @@ const ChatRoom = () => {
                 </div>
               )}
 
-              <form onSubmit={handleSendMessage} className="z-20 shrink-0 flex items-end gap-1.5 sm:gap-2.5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#22242a] px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-4">
+              <form onSubmit={handleSendMessage} className="z-20 shrink-0 flex items-end gap-1.5 border-t border-slate-200/80 bg-white px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] dark:border-slate-800 dark:bg-[#15171d] sm:gap-2.5 sm:p-4">
                 <input ref={documentInputRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.txt" onChange={(e) => handleFileUpload(e.target.files?.[0])} />
                 <input ref={imageInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e.target.files?.[0])} />
                 <button type="button" onClick={() => documentInputRef.current?.click()} className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:text-slate-700 dark:hover:text-slate-300" title="Attach document">
@@ -1209,17 +1215,19 @@ const ChatRoom = () => {
                 <button
                   type="submit"
                   disabled={!typedMessage.trim() || uploadingFile}
-                  className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow transition-all hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 shrink-0"
+                  className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm transition-all hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 shrink-0"
                 >
                   <Send size={16} />
                 </button>
               </form>
             </>
           ) : (
-            <div className="flex-1 flex flex-col justify-center items-center p-6 text-center space-y-2">
-              <span className="text-4xl">💬</span>
-              <h3 className="font-extrabold text-lg text-app font-outfit">Open a Conversation</h3>
-              <p className="text-xs text-muted max-w-xs">Select a learning partner from the sidebar to chat, share resources, and study together in real-time!</p>
+            <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
+              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-indigo-100 bg-white text-indigo-600 shadow-sm dark:border-indigo-500/20 dark:bg-[#1b1e26] dark:text-indigo-300">
+                <MessageSquare size={27} strokeWidth={1.7} />
+              </div>
+              <h3 className="text-base font-semibold tracking-tight text-app">Your conversations</h3>
+              <p className="mt-2 max-w-xs text-sm leading-6 text-muted">Choose a learning partner to share ideas, resources, and progress.</p>
             </div>
           )}
         </div>

@@ -1,5 +1,6 @@
 import skillService from './skill.service.js';
 import { asyncHandler, ApiResponse } from '../../shared/index.js';
+import { getAdminPermissions } from '../../middlewares/adminPermissions.js';
 
 export const getSkills = asyncHandler(async (req, res) => {
   const { category, search } = req.query;
@@ -55,8 +56,11 @@ export const requestSkill = asyncHandler(async (req, res) => {
 
 export const getSkillRequests = asyncHandler(async (req, res) => {
   const { status } = req.query;
+  const canReviewRequests =
+    String(req.user.role || '').toLowerCase() === 'admin' &&
+    getAdminPermissions(req.user).includes('content.manage');
   const requests = await skillService.getSkillRequests({
-    userRole: req.user.role,
+    userRole: canReviewRequests ? req.user.role : 'User',
     userId: req.user._id,
     status
   });

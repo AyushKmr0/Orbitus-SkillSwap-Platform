@@ -5,6 +5,8 @@ import { updateProfileSuccess } from '../features/authSlice.js';
 import apiClient from '../services/apiClient.js';
 import { socketUrl, backendUrl } from '../config/env.js';
 
+const RATE_LIMIT_COOLDOWN_MS = 15 * 60 * 1000;
+
 const SocketContext = createContext(null);
 
 export const useSocket = () => useContext(SocketContext);
@@ -50,9 +52,30 @@ export const SocketProvider = ({ children }) => {
   const socketRef = useRef(null);
   const activeChatsRefreshTimerRef = useRef(null);
   const notificationSummaryRefreshTimerRef = useRef(null);
+  const rateLimitResetAtRef = useRef(0);
+
+  const handleRateLimitError = useCallback((err) => {
+    if (err.response?.status !== 429) return false;
+
+    const now = Date.now();
+    if (rateLimitResetAtRef.current <= now) {
+      const retryAfterSeconds = Number(err.response.headers?.['retry-after']);
+      const cooldownMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+        ? retryAfterSeconds * 1000
+        : RATE_LIMIT_COOLDOWN_MS;
+      rateLimitResetAtRef.current = now + cooldownMs;
+      console.warn(`API rate limit reached; pausing background refresh for ${Math.ceil(cooldownMs / 1000)} seconds.`);
+    }
+    return true;
+  }, []);
+
+  const isRateLimitCooldownActive = useCallback(
+    () => Date.now() < rateLimitResetAtRef.current,
+    []
+  );
 
   const fetchNotificationSummary = useCallback(async () => {
-    if (!token) return;
+    if (!token || isRateLimitCooldownActive()) return;
 
     try {
       const res = await apiClient.get('/api/notifications/summary');
@@ -62,6 +85,9 @@ export const SocketProvider = ({ children }) => {
         byLink: payload.byLink || res.data?.byLink || {}
       });
     } catch (err) {
+      if (handleRateLimitError(err)) {
+        return;
+      }
       if (err.code === 'ERR_NETWORK' || !err.response) {
         if (import.meta.env.DEV) {
           console.warn('[OFFLINE NOTICE]: Backend service is unreachable at', backendUrl);
@@ -70,10 +96,10 @@ export const SocketProvider = ({ children }) => {
         console.error('Error loading notification summary:', err);
       }
     }
-  }, [token]);
+  }, [token, handleRateLimitError, isRateLimitCooldownActive]);
 
   const fetchActiveChats = useCallback(async () => {
-    if (!token) return;
+    if (!token || isRateLimitCooldownActive()) return;
 
     try {
       const res = await apiClient.get('/api/messages/active');
@@ -81,6 +107,9 @@ export const SocketProvider = ({ children }) => {
       const chats = payload.chats || res.data?.chats || [];
       dispatch(setActiveChats(Array.isArray(chats) ? chats : []));
     } catch (err) {
+      if (handleRateLimitError(err)) {
+        return;
+      }
       if (err.code === 'ERR_NETWORK' || !err.response) {
         if (import.meta.env.DEV) {
           console.warn('[OFFLINE NOTICE]: Chat notifications unreachable at', backendUrl);
@@ -89,7 +118,7 @@ export const SocketProvider = ({ children }) => {
         console.error('Error refreshing chat notifications:', err);
       }
     }
-  }, [token, dispatch]);
+  }, [token, dispatch, handleRateLimitError, isRateLimitCooldownActive]);
 
   const scheduleActiveChatsRefresh = useCallback(() => {
     if (activeChatsRefreshTimerRef.current) return;
@@ -225,7 +254,20 @@ export const SocketProvider = ({ children }) => {
         });
 
         // Listen to peer statuses
-        socketConn.on('online_users_list', (userIds = []) => {
+        socketConn.on('online_users_list', (payload) => {
+          const userIds = Array.isArray(payload)
+            ? payload
+            : Array.isArray(payload?.userIds)
+            ? payload.userIds
+            : Array.isArray(payload?.data)
+            ? payload.data
+            : null;
+
+          if (!userIds) {
+            console.error('[SOCKET PAYLOAD ERROR]: online_users_list must contain an array of user IDs.', payload);
+            return;
+          }
+
           setOnlineUsersList(
             userIds.reduce((acc, userId) => {
               acc[userId.toString()] = true;

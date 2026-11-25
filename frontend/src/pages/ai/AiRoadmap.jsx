@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import apiClient from '../../services/apiClient.js';
 import { motion } from 'framer-motion';
-import MorphingBlob from '../../components/motion/MorphingBlob.jsx';
 import {
   Map,
   Compass,
@@ -301,26 +300,14 @@ const AiRoadmap = () => {
   const activeEngineObj = AI_PROVIDERS.find((p) => p.id === activeAiProvider);
 
   return (
-    <div className="page-shell flex-1 p-4 sm:p-6 lg:p-8 space-y-6 text-app overflow-y-auto relative">
-      {/* Ambient Morphing Blobs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <MorphingBlob size={340} color="rgba(99, 102, 241, 0.07)" className="-top-24 -left-16" />
-        <MorphingBlob size={280} color="rgba(16, 185, 129, 0.05)" className="top-80 -right-16" />
-      </div>
-      {/* Brand Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-[#22242a] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
-        <div className="flex items-start gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/20 shrink-0">
-            <Map size={24} />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-app font-outfit tracking-tight">
-              Learning Roadmaps
-            </h1>
-            <p className="text-xs sm:text-sm text-muted mt-1">
-              Visual step-by-step learning paths and milestones.
-            </p>
-          </div>
+    <div className="space-y-6 max-w-7xl mx-auto min-w-0">
+      {/* ── Page Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="orb-page-title">Skill Graph & AI Roadmaps</h1>
+          <p className="orb-page-subtitle">
+            Visual step-by-step learning paths, curriculum trees, and mastery checkpoints.
+          </p>
         </div>
 
         {/* AI Provider Settings Pill */}
@@ -330,14 +317,14 @@ const AiRoadmap = () => {
             setAiModalTab(hasCustomKey ? 'custom' : 'builtin');
             setShowAiKeyModal(true);
           }}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-app shadow-sm transition-all text-xs cursor-pointer"
+          className="orb-btn-ghost text-xs self-start sm:self-auto"
         >
           <div className={`w-2 h-2 rounded-full ${hasCustomKey ? 'bg-indigo-500' : 'bg-emerald-500'} animate-pulse`} />
-          <span className="text-muted text-[11px]">AI Engine:</span>
-          <span className="font-bold text-app text-xs">
+          <span className="text-slate-400">Engine:</span>
+          <span className="font-semibold text-slate-800 dark:text-slate-200">
             {hasCustomKey && activeEngineObj ? activeEngineObj.name : 'Built-in (Free)'}
           </span>
-          <Settings size={13} className="text-muted ml-0.5" />
+          <Settings size={13} className="text-slate-400 ml-0.5" />
         </button>
       </div>
 
@@ -345,7 +332,7 @@ const AiRoadmap = () => {
         {/* Left Column: Generator & Syllabus history */}
         <div className="space-y-6">
           {/* Creator Form */}
-          <div className="bg-white dark:bg-[#22242a] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+          <div className="orb-card p-6 space-y-4">
             <h3 className="font-bold text-base text-app font-outfit flex items-center gap-2">
               <Compass size={18} className="text-indigo-600 dark:text-indigo-400" />
               Create Roadmap
@@ -410,7 +397,7 @@ const AiRoadmap = () => {
           </div>
 
           {/* Active syllabuses history list */}
-          <div className="bg-white dark:bg-[#22242a] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+          <div className="orb-card p-6 space-y-4">
             <h3 className="font-bold text-base text-app font-outfit flex items-center gap-2">
               <BookOpen size={18} className="text-indigo-600 dark:text-indigo-400" />
               Saved Study Paths ({roadmapsList.length})

@@ -242,49 +242,39 @@ const SuggestedUsers = () => {
   }, [bookingPartner]);
 
   return (
-    <div className="page-shell space-y-6 overflow-y-auto animate-fade-in">
-      {/* Header bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-[#22242a] p-5 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="flex items-start gap-3.5">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-blue-50 dark:bg-blue-600/10 border border-blue-200 dark:border-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl">
-                <Users size={20} />
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-app font-outfit tracking-tight">
-                Suggested Peers
-              </h1>
-            </div>
-            <p className="text-xs sm:text-sm text-muted mt-1.5">
-              Discover partners and mentors who share your learning interests. Connect, chat, or schedule a 1-on-1 practice session.
-            </p>
-          </div>
+    <div className="space-y-6 max-w-7xl mx-auto min-w-0">
+      {/* ── Page Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="orb-page-title">Suggested Peers</h1>
+          <p className="orb-page-subtitle">
+            Discover mentors and study partners matching your skills and learning goals.
+          </p>
         </div>
 
-        <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-end">
-          <button
-            type="button"
-            onClick={() => fetchSuggestedUsers()}
-            disabled={loading || isFading}
-            className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-muted hover:text-app rounded-2xl border border-slate-200 dark:border-slate-700 transition-colors"
-            title="Refresh list"
-          >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => fetchSuggestedUsers()}
+          disabled={loading || isFading}
+          className="orb-btn-ghost text-xs self-start sm:self-auto"
+          title="Refresh list"
+        >
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          <span>Refresh Peers</span>
+        </button>
       </div>
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
         {/* Search */}
         <div className="relative flex-1 max-w-md">
-          <Search size={16} className="absolute left-3.5 top-3 text-muted" />
+          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             placeholder="Search by name, @username, or skill..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-[#12161f] border border-slate-200 dark:border-slate-800 rounded-2xl text-xs sm:text-sm text-app placeholder:text-muted outline-none focus:border-blue-500 transition-colors"
+            className="w-full pl-9 pr-4 py-2 rounded-full text-xs bg-white dark:bg-[#151821] border border-slate-200/80 dark:border-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:border-indigo-500 shadow-xs"
           />
         </div>
 
@@ -294,10 +284,12 @@ const SuggestedUsers = () => {
           value={activeTab}
           onChange={setActiveTab}
           options={[
-            { value: 'all', label: `All Suggestions (${users.length})` },
+            { value: 'all', label: `All Peers (${users.length})` },
             { value: 'not_following', label: 'Not Following' }
           ]}
-          className="self-start rounded-2xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900/80 sm:self-auto"
+          className="rounded-full bg-slate-100 dark:bg-slate-800/80 p-1 self-start sm:self-auto"
+          buttonClassName="px-4 py-1.5 text-xs font-semibold"
+          indicatorClassName="bg-indigo-600 shadow-sm"
         />
       </div>
 
@@ -321,7 +313,7 @@ const SuggestedUsers = () => {
           </button>
         </div>
       ) : (
-        <div className={`grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4 transition-all duration-700 ease-in-out ${isFading ? 'opacity-85 scale-[0.995]' : 'opacity-100 scale-100'}`}>
+        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 min-w-0 transition-all duration-700 ease-in-out ${isFading ? 'opacity-85 scale-[0.995]' : 'opacity-100 scale-100'}`}>
           {filteredUsers.map((peer, idx) => {
             const teaches = peer.skillsTeach || [];
             const wants = peer.skillsLearn || [];
@@ -330,7 +322,7 @@ const SuggestedUsers = () => {
             return (
               <div
                 key={peer._id}
-                className={`group relative bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 hover:border-blue-500/40 rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 flex flex-col justify-between interactive-card animate-card-enter shadow-sm stagger-${(idx % 8) + 1}`}
+                className={`group relative orb-card p-5 flex flex-col justify-between min-w-0 stagger-${(idx % 8) + 1}`}
               >
                 <div>
                   {/* Top user row */}

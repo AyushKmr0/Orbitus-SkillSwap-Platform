@@ -18,6 +18,7 @@ import {
   addMemberToGroup
 } from './group.controller.js';
 import { protect } from '../../middlewares/authMiddleware.js';
+import { requireFeatureFlag } from '../../config/featureFlags.js';
 import { validateRequest } from '../../shared/validation/validate-request.js';
 import {
   createGroupSchema,
@@ -37,7 +38,7 @@ router.use(protect);
 
 router.route('/')
   .get(getGroups)
-  .post(validateRequest(createGroupSchema), createGroup);
+  .post(requireFeatureFlag('groupsEnabled'), validateRequest(createGroupSchema), createGroup);
 
 router.route('/:id')
   .get(validateRequest(groupIdParamSchema), getGroupById)

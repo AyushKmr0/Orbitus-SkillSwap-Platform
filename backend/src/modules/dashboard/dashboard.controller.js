@@ -55,7 +55,7 @@ export class DashboardController {
   });
 
   updateAdminUserRole = asyncHandler(async (req, res) => {
-    const user = await this.service.updateAdminUserRole(req.params.id, req.body.role);
+    const user = await this.service.updateAdminUserRole(req.user._id, req.params.id, req.body.role);
     return res.status(200).json(
       new ApiResponse(200, { user }, 'User role updated')
     );
@@ -89,6 +89,53 @@ export class DashboardController {
     );
   });
 
+  getAdminAuditLogs = asyncHandler(async (req, res) => {
+    const result = await this.service.getAdminAuditLogs(req.query);
+    return res.status(200).json(new ApiResponse(200, result, 'Admin audit trail retrieved'));
+  });
+
+  getAdminHealth = asyncHandler(async (req, res) => {
+    const result = await this.service.getAdminHealth();
+    return res.status(200).json(new ApiResponse(200, result, 'Service health retrieved'));
+  });
+
+  getAdminFeatureFlags = asyncHandler(async (req, res) => {
+    const result = await this.service.getAdminFeatureFlags();
+    return res.status(200).json(new ApiResponse(200, { flags: result }, 'Feature flags retrieved'));
+  });
+
+  updateAdminFeatureFlag = asyncHandler(async (req, res) => {
+    const result = await this.service.updateAdminFeatureFlag(
+      req.params.key,
+      req.body.enabled,
+      req.user._id
+    );
+    return res.status(200).json(new ApiResponse(200, { flag: result }, 'Feature flag updated'));
+  });
+
+  updateAdminUserAccess = asyncHandler(async (req, res) => {
+    const user = await this.service.updateAdminUserAccess(
+      req.user._id,
+      req.params.id,
+      req.body
+    );
+    return res.status(200).json(new ApiResponse(200, { user }, 'Administrator access updated'));
+  });
+
+  suspendAdminUser = asyncHandler(async (req, res) => {
+    const user = await this.service.suspendAdminUser(
+      req.user._id,
+      req.params.id,
+      req.body
+    );
+    return res.status(200).json(new ApiResponse(200, { user }, 'User account suspended'));
+  });
+
+  restoreAdminUser = asyncHandler(async (req, res) => {
+    const user = await this.service.restoreAdminUser(req.params.id);
+    return res.status(200).json(new ApiResponse(200, { user }, 'User account restored'));
+  });
+
   deleteAdminPost = asyncHandler(async (req, res) => {
     await this.service.deleteAdminPost(req.params.id);
     return res.status(200).json(
@@ -113,9 +160,16 @@ export const {
   getAdminUsers,
   updateAdminUserRole,
   deleteAdminUser,
+  updateAdminUserAccess,
+  suspendAdminUser,
+  restoreAdminUser,
   getAdminGroups,
   deleteAdminGroup,
   getAdminPosts,
   deleteAdminPost,
-  broadcastGlobalNotification
+  broadcastGlobalNotification,
+  getAdminAuditLogs,
+  getAdminHealth,
+  getAdminFeatureFlags,
+  updateAdminFeatureFlag
 } = dashboardController;

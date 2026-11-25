@@ -5,8 +5,10 @@ import apiClient from '../../services/apiClient.js';
 import { authSuccess } from '../../features/authSlice.js';
 import RubberSegment from '../../components/common/react-bits/RubberSegment.jsx';
 import AdminLogin from '../auth/AdminLogin.jsx';
+import { showDailyLoginToast } from '../../lib/dailyLoginToast.js';
 import {
   Shield,
+  ShieldCheck,
   Users,
   Award,
   FileCheck,
@@ -21,6 +23,12 @@ import {
   MessageSquare,
   Eye,
   Radio,
+  Flag,
+  ClipboardList,
+  Activity,
+  SlidersHorizontal,
+  Ban,
+  RotateCcw,
   Send,
   BarChart3,
   Layers,
@@ -28,7 +36,8 @@ import {
   ChevronRight,
   ExternalLink,
   KeyRound,
-  EyeOff
+  EyeOff,
+  RefreshCw
 } from 'lucide-react';
 import {
   Dialog,
@@ -38,8 +47,140 @@ import {
   DialogHeader,
   DialogTitle
 } from '../../components/ui/dialog.jsx';
+import './AdminDashboard.css';
 
 const AdminOverviewCharts = React.lazy(() => import('../../components/dashboard/AdminOverviewCharts.jsx'));
+
+const ADMIN_PERMISSION_OPTIONS = [
+  { key: 'dashboard.read', label: 'View dashboard analytics' },
+  { key: 'users.read', label: 'View user accounts' },
+  { key: 'users.manage', label: 'Manage users and suspensions' },
+  { key: 'content.read', label: 'View posts and groups' },
+  { key: 'content.manage', label: 'Manage posts, groups, and skills' },
+  { key: 'moderation.manage', label: 'Review content reports' },
+  { key: 'feedback.manage', label: 'Manage user feedback' },
+  { key: 'system.manage', label: 'Manage broadcasts and platform keys' },
+  { key: 'audit.read', label: 'View admin audit trail' },
+  { key: 'permissions.manage', label: 'Manage administrator access' },
+  { key: 'feature_flags.manage', label: 'Manage feature flags' },
+  { key: 'health.read', label: 'View service health' }
+];
+
+const ACCESS_LEVEL_PERMISSIONS = {
+  full: ADMIN_PERMISSION_OPTIONS.map(({ key }) => key),
+  moderator: ['dashboard.read', 'content.read', 'content.manage', 'moderation.manage', 'audit.read'],
+  support: ['dashboard.read', 'users.read', 'users.manage', 'feedback.manage'],
+  analyst: ['dashboard.read', 'audit.read', 'feature_flags.manage', 'health.read']
+};
+
+const ADMIN_TAB_PERMISSIONS = {
+  overview: 'dashboard.read',
+  'session-analytics': 'dashboard.read',
+  'account-analytics': 'dashboard.read',
+  'skills-analytics': 'dashboard.read',
+  'community-activity': 'dashboard.read',
+  feedbacks: 'feedback.manage',
+  'skill-requests': 'content.manage',
+  users: 'users.read',
+  admins: 'users.read',
+  'suspended-users': 'users.read',
+  groups: 'content.read',
+  posts: 'content.read',
+  skills: 'content.manage',
+  moderation: 'moderation.manage',
+  audit: 'audit.read',
+  health: 'health.read',
+  features: 'feature_flags.manage',
+  'certificate-preview': 'dashboard.read',
+  broadcast: 'system.manage'
+};
+
+const ADMIN_NAV_GROUPS = [
+  {
+    label: 'Workspace',
+    items: [
+      { key: 'overview', label: 'Overview', icon: BarChart3, permission: 'dashboard.read' },
+      { key: 'session-analytics', label: 'Session analytics', icon: Activity, permission: 'dashboard.read' },
+      { key: 'account-analytics', label: 'Account analytics', icon: Users, permission: 'dashboard.read' },
+      { key: 'skills-analytics', label: 'Skills analytics', icon: Database, permission: 'dashboard.read' },
+      { key: 'community-activity', label: 'Community pulse', icon: MessageSquare, permission: 'dashboard.read' }
+    ]
+  },
+  {
+    label: 'People',
+    items: [
+      { key: 'users', label: 'User accounts', icon: Users, permission: 'users.read' },
+      { key: 'admins', label: 'Administrator access', icon: ShieldCheck, permission: 'users.read' },
+      { key: 'suspended-users', label: 'Suspended accounts', icon: Ban, permission: 'users.read' },
+      { key: 'feedbacks', label: 'User feedback', icon: MessageSquare, permission: 'feedback.manage' },
+      { key: 'moderation', label: 'Moderation queue', icon: Flag, permission: 'moderation.manage' }
+    ]
+  },
+  {
+    label: 'Trust & content',
+    items: [
+      { key: 'skill-requests', label: 'Course requests', icon: FileCheck, permission: 'content.manage' },
+      { key: 'groups', label: 'Study groups', icon: Layers, permission: 'content.read' },
+      { key: 'posts', label: 'Feed posts', icon: MessageSquare, permission: 'content.read' },
+      { key: 'skills', label: 'Skills catalog', icon: Database, permission: 'content.manage' },
+      { key: 'certificate-preview', label: 'Certificate preview', icon: Award, permission: 'dashboard.read' }
+    ]
+  },
+  {
+    label: 'Platform',
+    items: [
+      { key: 'health', label: 'Service health', icon: Activity, permission: 'health.read' },
+      { key: 'audit', label: 'Audit trail', icon: ClipboardList, permission: 'audit.read' },
+      { key: 'features', label: 'Feature flags', icon: SlidersHorizontal, permission: 'feature_flags.manage' },
+      { key: 'broadcast', label: 'Global broadcast', icon: Radio, permission: 'system.manage' },
+      { key: 'secret-key', label: 'Master secret key', icon: KeyRound, permission: 'system.manage' }
+    ]
+  }
+];
+
+const ADMIN_ANALYTICS_PAGES = {
+  'session-analytics': {
+    title: 'Session analytics',
+    description: 'Peer-learning session outcomes across the platform.',
+    chartView: 'sessions'
+  },
+  'account-analytics': {
+    title: 'Account analytics',
+    description: 'The current balance of member and administrator accounts.',
+    chartView: 'accounts'
+  },
+  'skills-analytics': {
+    title: 'Skills analytics',
+    description: 'How the skills catalog is distributed across categories.',
+    chartView: 'skills'
+  }
+};
+
+const FEATURE_FLAG_DESCRIPTIONS = {
+  userRegistration: 'Allow new members to create an Orbitus account.',
+  postsEnabled: 'Allow members to publish new community posts.',
+  groupsEnabled: 'Allow members to create study groups.',
+  skillRequestsEnabled: 'Allow members to submit skill and course requests.'
+};
+
+const getServiceState = (status) => {
+  if (status === 'healthy' || status === 'connected') return 'healthy';
+  if (status === 'in_memory_fallback') return 'warning';
+  return 'error';
+};
+
+const formatServiceStatus = (status) => (
+  status === 'in_memory_fallback'
+    ? 'In-memory fallback'
+    : String(status || 'unknown').replaceAll('_', ' ')
+);
+
+const formatUptime = (seconds) => {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return [days && `${days}d`, `${hours}h`, `${minutes}m`].filter(Boolean).join(' ');
+};
 
 const AdminDashboard = () => {
   const { user } = useSelector((state) => state.auth);
@@ -48,6 +189,11 @@ const AdminDashboard = () => {
 
   const userRoleLower = String(user?.role || '').trim().toLowerCase();
   const isAdmin = userRoleLower === 'admin';
+  const can = useCallback((permission) => {
+    if (!isAdmin) return false;
+    if (user?.adminAccessLevel === 'custom') return (user.adminPermissions || []).includes(permission);
+    return (ACCESS_LEVEL_PERMISSIONS[user?.adminAccessLevel || 'full'] || []).includes(permission);
+  }, [isAdmin, user?.adminAccessLevel, user?.adminPermissions]);
   const [dataError, setDataError] = useState(null);
   // Master Secret Key management state
   const [showSecretKeyModal, setShowSecretKeyModal] = useState(false);
@@ -108,6 +254,12 @@ const AdminDashboard = () => {
         .then((res) => {
           const data = res.data?.data || res.data;
           dispatch(authSuccess(data));
+          showDailyLoginToast({
+            dailyReward: data.dailyReward,
+            user: data.user,
+            fallbackTitle: 'Administrator authenticated',
+            fallbackDescription: 'Master control console unlocked.'
+          });
         })
         .catch(() => {});
     }
@@ -155,6 +307,7 @@ const AdminDashboard = () => {
 
   // User tab search
   const [userSearch, setUserSearch] = useState('');
+  const [appliedUserSearch, setAppliedUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('All');
 
   // Skill CRUD
@@ -179,19 +332,52 @@ const AdminDashboard = () => {
   const [selectedFeedback, setSelectedFeedback] = useState(null);
   const [feedbackReplyDraft, setFeedbackReplyDraft] = useState('');
   const [feedbackReplySaving, setFeedbackReplySaving] = useState(false);
+  const [moderationReports, setModerationReports] = useState([]);
+  const [moderationStatusFilter, setModerationStatusFilter] = useState('pending');
+  const [adminAuditLogs, setAdminAuditLogs] = useState([]);
+  const [featureFlags, setFeatureFlags] = useState([]);
+  const [featureFlagSaving, setFeatureFlagSaving] = useState({});
+  const [adminHealth, setAdminHealth] = useState(null);
+  const [suspensionTarget, setSuspensionTarget] = useState(null);
+  const [suspensionReason, setSuspensionReason] = useState('');
+  const [suspensionExpiresAt, setSuspensionExpiresAt] = useState('');
+  const [suspensionSaving, setSuspensionSaving] = useState(false);
+  const [selectedAccessUser, setSelectedAccessUser] = useState(null);
+  const [selectedPermissions, setSelectedPermissions] = useState([]);
+  const [accessSaving, setAccessSaving] = useState(false);
+
+  useEffect(() => {
+    const requiredPermission = ADMIN_TAB_PERMISSIONS[activeTab];
+    if (requiredPermission && !can(requiredPermission)) {
+      const firstAllowedTab = Object.entries(ADMIN_TAB_PERMISSIONS)
+        .find(([, permission]) => can(permission))?.[0];
+      if (firstAllowedTab) setActiveTab(firstAllowedTab);
+    }
+  }, [activeTab, can]);
 
   const loadDashboardData = useCallback(async () => {
     setLoading(true);
     setDataError(null);
     try {
-      if (activeTab === 'overview') {
+      if ([
+        'overview',
+        'session-analytics',
+        'account-analytics',
+        'skills-analytics',
+        'community-activity'
+      ].includes(activeTab)) {
         const res = await apiClient.get('/api/dashboard/admin');
         setAdminStats(res.data?.data || res.data || {});
-      } else if (activeTab === 'users') {
+      } else if (['users', 'admins', 'suspended-users'].includes(activeTab)) {
         const res = await apiClient.get('/api/dashboard/admin/users', {
           params: {
-            search: userSearch?.trim() || undefined,
-            role: userRoleFilter !== 'All' ? userRoleFilter : undefined,
+            search: appliedUserSearch || undefined,
+            role: activeTab === 'admins'
+              ? 'Admin'
+              : userRoleFilter !== 'All'
+                ? userRoleFilter
+                : undefined,
+            status: activeTab === 'suspended-users' ? 'suspended' : undefined,
             page: usersPage,
             limit: 20
           }
@@ -230,6 +416,25 @@ const AdminDashboard = () => {
         const list = p.feedbacks || res.data?.feedbacks || [];
         setFeedbacksList(Array.isArray(list) ? list : []);
         setUnreadFeedbackCount(p.unreadCount ?? res.data?.unreadCount ?? 0);
+      } else if (activeTab === 'moderation') {
+        const res = await apiClient.get('/api/moderation/admin/reports', {
+          params: { status: moderationStatusFilter, limit: 50 }
+        });
+        const p = res.data?.data || res.data || {};
+        setModerationReports(Array.isArray(p.reports) ? p.reports : []);
+      } else if (activeTab === 'audit') {
+        const res = await apiClient.get('/api/dashboard/admin/audit', {
+          params: { page: 1, limit: 50 }
+        });
+        const p = res.data?.data || res.data || {};
+        setAdminAuditLogs(Array.isArray(p.logs) ? p.logs : []);
+      } else if (activeTab === 'features') {
+        const res = await apiClient.get('/api/dashboard/admin/feature-flags');
+        const p = res.data?.data || res.data || {};
+        setFeatureFlags(Array.isArray(p.flags) ? p.flags : []);
+      } else if (activeTab === 'health') {
+        const res = await apiClient.get('/api/dashboard/admin/health');
+        setAdminHealth(res.data?.data || res.data || null);
       }
     } catch (err) {
       console.error('Admin fetch error:', err);
@@ -237,13 +442,13 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, userSearch, userRoleFilter, usersPage, skillRequestStatusFilter, feedbackStatusFilter]);
+  }, [activeTab, appliedUserSearch, userRoleFilter, usersPage, skillRequestStatusFilter, feedbackStatusFilter, moderationStatusFilter]);
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin && can(ADMIN_TAB_PERMISSIONS[activeTab])) {
       loadDashboardData();
     }
-  }, [isAdmin, loadDashboardData]);
+  }, [isAdmin, can, activeTab, loadDashboardData]);
 
   const handlePromoteDemoteUser = async () => {
     if (!selectedRoleUser) return;
@@ -280,6 +485,143 @@ const AdminDashboard = () => {
         }
       }
     });
+  };
+
+  const handleUpdateAdminAccess = async (target, accessLevel) => {
+    if (accessLevel === 'custom') {
+      setSelectedAccessUser(target);
+      setSelectedPermissions(target.adminPermissions || []);
+      return;
+    }
+
+    try {
+      await apiClient.put(`/api/dashboard/admin/users/${target._id}/access`, {
+        accessLevel,
+        permissions: []
+      });
+      setStatusMsg(`Admin access updated to ${accessLevel}.`);
+      setTimeout(() => setStatusMsg(''), 3000);
+      await loadDashboardData();
+    } catch (err) {
+      showAdminToast(err.response?.data?.message || 'Could not update administrator access');
+    }
+  };
+
+  const handleSaveCustomAccess = async () => {
+    if (!selectedAccessUser || selectedPermissions.length === 0 || accessSaving) return;
+    setAccessSaving(true);
+    try {
+      await apiClient.put(`/api/dashboard/admin/users/${selectedAccessUser._id}/access`, {
+        accessLevel: 'custom',
+        permissions: selectedPermissions
+      });
+      setSelectedAccessUser(null);
+      setStatusMsg('Custom administrator permissions saved.');
+      setTimeout(() => setStatusMsg(''), 3000);
+      await loadDashboardData();
+    } catch (err) {
+      showAdminToast(err.response?.data?.message || 'Could not update administrator permissions');
+    } finally {
+      setAccessSaving(false);
+    }
+  };
+
+  const openSuspendUserDialog = (target) => {
+    setSuspensionTarget(target);
+    setSuspensionReason('');
+    setSuspensionExpiresAt('');
+  };
+
+  const handleSuspendUser = async () => {
+    if (!suspensionTarget || suspensionReason.trim().length < 5 || suspensionSaving) return;
+    setSuspensionSaving(true);
+    try {
+      await apiClient.post(`/api/dashboard/admin/users/${suspensionTarget._id}/suspend`, {
+        reason: suspensionReason.trim(),
+        ...(suspensionExpiresAt ? { expiresAt: new Date(suspensionExpiresAt).toISOString() } : {})
+      });
+      setSuspensionTarget(null);
+      setStatusMsg('User account suspended.');
+      setTimeout(() => setStatusMsg(''), 3000);
+      await loadDashboardData();
+    } catch (err) {
+      showAdminToast(err.response?.data?.message || 'Could not suspend this user');
+    } finally {
+      setSuspensionSaving(false);
+    }
+  };
+
+  const handleRestoreUser = async (target) => {
+    try {
+      await apiClient.put(`/api/dashboard/admin/users/${target._id}/restore`, {
+        reason: 'Restored by an administrator'
+      });
+      setStatusMsg('User account restored.');
+      setTimeout(() => setStatusMsg(''), 3000);
+      await loadDashboardData();
+    } catch (err) {
+      showAdminToast(err.response?.data?.message || 'Could not restore this user');
+    }
+  };
+
+  const handleReviewReport = (report, decision, removeContent = false) => {
+    const submitReview = async () => {
+      try {
+        await apiClient.put(`/api/moderation/admin/reports/${report._id}`, {
+          decision,
+          removeContent,
+          resolutionNote: removeContent ? 'Content removed after review' : 'Reviewed by an administrator'
+        });
+        setStatusMsg(`Report ${decision}.`);
+        setTimeout(() => setStatusMsg(''), 3000);
+        await loadDashboardData();
+      } catch (err) {
+        showAdminToast(err.response?.data?.message || 'Could not update this report');
+      }
+    };
+
+    if (removeContent) {
+      requestDeleteConfirmation({
+        title: 'Remove reported content?',
+        message: 'This will permanently remove the reported post or group and resolve the report.',
+        onConfirm: submitReview
+      });
+    } else {
+      submitReview();
+    }
+  };
+
+  const handleToggleFeatureFlag = async (flag) => {
+    if (featureFlagSaving[flag.key]) return;
+
+    const enabled = !flag.enabled;
+    setFeatureFlagSaving((current) => ({ ...current, [flag.key]: true }));
+    try {
+      const response = await apiClient.put(`/api/dashboard/admin/feature-flags/${flag.key}`, {
+        enabled
+      });
+      const updatedFlag = response.data?.data?.flag;
+      if (
+        !updatedFlag ||
+        updatedFlag.key !== flag.key ||
+        typeof updatedFlag.enabled !== 'boolean' ||
+        updatedFlag.enabled !== enabled
+      ) {
+        throw new Error('The server returned an invalid feature flag update.');
+      }
+
+      setFeatureFlags((current) => current.map((item) => item.key === flag.key ? updatedFlag : item));
+      setStatusMsg(`${flag.label} ${updatedFlag.enabled ? 'enabled' : 'disabled'}.`);
+      setTimeout(() => setStatusMsg(''), 3000);
+    } catch (err) {
+      showAdminToast(err.response?.data?.message || err.message || 'Could not update feature flag', true);
+    } finally {
+      setFeatureFlagSaving((current) => {
+        const next = { ...current };
+        delete next[flag.key];
+        return next;
+      });
+    }
   };
 
   const handleDeleteGroup = (group) => {
@@ -449,6 +791,7 @@ const AdminDashboard = () => {
         adminNotes: reply,
         status: savedFeedback?.status || 'reviewed'
       };
+
       setFeedbacksList((current) => current.map((item) => (
         item._id === updatedFeedback._id ? updatedFeedback : item
       )));
@@ -462,6 +805,17 @@ const AdminDashboard = () => {
       showAdminToast(err.response?.data?.message || 'Failed to send feedback response');
     } finally {
       setFeedbackReplySaving(false);
+    }
+  };
+
+  const handleApplyUserFilters = () => {
+    const nextSearch = userSearch.trim();
+    const pageNeedsReset = usersPage !== 1;
+    setUsersPage(1);
+    if (nextSearch !== appliedUserSearch) {
+      setAppliedUserSearch(nextSearch);
+    } else if (!pageNeedsReset) {
+      loadDashboardData();
     }
   };
 
@@ -482,6 +836,23 @@ const AdminDashboard = () => {
     });
   };
 
+  const healthServices = Object.entries(adminHealth?.services || {});
+  const healthyServiceCount = healthServices.filter(([, status]) => getServiceState(status) === 'healthy').length;
+  const serviceHealthPercent = healthServices.length
+    ? Math.round((healthyServiceCount / healthServices.length) * 100)
+    : 0;
+  const healthStatus = adminHealth
+    ? adminHealth.status === 'healthy' && healthyServiceCount === healthServices.length
+      ? 'operational'
+      : 'degraded'
+    : 'unknown';
+  const analyticsPage = ADMIN_ANALYTICS_PAGES[activeTab];
+  const peoplePageTitle = {
+    users: 'User accounts',
+    admins: 'Administrator access',
+    'suspended-users': 'Suspended accounts'
+  }[activeTab];
+
   // Administrator Account Required Gate
   if (!isAdmin) {
     return (
@@ -491,78 +862,112 @@ const AdminDashboard = () => {
     );
   }
 
-  return (
-    <div className="page-shell flex-1 p-4 sm:p-6 lg:p-8 space-y-6 text-app overflow-y-auto">
-      {/* Admin Hero Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-violet-700 text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden">
-        <div className="absolute -right-12 -bottom-12 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-white/15 border border-white/20 text-white rounded-2xl backdrop-blur-md shadow-sm">
-              <Shield size={24} />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white font-outfit tracking-tight">
-                Master Admin Console
-              </h1>
-              <p className="text-xs sm:text-sm text-indigo-100/90 mt-0.5 font-medium">
-                Global platform telemetry, user moderation, study group management & announcements.
-              </p>
-            </div>
-          </div>
+  if (!Object.values(ADMIN_TAB_PERMISSIONS).some((permission) => can(permission))) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center p-6">
+        <div className="max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-[#181d28]">
+          <Shield size={28} className="mx-auto text-amber-500" />
+          <h2 className="mt-4 text-lg font-bold text-app">No Admin Hub permissions</h2>
+          <p className="mt-2 text-sm text-muted">Contact a full administrator to request access to the tools you need.</p>
         </div>
+      </div>
+    );
+  }
 
-        <div className="relative z-10 flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-xs font-bold bg-white/15 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/20">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>System Operational</span>
-          </div>
+  return (
+    <div className="admin-hub page-shell">
+      <header className="admin-hub__topbar">
+        <div>
+          <p className="admin-hub__eyebrow">Orbitus / Administration</p>
+          <h1>Admin Hub</h1>
+          <p className="admin-hub__description">Trust, people, and platform operations in one place.</p>
+        </div>
+        <div className="admin-hub__header-actions">
+          <span className="admin-hub__access-pill">
+            <ShieldCheck size={15} />
+            {String(user?.adminAccessLevel || 'full').replaceAll('-', ' ')} access
+          </span>
           <button
             type="button"
-            onClick={() => {
-              setShowSecretKeyModal(true);
-              setSecretKeyError('');
-              setSecretKeySuccess('');
-            }}
-            className="flex items-center gap-2 text-xs font-bold bg-white/20 hover:bg-white/30 text-white backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/25 transition-all cursor-pointer shadow-sm active:scale-95"
+            className="admin-hub__icon-button"
+            onClick={loadDashboardData}
+            disabled={loading}
+            aria-label="Refresh current admin data"
+            title="Refresh current section"
           >
-            <KeyRound size={14} />
-            <span>Change Secret Key</span>
+            <RefreshCw size={16} className={loading ? 'admin-hub__refreshing' : ''} />
           </button>
-
-
-          {statusMsg && (
-            <span className="px-4 py-2 bg-emerald-500 text-white text-xs font-bold rounded-2xl shadow-md animate-fade-in">
-              {statusMsg}
-            </span>
-          )}
         </div>
-      </div>
+      </header>
 
-      {/* Admin Navigation Tabs */}
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs scrollbar-none dark:border-slate-800/80 dark:bg-[#181d28]">
-        <RubberSegment
-          ariaLabel="Admin Hub sections"
-          value={activeTab}
-          onChange={setActiveTab}
-          options={[
-            { value: 'overview', label: 'Overview & Analytics', icon: BarChart3 },
-            { value: 'feedbacks', label: 'User Feedback', icon: MessageSquare, badge: unreadFeedbackCount },
-            { value: 'skill-requests', label: 'Course Requests', icon: FileCheck },
-            { value: 'users', label: 'User Accounts', icon: Users },
-            { value: 'groups', label: 'Study Groups', icon: Layers },
-            { value: 'posts', label: 'Feed Posts', icon: MessageSquare },
-            { value: 'skills', label: 'Skills Catalog', icon: Database },
-            { value: 'certificate-preview', label: 'Certificate Preview', icon: Award },
-            { value: 'broadcast', label: 'Global Broadcast', icon: Radio }
-          ]}
-          className="w-max min-w-full"
-          buttonClassName="rounded-xl px-4 py-2.5 text-xs font-bold"
-          activeTextClassName="text-white"
-          inactiveTextClassName="text-muted hover:bg-slate-100 hover:text-app dark:hover:bg-slate-800/60"
-          indicatorClassName="bg-indigo-600 shadow-md shadow-indigo-500/25"
-        />
-      </div>
+      <div className="admin-hub__layout">
+        <nav className="admin-hub__navigation" aria-label="Admin Hub navigation">
+          {ADMIN_NAV_GROUPS.map((group) => {
+            const allowedItems = group.items.filter((item) => can(item.permission));
+            if (!allowedItems.length) return null;
+
+            return (
+              <section key={group.label} className="admin-hub__nav-group" aria-label={group.label}>
+                <p>{group.label}</p>
+                <div className="admin-hub__nav-items">
+                  {allowedItems.map((item) => {
+                    const Icon = item.icon;
+                    const badgeCount = item.key === 'feedbacks'
+                      ? unreadFeedbackCount
+                      : item.key === 'moderation'
+                        ? adminStats?.stats?.pendingReports
+                        : 0;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        className={`admin-hub__nav-item${activeTab === item.key ? ' is-active' : ''}`}
+                        onClick={() => {
+                          if (item.key === 'secret-key') {
+                            setShowSecretKeyModal(true);
+                            setSecretKeyError('');
+                            setSecretKeySuccess('');
+                            return;
+                          }
+                          if (['users', 'admins', 'suspended-users'].includes(item.key)) {
+                            setUsersPage(1);
+                            setUserRoleFilter('All');
+                          }
+                          setActiveTab(item.key);
+                        }}
+                        aria-current={activeTab === item.key ? 'page' : undefined}
+                      >
+                        <Icon size={15} aria-hidden="true" />
+                        <span>{item.label}</span>
+                        {badgeCount > 0 && (
+                          <span className="admin-hub__nav-badge">{badgeCount > 99 ? '99+' : badgeCount}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </nav>
+
+        <section className="admin-hub__content" aria-label="Admin Hub content">
+          {statusMsg && (
+            <div className="admin-hub__status-message" role="status">
+              <CheckCircle size={15} />
+              <span>{statusMsg}</span>
+            </div>
+          )}
+
+          {activeTab === 'overview' && (
+            <div className="admin-hub__overview-heading">
+              <div>
+                <p>Workspace overview</p>
+                <h2>Platform at a glance</h2>
+              </div>
+              <span>Live operational metrics</span>
+            </div>
+          )}
 
       {/* Tab 1: Overview & Charts */}
       {activeTab === 'overview' && (
@@ -592,13 +997,17 @@ const AdminDashboard = () => {
           {adminStats && (
             <>
               {/* Stat Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                 {[
                   { label: 'Total Users', value: adminStats.stats?.totalUsers ?? 0, icon: Users, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-950/40' },
+                  { label: 'New Users (30d)', value: adminStats.stats?.newUsers30d ?? 0, icon: Users, color: 'text-sky-600 dark:text-sky-400', bg: 'bg-sky-50 dark:bg-sky-950/40' },
                   { label: 'Active Users', value: adminStats.stats?.activeUsers ?? 0, icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40' },
                   { label: 'Study Sessions', value: adminStats.stats?.totalSessions ?? 0, icon: FileCheck, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-950/40' },
                   { label: 'Platform Skills', value: adminStats.stats?.totalSkills ?? 0, icon: Database, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40' },
                   { label: 'Reviews Posted', value: adminStats.stats?.totalReviews ?? 0, icon: Star, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/40' },
+                  { label: 'Posts (30d)', value: adminStats.stats?.posts30d ?? 0, icon: MessageSquare, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-950/40' },
+                  { label: 'Pending Reports', value: adminStats.stats?.pendingReports ?? 0, icon: Flag, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/40' },
+                  { label: 'Suspended Users', value: adminStats.stats?.suspendedUsers ?? 0, icon: Ban, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40' },
                   { label: 'Admins', value: adminStats.stats?.adminCount ?? 0, icon: Shield, color: 'text-sky-600 dark:text-sky-400', bg: 'bg-sky-50 dark:bg-sky-950/40' }
                 ].map((s, idx) => {
                   const Icon = s.icon;
@@ -622,6 +1031,105 @@ const AdminDashboard = () => {
             </>
           )}
         </div>
+      )}
+
+      {analyticsPage && (
+        <section className="space-y-4 content-switch-motion">
+          <div className="admin-hub__overview-heading">
+            <div>
+              <p>Workspace analytics</p>
+              <h2>{analyticsPage.title}</h2>
+            </div>
+            <span>{analyticsPage.description}</span>
+          </div>
+
+          {loading && !adminStats && (
+            <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+          )}
+          {dataError && !adminStats && (
+            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6 text-center">
+              <p className="text-sm font-bold text-red-600 dark:text-red-400" role="alert">{dataError}</p>
+              <button
+                type="button"
+                onClick={loadDashboardData}
+                className="mt-3 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {dataError && adminStats && (
+            <p className="text-xs text-amber-700 dark:text-amber-300" role="status">
+              Latest refresh failed. Showing the last successfully loaded metrics.
+            </p>
+          )}
+          {adminStats && (
+            <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />}>
+              <AdminOverviewCharts adminStats={adminStats} view={analyticsPage.chartView} />
+            </Suspense>
+          )}
+        </section>
+      )}
+
+      {activeTab === 'community-activity' && (
+        <section className="space-y-4 content-switch-motion">
+          <div className="admin-hub__overview-heading">
+            <div>
+              <p>Workspace analytics</p>
+              <h2>Community pulse</h2>
+            </div>
+            <span>30-day activity and current trust signals</span>
+          </div>
+
+          {loading && !adminStats && (
+            <div className="h-48 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+          )}
+          {dataError && !adminStats && (
+            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6 text-center">
+              <p className="text-sm font-bold text-red-600 dark:text-red-400" role="alert">{dataError}</p>
+              <button
+                type="button"
+                onClick={loadDashboardData}
+                className="mt-3 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {dataError && adminStats && (
+            <p className="text-xs text-amber-700 dark:text-amber-300" role="status">
+              Latest refresh failed. Showing the last successfully loaded metrics.
+            </p>
+          )}
+          {adminStats && (
+            <>
+              <p className="text-xs text-muted">
+                New accounts and posts use a rolling 30-day window. Pending reports and suspensions are current totals.
+              </p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: 'New accounts · 30 days', value: adminStats.stats?.newUsers30d ?? 0, icon: Users, color: 'text-sky-600 dark:text-sky-400', bg: 'bg-sky-50 dark:bg-sky-950/40' },
+                  { label: 'Posts · 30 days', value: adminStats.stats?.posts30d ?? 0, icon: MessageSquare, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-950/40' },
+                  { label: 'Pending reports', value: adminStats.stats?.pendingReports ?? 0, icon: Flag, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/40' },
+                  { label: 'Suspended accounts', value: adminStats.stats?.suspendedUsers ?? 0, icon: Ban, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40' }
+                ].map((metric) => {
+                  const Icon = metric.icon;
+                  return (
+                    <article key={metric.label} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800/80 dark:bg-[#181d28]">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted">{metric.label}</span>
+                        <span className={`rounded-xl p-1.5 ${metric.bg}`}><Icon size={15} className={metric.color} /></span>
+                      </div>
+                      <p className="mt-2 font-outfit text-2xl font-black text-app">
+                        {Number(metric.value).toLocaleString()}
+                      </p>
+                    </article>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </section>
       )}
 
       {/* Tab: User Feedbacks */}
@@ -765,8 +1273,16 @@ const AdminDashboard = () => {
       )}
 
       {/* Tab 2: Users Management */}
-      {activeTab === 'users' && (
+      {['users', 'admins', 'suspended-users'].includes(activeTab) && (
         <div className="space-y-4 content-switch-motion">
+          <div className="admin-hub__overview-heading">
+            <div>
+              <p>People operations</p>
+              <h2>{peoplePageTitle}</h2>
+            </div>
+            <span>{usersPagination.total.toLocaleString()} matching accounts</span>
+          </div>
+
           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
             <div className="relative flex-1 max-w-md">
               <Search size={16} className="absolute left-3.5 top-3 text-muted" />
@@ -774,35 +1290,44 @@ const AdminDashboard = () => {
                 type="text"
                 placeholder="Search user by name, email, or username..."
                 value={userSearch}
-                onChange={(e) => { setUserSearch(e.target.value); setUsersPage(1); }}
+                onChange={(e) => setUserSearch(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    if (usersPage === 1) loadDashboardData();
-                    else setUsersPage(1);
-                  }
+                  if (e.key === 'Enter') handleApplyUserFilters();
                 }}
                 className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 rounded-2xl text-xs sm:text-sm text-app outline-none focus:border-indigo-500 shadow-xs"
               />
             </div>
 
             <div className="flex items-center gap-2">
-              <select
-                value={userRoleFilter}
-                onChange={(e) => { setUserRoleFilter(e.target.value); setUsersPage(1); }}
-                className="px-3.5 py-2.5 bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-app outline-none cursor-pointer"
-              >
-                <option value="All">All Roles</option>
-                <option value="User">Regular Users</option>
-                <option value="Admin">Administrators</option>
-              </select>
+              {activeTab === 'users' && (
+                <select
+                  value={userRoleFilter}
+                  onChange={(e) => { setUserRoleFilter(e.target.value); setUsersPage(1); }}
+                  className="px-3.5 py-2.5 bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-app outline-none cursor-pointer"
+                >
+                  <option value="All">All Roles</option>
+                  <option value="User">Regular Users</option>
+                  <option value="Admin">Administrators</option>
+                </select>
+              )}
               <button
-                onClick={loadDashboardData}
+                type="button"
+                onClick={handleApplyUserFilters}
                 className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-2xl transition-all shadow-xs cursor-pointer"
               >
-                Filter
+                Apply filters
               </button>
             </div>
           </div>
+
+          {dataError && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3">
+              <p className="text-xs font-semibold text-red-600 dark:text-red-400" role="alert">{dataError}</p>
+              <button type="button" onClick={loadDashboardData} className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                Retry
+              </button>
+            </div>
+          )}
 
           <div className="bg-white dark:bg-[#181d28] border border-slate-200 dark:border-slate-800/80 rounded-3xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
@@ -812,6 +1337,8 @@ const AdminDashboard = () => {
                     <th className="p-4">User</th>
                     <th className="p-4">Email</th>
                     <th className="p-4">Role</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4">Admin Access</th>
                     <th className="p-4">Points</th>
                     <th className="p-4">Joined</th>
                     <th className="p-4 text-right">Actions</th>
@@ -819,9 +1346,13 @@ const AdminDashboard = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {usersList.length === 0 ? (
-                    <tr><td colSpan={6} className="p-10 text-center text-muted">{loading ? 'Loading accounts...' : 'No accounts match these filters.'}</td></tr>
+                    <tr><td colSpan={8} className="p-10 text-center text-muted">{loading ? 'Loading accounts...' : 'No accounts match these filters.'}</td></tr>
                   ) : usersList.map((u) => {
                     const isUserAdmin = String(u.role || '').toLowerCase() === 'admin';
+                    const isSuspended = Boolean(
+                      u.suspendedAt &&
+                      (!u.suspendedUntil || new Date(u.suspendedUntil) > new Date())
+                    );
                     return (
                       <tr key={u._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                         <td className="p-4">
@@ -839,18 +1370,63 @@ const AdminDashboard = () => {
                             {u.role}
                           </span>
                         </td>
+                        <td className="p-4">
+                          <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${isSuspended ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'}`}>
+                            {isSuspended ? 'Suspended' : u.suspendedAt ? 'Suspension expired' : 'Active'}
+                          </span>
+                          {isSuspended && u.suspensionReason && (
+                            <p className="mt-1 max-w-36 truncate text-[10px] text-muted" title={u.suspensionReason}>{u.suspensionReason}</p>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          {isUserAdmin ? (
+                            can('permissions.manage') ? (
+                              <select
+                                aria-label={`Admin access for ${u.name || u.email}`}
+                                value={u.adminAccessLevel || 'full'}
+                                onChange={(event) => handleUpdateAdminAccess(u, event.target.value)}
+                                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-app dark:border-slate-700 dark:bg-slate-900"
+                              >
+                                <option value="full">Full access</option>
+                                <option value="moderator">Moderator</option>
+                                <option value="support">Support</option>
+                                <option value="analyst">Analyst</option>
+                                <option value="custom">Custom permissions…</option>
+                              </select>
+                            ) : (
+                              <span className="text-[10px] text-muted">{u.adminAccessLevel || 'full'}</span>
+                            )
+                          ) : <span className="text-[10px] text-muted">—</span>}
+                        </td>
                         <td className="p-4 font-bold text-app">{u.points || 0}</td>
                         <td className="p-4 text-muted">{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}</td>
                         <td className="p-4 text-right whitespace-nowrap">
                           <button type="button" onClick={() => navigate(`/profile/${u.username || u._id}`)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg text-[10px] font-bold" title="Open profile">
                             <ExternalLink size={13} /> Profile
                           </button>
-                          <button type="button" onClick={() => setSelectedRoleUser(u)} className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-app rounded-lg text-[10px] font-bold transition-colors">
-                            {isUserAdmin ? 'Demote' : 'Promote'}
-                          </button>
-                          <button type="button" onClick={() => handleDeleteUser(u)} className="inline-flex p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors" title="Delete user" aria-label={`Delete ${u.name || 'user'}`}>
-                            <Trash2 size={14} />
-                          </button>
+                          {can('users.manage') && (
+                            <>
+                              {can('permissions.manage') && (
+                                <button type="button" onClick={() => setSelectedRoleUser(u)} className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-app rounded-lg text-[10px] font-bold transition-colors">
+                                  {isUserAdmin ? 'Demote' : 'Promote'}
+                                </button>
+                              )}
+                              {!isUserAdmin && (isSuspended ? (
+                                <button type="button" onClick={() => handleRestoreUser(u)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg text-[10px] font-bold" title="Restore user">
+                                  <RotateCcw size={13} /> Restore
+                                </button>
+                              ) : (
+                                <button type="button" onClick={() => openSuspendUserDialog(u)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg text-[10px] font-bold" title="Suspend user">
+                                  <Ban size={13} /> Suspend
+                                </button>
+                              ))}
+                              {!isUserAdmin && (
+                                <button type="button" onClick={() => handleDeleteUser(u)} className="inline-flex p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors" title="Delete user" aria-label={`Delete ${u.name || 'user'}`}>
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </>
+                          )}
                         </td>
                       </tr>
                     );
@@ -898,13 +1474,15 @@ const AdminDashboard = () => {
                       <td className="p-4 text-muted">{g.creator?.name || 'Unknown'}</td>
                       <td className="p-4 font-bold text-app">{g.membersCount}</td>
                       <td className="p-4 text-right">
-                        <button
-                          onClick={() => handleDeleteGroup(g)}
-                          className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
-                          title="Delete group"
-                        >
-                          <Trash2 size={15} />
-                        </button>
+                        {can('content.manage') && (
+                          <button
+                            onClick={() => handleDeleteGroup(g)}
+                            className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
+                            title="Delete group"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -928,15 +1506,269 @@ const AdminDashboard = () => {
                 </div>
                 <p className="text-xs text-muted line-clamp-3 leading-relaxed">{p.content}</p>
               </div>
-              <button
-                onClick={() => handleDeletePost(p)}
-                className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl shrink-0 transition-colors cursor-pointer"
-                title="Remove post"
-              >
-                <Trash2 size={16} />
-              </button>
+              {can('content.manage') && (
+                <button
+                  onClick={() => handleDeletePost(p)}
+                  className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl shrink-0 transition-colors cursor-pointer"
+                  title="Remove post"
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
             </div>
           ))}
+        </div>
+      )}
+
+      {activeTab === 'moderation' && (
+        <div className="space-y-4 content-switch-motion">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="font-bold text-base text-app font-outfit">Community moderation queue</h3>
+              <p className="text-xs text-muted">Review member reports and take a documented action.</p>
+            </div>
+            <select
+              value={moderationStatusFilter}
+              onChange={(event) => setModerationStatusFilter(event.target.value)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-app dark:border-slate-700 dark:bg-[#181d28]"
+              aria-label="Moderation report status"
+            >
+              <option value="pending">Pending</option>
+              <option value="resolved">Resolved</option>
+              <option value="dismissed">Dismissed</option>
+              <option value="all">All reports</option>
+            </select>
+          </div>
+          {moderationReports.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 p-10 text-center text-sm text-muted dark:border-slate-700">
+              {loading ? 'Loading reports…' : 'No reports in this queue.'}
+            </div>
+          ) : moderationReports.map((report) => (
+            <article key={report._id} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-[#181d28]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-rose-500/10 px-2 py-1 text-[10px] font-bold uppercase text-rose-600 dark:text-rose-400">{report.targetType}</span>
+                    <span className="text-xs font-bold text-app">{report.reason}</span>
+                    <span className="text-[10px] text-muted">{new Date(report.createdAt).toLocaleString()}</span>
+                  </div>
+                  <p className="text-[11px] text-muted">
+                    Reported by {report.reporter?.name || 'Unknown member'} · status: {report.status}
+                  </p>
+                </div>
+                {report.status === 'pending' && (
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => handleReviewReport(report, 'dismissed')} className="rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-bold text-app hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">Dismiss</button>
+                    <button type="button" onClick={() => handleReviewReport(report, 'resolved')} className="rounded-lg bg-emerald-600 px-3 py-2 text-[10px] font-bold text-white hover:bg-emerald-500">Resolve</button>
+                    <button type="button" onClick={() => handleReviewReport(report, 'resolved', true)} className="rounded-lg bg-rose-600 px-3 py-2 text-[10px] font-bold text-white hover:bg-rose-500">Remove content</button>
+                  </div>
+                )}
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-900/60">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-muted">
+                  {report.target?.name || report.target?.author?.name || report.target?.creator?.name || 'Reported content'}
+                </p>
+                <p className="whitespace-pre-wrap break-words text-xs text-app">
+                  {report.target?.content || report.target?.description || report.target?.name || 'The reported content is no longer available.'}
+                </p>
+              </div>
+              {report.details && <p className="text-xs text-muted"><strong>Reporter details:</strong> {report.details}</p>}
+              {report.resolutionNote && <p className="text-xs text-muted"><strong>Resolution:</strong> {report.resolutionNote}</p>}
+            </article>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'audit' && (
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-[#181d28] content-switch-motion">
+          <div className="border-b border-slate-200 p-4 dark:border-slate-800">
+            <h3 className="font-bold text-base text-app font-outfit">Administrator audit trail</h3>
+            <p className="mt-1 text-xs text-muted">Privileged actions, their actor, target, outcome and timestamp.</p>
+          </div>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {adminAuditLogs.length === 0 ? (
+              <p className="p-8 text-center text-xs text-muted">{loading ? 'Loading audit entries…' : 'No admin actions recorded yet.'}</p>
+            ) : adminAuditLogs.map((entry) => (
+              <div key={entry._id} className="grid gap-2 p-4 text-xs sm:grid-cols-[1fr_1.2fr_1fr_auto] sm:items-center">
+                <div>
+                  <p className="font-bold text-app">{entry.actor?.name || 'Unknown admin'}</p>
+                  <p className="text-[10px] text-muted">{entry.actor?.email || ''}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-app">{entry.action.replaceAll('_', ' ')}</p>
+                  <p className="text-[10px] text-muted">{entry.targetType || 'platform'}{entry.targetLabel ? ` · ${entry.targetLabel}` : entry.targetId ? ` · ${entry.targetId}` : ''}</p>
+                </div>
+                <p className="truncate text-muted" title={entry.reason}>{entry.reason || 'No reason provided'}</p>
+                <div className="text-right">
+                  <p className={`font-bold ${entry.statusCode < 400 ? 'text-emerald-600' : 'text-rose-600'}`}>{entry.statusCode}</p>
+                  <p className="text-[10px] text-muted">{new Date(entry.createdAt).toLocaleString()}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'health' && (
+        <div className="admin-health content-switch-motion">
+          <header className="admin-health__header">
+            <div>
+              <p className="admin-health__eyebrow"><Activity size={14} /> Operations</p>
+              <h3>Service health</h3>
+              <p>Current API, database, and cache status snapshot.</p>
+            </div>
+            {adminHealth && (
+              <div className={`admin-health__overall is-${healthStatus}`} role="status">
+                <span />
+                <div>
+                  <small>Overall status</small>
+                  <strong>{healthStatus === 'operational' ? 'Operational' : 'Needs attention'}</strong>
+                </div>
+              </div>
+            )}
+          </header>
+
+          {loading && !adminHealth ? (
+            <div className="admin-health__empty" role="status">Checking platform services…</div>
+          ) : dataError && !adminHealth ? (
+            <div className="admin-health__empty admin-health__empty--error" role="alert">
+              <p>{dataError}</p>
+              <button type="button" onClick={loadDashboardData}>Retry check</button>
+            </div>
+          ) : adminHealth ? (
+            <>
+              {dataError && (
+                <p className="admin-section-warning" role="alert">
+                  Refresh failed: {dataError} Showing the last successful snapshot.
+                </p>
+              )}
+              <section className="admin-health__summary">
+                <div className="admin-health__summary-top">
+                  <div>
+                    <span>Services healthy</span>
+                    <strong>{healthyServiceCount} <small>/ {healthServices.length}</small></strong>
+                  </div>
+                  {adminHealth.uptimeSeconds != null && (
+                    <div className="admin-health__uptime">
+                      <span>API uptime</span>
+                      <strong>{formatUptime(adminHealth.uptimeSeconds)}</strong>
+                    </div>
+                  )}
+                </div>
+                <div
+                  className="admin-health__meter"
+                  role="progressbar"
+                  aria-label="Currently healthy services"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={serviceHealthPercent}
+                >
+                  <span style={{ width: `${serviceHealthPercent}%` }} />
+                </div>
+                <p>
+                  Snapshot only; historical uptime isn’t collected.
+                  {adminHealth.checkedAt && ` Last checked ${new Date(adminHealth.checkedAt).toLocaleString()}.`}
+                </p>
+              </section>
+
+              <div className="admin-health__services">
+                {healthServices.map(([service, status]) => {
+                  const serviceState = getServiceState(status);
+                  const serviceName = service === 'api'
+                    ? 'API server'
+                    : service === 'database'
+                      ? 'Database'
+                      : service === 'cache'
+                        ? 'Cache'
+                        : service;
+                  const ServiceIcon = service === 'api' ? Activity : Database;
+
+                  return (
+                    <article key={service} className={`admin-health__service is-${serviceState}`}>
+                      <div className="admin-health__service-icon"><ServiceIcon size={17} /></div>
+                      <div className="admin-health__service-copy">
+                        <span>{serviceName}</span>
+                        <strong>{formatServiceStatus(status)}</strong>
+                      </div>
+                      <span className="admin-health__service-indicator" aria-hidden="true" />
+                    </article>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="admin-health__empty">No health snapshot available.</div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'features' && (
+        <div className="admin-feature-flags content-switch-motion">
+          <header className="admin-feature-flags__header">
+            <div>
+              <p className="admin-feature-flags__eyebrow">Platform controls</p>
+              <h3>Feature flags</h3>
+              <p>Changes are stored centrally and enforced by the API.</p>
+            </div>
+            <span className="admin-feature-flags__count">
+              {featureFlags.filter((flag) => flag.enabled).length} of {featureFlags.length} enabled
+            </span>
+          </header>
+
+          {loading && !featureFlags.length ? (
+            <div className="admin-feature-flags__empty" role="status">Loading feature controls…</div>
+          ) : dataError && !featureFlags.length ? (
+            <div className="admin-feature-flags__empty admin-feature-flags__empty--error" role="alert">
+              <p>{dataError}</p>
+              <button type="button" onClick={loadDashboardData}>Retry</button>
+            </div>
+          ) : featureFlags.length ? (
+            <>
+              {dataError && (
+                <p className="admin-section-warning" role="alert">
+                  Refresh failed: {dataError} Showing the last successful settings.
+                </p>
+              )}
+              <div className="admin-feature-flags__list">
+                {featureFlags.map((flag) => {
+                  const saving = Boolean(featureFlagSaving[flag.key]);
+                  return (
+                    <article key={flag.key} className="admin-feature-flag">
+                      <div className="admin-feature-flag__copy">
+                        <div className="admin-feature-flag__title-row">
+                          <h4>{flag.label}</h4>
+                          <span className={`admin-feature-flag__status${flag.enabled ? ' is-enabled' : ''}`}>
+                            {flag.enabled ? 'Enabled' : 'Disabled'}
+                          </span>
+                        </div>
+                        <p>{FEATURE_FLAG_DESCRIPTIONS[flag.key] || 'Control this feature across the platform.'}</p>
+                        <code>{flag.key}</code>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={Boolean(flag.enabled)}
+                        aria-busy={saving}
+                        aria-label={`${flag.enabled ? 'Disable' : 'Enable'} ${flag.label}`}
+                        disabled={saving}
+                        onClick={() => handleToggleFeatureFlag(flag)}
+                        className={`admin-feature-flag__switch${flag.enabled ? ' is-enabled' : ''}${saving ? ' is-saving' : ''}`}
+                      >
+                        <span className="admin-feature-flag__switch-track">
+                          <span className="admin-feature-flag__switch-knob" />
+                        </span>
+                        <span className="admin-feature-flag__switch-label">
+                          {saving ? 'Saving…' : flag.enabled ? 'Disable' : 'Enable'}
+                        </span>
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="admin-feature-flags__empty">No feature flags are configured.</div>
+          )}
         </div>
       )}
 
@@ -1239,6 +2071,9 @@ const AdminDashboard = () => {
         </section>
       )}
 
+        </section>
+      </div>
+
       {/* Toast Notification */}
       {adminToast.text && (
         <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-xl font-bold text-xs flex items-center gap-2 animate-bounce ${
@@ -1310,6 +2145,86 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+
+      <Dialog
+        open={Boolean(suspensionTarget)}
+        onOpenChange={(open) => {
+          if (!open && !suspensionSaving) setSuspensionTarget(null);
+        }}
+      >
+        {suspensionTarget && (
+          <DialogContent className="w-[calc(100%-2rem)] max-w-lg text-app">
+            <DialogHeader className="pr-7 text-left">
+              <DialogTitle>Suspend {suspensionTarget.name || 'user'}?</DialogTitle>
+              <DialogDescription>
+                The user will lose access immediately. An empty expiry means the suspension remains active until restored.
+              </DialogDescription>
+            </DialogHeader>
+            <label className="space-y-1.5 text-xs font-bold text-app">
+              Reason
+              <textarea
+                value={suspensionReason}
+                onChange={(event) => setSuspensionReason(event.target.value.slice(0, 500))}
+                rows={3}
+                maxLength={500}
+                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-normal dark:border-slate-700 dark:bg-slate-900"
+              />
+            </label>
+            <label className="space-y-1.5 text-xs font-bold text-app">
+              Expiry (optional)
+              <input
+                type="datetime-local"
+                value={suspensionExpiresAt}
+                onChange={(event) => setSuspensionExpiresAt(event.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal dark:border-slate-700 dark:bg-slate-900"
+              />
+            </label>
+            <DialogFooter>
+              <button type="button" disabled={suspensionSaving} onClick={() => setSuspensionTarget(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-app dark:border-slate-700">Cancel</button>
+              <button type="button" disabled={suspensionSaving || suspensionReason.trim().length < 5} onClick={handleSuspendUser} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                {suspensionSaving ? 'Suspending…' : 'Confirm suspension'}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      <Dialog
+        open={Boolean(selectedAccessUser)}
+        onOpenChange={(open) => !open && !accessSaving && setSelectedAccessUser(null)}
+      >
+        {selectedAccessUser && (
+          <DialogContent className="w-[calc(100%-2rem)] max-w-xl max-h-[85vh] overflow-y-auto text-app">
+            <DialogHeader className="pr-7 text-left">
+              <DialogTitle>Custom permissions for {selectedAccessUser.name || 'administrator'}</DialogTitle>
+              <DialogDescription>Select only the capabilities this administrator needs.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {ADMIN_PERMISSION_OPTIONS.map((permission) => (
+                <label key={permission.key} className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-xs dark:border-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={selectedPermissions.includes(permission.key)}
+                    onChange={(event) => {
+                      setSelectedPermissions((current) => event.target.checked
+                        ? [...current, permission.key]
+                        : current.filter((value) => value !== permission.key));
+                    }}
+                    className="mt-0.5 accent-indigo-600"
+                  />
+                  <span>{permission.label}</span>
+                </label>
+              ))}
+            </div>
+            <DialogFooter>
+              <button type="button" disabled={accessSaving} onClick={() => setSelectedAccessUser(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-app dark:border-slate-700">Cancel</button>
+              <button type="button" disabled={accessSaving || selectedPermissions.length === 0} onClick={handleSaveCustomAccess} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                {accessSaving ? 'Saving…' : 'Save permissions'}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
 
       <Dialog open={Boolean(selectedRoleUser)} onOpenChange={(open) => !open && !roleSaving && setSelectedRoleUser(null)}>
         {selectedRoleUser && (

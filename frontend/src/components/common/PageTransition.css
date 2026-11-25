@@ -2,7 +2,7 @@
   width: 100%;
   min-width: 0;
   min-height: 100%;
-  animation: page-route-rise 2s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: page-route-rise 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .page-route-transition-reduced {
@@ -21,26 +21,26 @@
 
 .dashboard-page-transition > :first-child > :is(header, section, article, aside, [data-dashboard-motion]),
 .dashboard-page-transition > :first-child > :not(.fixed):not([role="dialog"]):not([aria-busy="true"]) {
-  animation: dashboard-section-rise 2s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: dashboard-section-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
-.dashboard-page-transition > :first-child > :nth-child(2) { animation-delay: 100ms; }
-.dashboard-page-transition > :first-child > :nth-child(3) { animation-delay: 200ms; }
-.dashboard-page-transition > :first-child > :nth-child(4) { animation-delay: 300ms; }
-.dashboard-page-transition > :first-child > :nth-child(5) { animation-delay: 400ms; }
+.dashboard-page-transition > :first-child > :nth-child(2) { animation-delay: 30ms; }
+.dashboard-page-transition > :first-child > :nth-child(3) { animation-delay: 60ms; }
+.dashboard-page-transition > :first-child > :nth-child(4) { animation-delay: 90ms; }
+.dashboard-page-transition > :first-child > :nth-child(5) { animation-delay: 120ms; }
 
 .orbitus-sidebar-header-motion,
 .orbitus-sidebar-footer-motion,
 .orbitus-sidebar-mobile-header-motion {
-  animation: dashboard-section-rise 2s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: dashboard-section-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 .orbitus-sidebar-item-motion {
-  animation: dashboard-section-rise 2s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: dashboard-section-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 .settings-tab-motion > * {
-  animation: dashboard-section-rise 2s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: dashboard-section-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 .settings-tab-motion > :nth-child(2) { animation-delay: 120ms; }
@@ -64,7 +64,7 @@
 .orbitus-modal-motion[data-state="open"],
 [data-modal="true"] > :first-child,
 [role="dialog"][aria-modal="true"] > :first-child {
-  animation: modal-panel-rise 2s cubic-bezier(0.22, 1, 0.36, 1) backwards !important;
+  animation: modal-panel-rise 240ms cubic-bezier(0.22, 1, 0.36, 1) backwards !important;
 }
 
 body:has([data-modal="true"], [aria-modal="true"], [data-orbitus-modal-overlay="true"])

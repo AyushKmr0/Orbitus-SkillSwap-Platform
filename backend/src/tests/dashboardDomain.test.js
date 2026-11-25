@@ -14,6 +14,46 @@ describe('Dashboard Domain & Schemas', () => {
     expect(leaderboardQuerySchema.safeParse({ query: { timeframe: 'all-time' } }).success).toBe(true);
     expect(leaderboardQuerySchema.safeParse({ query: { timeframe: 'yearly' } }).success).toBe(false);
     expect(adminPaginationQuerySchema.safeParse({ query: { page: '1', limit: '20' } }).success).toBe(true);
+    expect(adminPaginationQuerySchema.safeParse({ query: { status: 'suspended' } }).success).toBe(true);
+    expect(adminPaginationQuerySchema.safeParse({ query: { status: 'active' } }).success).toBe(false);
+  });
+
+  it('filters suspended accounts before paginating and combines the other filters', async () => {
+    const repository = {
+      findAdminUsers: async () => [[], 0]
+    };
+    const service = new DashboardService(repository);
+    let capturedQuery;
+    repository.findAdminUsers = async (query) => {
+      capturedQuery = query;
+      return [[], 0];
+    };
+
+    await service.getAdminUsers({
+      page: '2',
+      limit: '10',
+      search: 'alex',
+      role: 'User',
+      status: 'suspended'
+    });
+
+    expect(capturedQuery.$and).toEqual(expect.arrayContaining([
+      expect.objectContaining({ suspendedAt: { $ne: null } }),
+      expect.objectContaining({
+        $or: expect.arrayContaining([
+          { suspendedUntil: null },
+          { suspendedUntil: { $gt: expect.any(Date) } }
+        ])
+      }),
+      expect.objectContaining({ role: { $regex: expect.any(RegExp) } }),
+      expect.objectContaining({
+        $or: expect.arrayContaining([
+          { name: { $regex: 'alex', $options: 'i' } },
+          { email: { $regex: 'alex', $options: 'i' } },
+          { username: { $regex: 'alex', $options: 'i' } }
+        ])
+      })
+    ]));
   });
 
   it('validates admin role update schema', () => {

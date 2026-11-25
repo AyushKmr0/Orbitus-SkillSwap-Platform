@@ -29,6 +29,7 @@ import postRoutes from './modules/posts/post.routes.js';
 import certificateRoutes from './modules/certificates/certificate.routes.js';
 import groupRoutes from './modules/groups/group.routes.js';
 import feedbackRoutes from './modules/feedback/feedback.routes.js';
+import moderationRoutes from './modules/moderation/moderation.routes.js';
 
 import mongoose from 'mongoose';
 import { isRedisConnected } from './infrastructure/redis/client.js';
@@ -135,6 +136,8 @@ app.use('/api/auth/login', authRateLimiter);
 app.use('/api/auth/register', authRateLimiter);
 app.use('/api/auth/verify-otp', authRateLimiter);
 app.use('/api/auth/reset-password', authRateLimiter);
+app.use('/api/auth/email-change', authRateLimiter);
+app.use('/api/moderation/reports', authRateLimiter);
 app.use('/api/auth/admin-login', authRateLimiter);
 app.use('/api/ai', aiRateLimiter);
 app.use('/api/users/profile/resume', uploadRateLimiter);
@@ -154,6 +157,7 @@ app.use('/api/posts', postRoutes);
 app.use('/api/certificates', certificateRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/moderation', moderationRoutes);
 
 // 404 Route handler
 app.use((req, res) => {

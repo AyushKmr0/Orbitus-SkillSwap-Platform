@@ -1,5 +1,6 @@
 import { AppError } from '../../shared/errors/app-error.js';
 import { dashboardRepository } from './dashboard.repository.js';
+import User from '../../models/User.js';
 import { getCache, setCache } from '../../infrastructure/redis/client.js';
 import {
   invalidateAdminStats,
@@ -9,6 +10,9 @@ import {
 } from '../../services/cacheService.js';
 import { activityService } from '../../services/activityService.js';
 import UserActivity from '../../models/UserActivity.js';
+import mongoose from 'mongoose';
+import { isRedisConnected } from '../../infrastructure/redis/client.js';
+import { getFeatureFlags, setFeatureFlag } from '../../config/featureFlags.js';
 
 export const BADGE_RULES = [
   {
@@ -192,6 +196,7 @@ export class DashboardService {
         profileImage: user.profileImage,
         coverImage: user.coverImage || '',
         points: userPoints,
+        streak: user.streak || 0,
         skillsTeach: user.skillsTeach,
         skillsLearn: user.skillsLearn,
         followersCount,
@@ -222,7 +227,7 @@ export class DashboardService {
   }
 
   async getAdminDashboardStats() {
-    const cacheKey = 'dashboard:admin:stats';
+    const cacheKey = 'dashboard:admin:stats:v2';
     const cachedData = await getCache(cacheKey);
     if (cachedData) {
       return { data: cachedData, cached: true };
@@ -242,6 +247,12 @@ export class DashboardService {
       categoryBreakdown,
       leaders
     } = await this.repo.getAdminCounts();
+    const operationalMetrics = this.repo.getAdminOperationalMetrics
+      ? await this.repo.getAdminOperationalMetrics(
+          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          new Date()
+        )
+      : {};
 
     const otherCount = totalSessions - (completedCount + pendingCount + acceptedCount);
     const standardUserCount = totalUsers - adminCount;
@@ -258,7 +269,11 @@ export class DashboardService {
         totalReviews,
         totalRoadmaps,
         standardUserCount,
-        adminCount
+        adminCount,
+        newUsers30d: operationalMetrics.newUsers || 0,
+        posts30d: operationalMetrics.recentPosts || 0,
+        pendingReports: operationalMetrics.pendingReports || 0,
+        suspendedUsers: operationalMetrics.suspendedUsers || 0
       },
       charts: {
         sessionsBreakdown: {
@@ -379,22 +394,34 @@ export class DashboardService {
     return { data: payload, cached: false };
   }
 
-  async getAdminUsers({ page = 1, limit = 20, search = '', role = '' } = {}) {
+  async getAdminUsers({ page = 1, limit = 20, search = '', role = '', status = '' } = {}) {
     const parsedPage = Math.max(1, parseInt(page, 10));
     const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
 
-    const query = {};
+    const filters = [];
     if (search && search.trim()) {
       const s = search.trim();
-      query.$or = [
-        { name: { $regex: s, $options: 'i' } },
-        { email: { $regex: s, $options: 'i' } },
-        { username: { $regex: s, $options: 'i' } }
-      ];
+      filters.push({
+        $or: [
+          { name: { $regex: s, $options: 'i' } },
+          { email: { $regex: s, $options: 'i' } },
+          { username: { $regex: s, $options: 'i' } }
+        ]
+      });
     }
     if (role && role.trim()) {
-      query.role = { $regex: new RegExp(`^${role.trim()}$`, 'i') };
+      filters.push({ role: { $regex: new RegExp(`^${role.trim()}$`, 'i') } });
     }
+    if (status === 'suspended') {
+      filters.push({ suspendedAt: { $ne: null } });
+      filters.push({
+        $or: [
+          { suspendedUntil: null },
+          { suspendedUntil: { $gt: new Date() } }
+        ]
+      });
+    }
+    const query = filters.length > 1 ? { $and: filters } : filters[0] || {};
 
     const [users, total] = await this.repo.findAdminUsers(query, {
       skip: (parsedPage - 1) * parsedLimit,
@@ -412,9 +439,12 @@ export class DashboardService {
     };
   }
 
-  async updateAdminUserRole(userId, role) {
+  async updateAdminUserRole(adminUserId, userId, role) {
     if (!['User', 'Admin'].includes(role)) {
       throw new AppError('Invalid role', 400);
+    }
+    if (adminUserId.toString() === userId.toString() && role !== 'Admin') {
+      throw new AppError('You cannot remove your own administrator access', 400);
     }
 
     const user = await this.repo.updateUserRole(userId, role);
@@ -430,9 +460,113 @@ export class DashboardService {
     return user;
   }
 
+  async updateAdminUserAccess(adminUserId, targetUserId, { accessLevel, permissions = [] }) {
+    if (adminUserId.toString() === targetUserId.toString() && accessLevel !== 'full') {
+      throw new AppError('You cannot remove your own full administrator access', 400);
+    }
+
+    const user = await this.repo.updateAdminUserAccess(targetUserId, accessLevel, permissions);
+    if (!user) {
+      throw new AppError('Administrator account not found', 404);
+    }
+    return user;
+  }
+
+  async suspendAdminUser(adminUserId, targetUserId, { reason, expiresAt }) {
+    if (adminUserId.toString() === targetUserId.toString()) {
+      throw new AppError('You cannot suspend your own account', 400);
+    }
+    const parsedExpiry = expiresAt ? new Date(expiresAt) : null;
+    if (parsedExpiry && parsedExpiry <= new Date()) {
+      throw new AppError('Suspension expiry must be in the future', 400);
+    }
+
+    const user = await this.repo.suspendUser(targetUserId, {
+      reason,
+      expiresAt: parsedExpiry,
+      suspendedBy: adminUserId
+    });
+    if (!user) {
+      const target = await User.findById(targetUserId).select('role').lean();
+      if (!target) throw new AppError('User not found', 404);
+      throw new AppError('Only regular user accounts can be suspended', 400);
+    }
+
+    await Promise.allSettled([
+      invalidateAdminStats(),
+      invalidateUserDashboard(targetUserId)
+    ]);
+    return user;
+  }
+
+  async restoreAdminUser(targetUserId) {
+    const user = await this.repo.restoreUser(targetUserId);
+    if (!user) {
+      const target = await User.findById(targetUserId).select('role').lean();
+      if (!target) throw new AppError('User not found', 404);
+      throw new AppError('Only regular user accounts can be restored', 400);
+    }
+
+    await Promise.allSettled([
+      invalidateAdminStats(),
+      invalidateUserDashboard(targetUserId)
+    ]);
+    return user;
+  }
+
+  async getAdminAuditLogs({ page = '1', limit = '20', action = '' } = {}) {
+    const parsedPage = Math.max(1, Number.parseInt(page, 10) || 1);
+    const parsedLimit = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 20));
+    const [logs, total] = await this.repo.findAdminAuditLogs({
+      page: parsedPage,
+      limit: parsedLimit,
+      action: action.trim()
+    });
+    return {
+      logs,
+      pagination: {
+        total,
+        page: parsedPage,
+        limit: parsedLimit,
+        pages: Math.ceil(total / parsedLimit)
+      }
+    };
+  }
+
+  async getAdminHealth() {
+    const databaseConnected = mongoose.connection.readyState === 1;
+    const cacheConnected = isRedisConnected();
+    return {
+      status: databaseConnected ? 'healthy' : 'degraded',
+      services: {
+        api: 'healthy',
+        database: databaseConnected ? 'connected' : 'disconnected',
+        cache: cacheConnected ? 'connected' : 'in_memory_fallback'
+      },
+      uptimeSeconds: Math.round(process.uptime()),
+      checkedAt: new Date().toISOString()
+    };
+  }
+
+  async getAdminFeatureFlags() {
+    return getFeatureFlags();
+  }
+
+  async updateAdminFeatureFlag(key, enabled, updatedBy) {
+    return setFeatureFlag(key, enabled, updatedBy);
+  }
+
   async deleteAdminUser(adminUserId, targetUserId) {
     if (targetUserId === adminUserId.toString()) {
       throw new AppError('Super admin cannot delete themselves', 400);
+    }
+
+    const target = await User.findById(targetUserId).select('role').lean();
+    if (!target) {
+      throw new AppError('User not found', 404);
+    }
+    if (String(target.role).toLowerCase() === 'admin') {
+      throw new AppError('Demote administrator accounts before deleting them', 400);
     }
 
     const user = await this.repo.deleteUser(targetUserId);

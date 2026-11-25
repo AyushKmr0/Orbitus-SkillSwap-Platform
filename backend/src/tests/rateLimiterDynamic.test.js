@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DynamicRateLimitStore } from '../middlewares/rateLimiter.js';
+import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '../config/env.js';
+import { apiRateLimitKeyGenerator, DynamicRateLimitStore } from '../middlewares/rateLimiter.js';
 
 describe('Dynamic Rate Limiter Store Tests', () => {
   beforeEach(() => {
@@ -47,5 +49,26 @@ describe('Dynamic Rate Limiter Store Tests', () => {
     const result = await store.increment(key);
     expect(result).toBeDefined();
     expect(result.totalHits).toBe(1);
+  });
+
+  it('should key valid bearer tokens by user so shared IP traffic does not share one bucket', () => {
+    const token = jwt.sign({ id: 'user_123' }, getJwtSecret(), { expiresIn: '1h' });
+
+    expect(apiRateLimitKeyGenerator({
+      headers: { authorization: `Bearer ${token}` },
+      ip: '203.0.113.10'
+    })).toBe('user:user_123');
+  });
+
+  it('should keep invalid or missing tokens on the IP-based bucket', () => {
+    expect(apiRateLimitKeyGenerator({
+      headers: { authorization: 'Bearer invalid-token' },
+      ip: '203.0.113.10'
+    })).toBe('203.0.113.10');
+
+    expect(apiRateLimitKeyGenerator({
+      headers: {},
+      ip: '203.0.113.11'
+    })).toBe('203.0.113.11');
   });
 });

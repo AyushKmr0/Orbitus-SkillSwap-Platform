@@ -1,6 +1,8 @@
-import rateLimit, { MemoryStore } from 'express-rate-limit';
+import jwt from 'jsonwebtoken';
+import rateLimit, { ipKeyGenerator, MemoryStore } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
 import { getRedisClient, isRedisConnected } from '../config/redis.js';
+import { getJwtSecret } from '../config/env.js';
 
 export class DynamicRateLimitStore {
   constructor(options = {}) {
@@ -111,12 +113,32 @@ const createRateLimiter = (options) => {
     max: process.env.NODE_ENV !== 'production' ? (options.max || 100) * 10 : (options.max || 100),
     standardHeaders: true,
     legacyHeaders: false,
+    ...(options.keyGenerator ? { keyGenerator: options.keyGenerator } : {}),
     store,
     message: {
       success: false,
       message: options.message || 'Too many requests from this IP, please try again later.'
     }
   });
+};
+
+export const apiRateLimitKeyGenerator = (req) => {
+  const authorization = req.headers?.authorization || '';
+  const bearerMatch = authorization.match(/^Bearer\s+(.+)$/i);
+  const token = bearerMatch?.[1] || req.cookies?.token;
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, getJwtSecret());
+      if (typeof decoded === 'object' && decoded?.id) {
+        return `user:${decoded.id}`;
+      }
+    } catch {
+      // Invalid or expired tokens stay subject to the IP-based limit.
+    }
+  }
+
+  return ipKeyGenerator(req.ip);
 };
 
 // Rate limiter for authentication endpoints (login, register, otp, password reset)
@@ -147,5 +169,6 @@ export const uploadRateLimiter = createRateLimiter({
 export const apiRateLimiter = createRateLimiter({
   prefix: 'api',
   windowMs: 15 * 60 * 1000,
-  max: Number.parseInt(process.env.API_RATE_LIMIT_MAX, 10) || 1200
+  max: Number.parseInt(process.env.API_RATE_LIMIT_MAX, 10) || 1200,
+  keyGenerator: apiRateLimitKeyGenerator
 });

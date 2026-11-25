@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
 import RubberSegment from '../../components/common/react-bits/RubberSegment.jsx';
 import {
@@ -38,7 +38,9 @@ const Groups = () => {
 
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [groupsError, setGroupsError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [filterTab, setFilterTab] = useState('all'); // 'all', 'joined', 'admin'
   const [msg, setMsg] = useState('');
@@ -61,28 +63,32 @@ const Groups = () => {
 
   const fetchGroups = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
+    setGroupsError('');
     try {
       const res = await apiClient.get('/api/groups', {
         params: {
           category: selectedCategory,
           filter: filterTab,
-          search: searchQuery,
+          search: debouncedSearch,
           limit: 20,
           page: 1
         }
       });
-      const data = res.data.groups || res.data.data?.groups || [];
-      // Auto-shuffle on every fetch so the order is fresh each time
-      const shuffled = [...data].sort(() => Math.random() - 0.5);
-      setGroups(shuffled);
+      const data = res.data?.groups || res.data?.data?.groups || [];
+      if (!Array.isArray(data)) {
+        throw new Error('Received an unexpected groups data format.');
+      }
+      setGroups(data);
       setPage(1);
       setHasMore(data.length === 20);
     } catch (err) {
       console.error('Fetch groups error:', err);
+      setGroupsError(err.response?.data?.message || err.message || 'Could not load study groups.');
+      if (!isBackground) setGroups([]);
     } finally {
       if (!isBackground) setLoading(false);
     }
-  }, [selectedCategory, filterTab, searchQuery]);
+  }, [selectedCategory, filterTab, debouncedSearch]);
 
   const loadMoreGroups = useCallback(async () => {
     if (loadingMore || !hasMore) return;
@@ -93,12 +99,15 @@ const Groups = () => {
         params: {
           category: selectedCategory,
           filter: filterTab,
-          search: searchQuery,
+          search: debouncedSearch,
           limit: 20,
           page: nextPage
         }
       });
-      const newGroups = res.data.groups || res.data.data?.groups || [];
+      const newGroups = res.data?.groups || res.data?.data?.groups || [];
+      if (!Array.isArray(newGroups)) {
+        throw new Error('Received an unexpected groups data format.');
+      }
       if (newGroups.length > 0) {
         setGroups((prev) => {
           const seen = new Set(prev.map((g) => g._id));
@@ -112,10 +121,17 @@ const Groups = () => {
       }
     } catch (err) {
       console.error('Error loading more groups:', err);
+      setGroupsError(err.response?.data?.message || err.message || 'Could not load more study groups.');
+      setHasMore(false);
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, page, selectedCategory, filterTab, searchQuery]);
+  }, [loadingMore, hasMore, page, selectedCategory, filterTab, debouncedSearch]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(timeout);
+  }, [searchQuery]);
 
   useEffect(() => {
     fetchGroups();
@@ -164,7 +180,7 @@ const Groups = () => {
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchGroups();
+    setDebouncedSearch(searchQuery.trim());
   };
 
   const handleCreateGroup = async (e) => {
@@ -258,39 +274,31 @@ const Groups = () => {
   };
 
   return (
-    <div className="page-shell flex-1 p-4 sm:p-6 lg:p-8 space-y-6 text-app overflow-y-auto animate-fade-in">
-      {/* Banner */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-[#22242a] p-5 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="flex items-start gap-3.5">
-          <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 rounded-2xl shrink-0 mt-0.5">
-            <Users size={22} />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-app font-outfit tracking-tight">
-              Study & Practice Groups
-            </h1>
-            <p className="text-xs sm:text-sm text-muted mt-1">
-              Join or start community study rooms to practice skills together, chat in real-time, and share video study calls.
-            </p>
-          </div>
+    <div className="mx-auto min-w-0 max-w-7xl space-y-6">
+      {/* ── Page Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="orb-page-title">Study Groups</h1>
+          <p className="orb-page-subtitle">Find your learning community, share knowledge, and make progress together.</p>
         </div>
 
-        <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-end flex-wrap">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
             type="button"
             onClick={() => fetchGroups()}
             disabled={loading}
-            className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-muted hover:text-app rounded-2xl border border-slate-200 dark:border-slate-700 transition-colors"
+            className="orb-btn-ghost text-xs"
             title="Refresh groups"
           >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <span>Refresh</span>
           </button>
           <button
             type="button"
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 !bg-white dark:!bg-slate-800 hover:!bg-slate-50 dark:hover:!bg-slate-700/80 !text-slate-900 dark:!text-white border border-slate-200 dark:border-slate-700 text-xs font-bold rounded-2xl transition-all shadow-sm hover:shadow active:scale-95 shrink-0"
+            className="orb-btn-primary text-xs shadow-sm"
           >
-            <Plus size={16} className="text-indigo-600 dark:text-indigo-400" />
+            <Plus size={14} />
             <span>Create Group</span>
           </button>
         </div>
@@ -302,19 +310,37 @@ const Groups = () => {
           <span>{msg}</span>
         </div>
       )}
+      {groupsError && groups.length > 0 && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:border-amber-800/50 dark:bg-amber-950/20 dark:text-amber-200">
+          <span>{groupsError}</span>
+          <button type="button" onClick={() => fetchGroups()} className="font-semibold underline underline-offset-2">
+            Refresh groups
+          </button>
+        </div>
+      )}
 
       {/* Search and Tabs */}
-      <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         {/* Search */}
-        <form onSubmit={handleSearchSubmit} className="relative flex-1 max-w-md">
-          <Search size={16} className="absolute left-3.5 top-3 text-muted" />
+        <form onSubmit={handleSearchSubmit} role="search" className="relative w-full md:max-w-md">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
           <input
             type="text"
             placeholder="Search groups by topic, skill, or tag..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-2xl text-xs sm:text-sm text-app placeholder:text-muted outline-none focus:border-indigo-500 transition-colors shadow-sm"
+            className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-10 text-sm text-app outline-none transition placeholder:text-muted focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-[#1b1e26]"
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear group search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted transition hover:bg-slate-100 hover:text-app dark:hover:bg-slate-800"
+            >
+              <X size={14} />
+            </button>
+          )}
         </form>
 
         {/* Filter Tabs */}
@@ -327,18 +353,18 @@ const Groups = () => {
             { value: 'joined', label: 'My Groups' },
             { value: 'admin', label: 'Groups I Manage' }
           ]}
-          className="self-start shadow-sm md:self-auto"
+          className="self-start md:self-auto"
         />
       </div>
 
       {/* Category Pills Bar */}
-      <div className="overflow-x-auto pb-2 scrollbar-none">
+      <div className="overflow-x-auto pb-1 scrollbar-none">
         <RubberSegment
           ariaLabel="Study group category"
           value={selectedCategory}
           onChange={setSelectedCategory}
           options={CATEGORIES}
-          className="w-max min-w-full rounded-xl"
+          className="w-max min-w-full"
           buttonClassName="border border-transparent px-3.5 py-1.5 font-medium"
           activeTextClassName="font-bold text-white"
           inactiveTextClassName="border-slate-200 bg-white text-muted hover:border-slate-300 hover:text-app dark:border-slate-800 dark:bg-[#22242a] dark:hover:border-slate-700"
@@ -351,22 +377,44 @@ const Groups = () => {
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 py-8">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-56 sm:h-60 rounded-2xl sm:rounded-3xl bg-slate-100 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 animate-pulse" />
+            <div key={i} className="h-60 animate-pulse rounded-2xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900/40" />
           ))}
         </div>
-      ) : groups.length === 0 ? (
-        <div className="text-center py-20 border border-dashed border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-[#22242a]/50 rounded-3xl p-8 space-y-3">
-          <Compass size={36} className="mx-auto text-muted" />
-          <p className="text-sm font-semibold text-muted">No study groups found in this category.</p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
-          >
-            Create the first study group!
+      ) : groupsError && groups.length === 0 ? (
+        <div role="alert" className="space-y-3 rounded-2xl border border-red-200 bg-red-50 px-6 py-16 text-center dark:border-red-900/50 dark:bg-red-950/20">
+          <p className="text-sm font-semibold text-red-700 dark:text-red-300">{groupsError}</p>
+          <button type="button" onClick={() => fetchGroups()} className="orb-btn-ghost text-xs">
+            <RefreshCw size={13} /> Try again
           </button>
         </div>
+      ) : groups.length === 0 ? (
+        <div className="space-y-3 rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-20 text-center dark:border-slate-800 dark:bg-[#15171d]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
+            <Compass size={22} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-app">No study groups found</p>
+            <p className="mt-1 text-xs text-muted">Try another search or category, or start a new community.</p>
+          </div>
+          <div className="flex justify-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedCategory('All');
+                setFilterTab('all');
+              }}
+              className="orb-btn-ghost text-xs"
+            >
+              Clear filters
+            </button>
+            <button type="button" onClick={() => setShowCreateModal(true)} className="orb-btn-primary text-xs">
+              <Plus size={13} /> Create group
+            </button>
+          </div>
+        </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {groups.map((group, idx) => {
             const isPrivate = group.privacy === 'private';
             const isMember = group.isMember;
@@ -374,10 +422,9 @@ const Groups = () => {
             const isPending = group.isPending;
 
             return (
-              <div
+              <article
                 key={group._id}
-                onClick={() => navigate(`/groups/${group._id}`)}
-                className={`group relative bg-white dark:bg-[#22242a] hover:border-indigo-500/40 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl p-3 sm:p-5 flex flex-col justify-between interactive-card animate-card-enter shadow-sm cursor-pointer hover:shadow-md stagger-${(idx % 6) + 1}`}
+                className={`group orb-card flex min-w-0 flex-col justify-between p-5 transition-transform duration-200 hover:-translate-y-0.5 stagger-${(idx % 6) + 1}`}
               >
                 <div className="space-y-2.5 sm:space-y-3.5">
                   {/* Top image & badges */}
@@ -416,8 +463,10 @@ const Groups = () => {
 
                   {/* Group Name & Desc */}
                   <div>
-                    <h3 className="font-bold text-xs sm:text-base text-app group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
-                      {group.name}
+                    <h3 className="truncate text-sm font-semibold tracking-tight text-app transition-colors group-hover:text-indigo-600 dark:group-hover:text-indigo-400 sm:text-base">
+                      <Link to={`/groups/${group._id}`} className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                        {group.name}
+                      </Link>
                     </h3>
                     <p className="text-[11px] sm:text-xs text-muted line-clamp-2 mt-0.5 sm:mt-1 leading-relaxed">
                       {group.description || 'Welcome! Join us to practice, discuss questions, and learn together.'}
@@ -450,15 +499,15 @@ const Groups = () => {
 
                 {/* Bottom Row */}
                 <div className="mt-3 sm:mt-4 pt-2.5 sm:pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1">
-                  <span className="text-[10px] sm:text-[11px] text-muted font-medium truncate">
+                  <span className="truncate text-xs font-medium text-muted">
                     {group.membersCount || 0} {group.membersCount === 1 ? 'member' : 'members'}
                   </span>
 
                   {isMember ? (
-                    <span className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
-                      <span>Open</span>
+                    <Link to={`/groups/${group._id}`} className="flex shrink-0 items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400">
+                      <span>Open group</span>
                       <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
-                    </span>
+                    </Link>
                   ) : isPending ? (
                     <span className="px-2 sm:px-3 py-1 rounded-xl text-[10px] sm:text-xs font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
                       Pending
@@ -466,14 +515,14 @@ const Groups = () => {
                   ) : (
                     <button
                       type="button"
-                      onClick={(e) => handleJoinGroup(e, group._id, group.privacy)}
+                      onClick={(e) => handleJoinGroup(e, group._id)}
                       className="px-2.5 py-1.5 sm:px-3.5 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow shrink-0"
                     >
                       {isPrivate ? 'Request' : 'Join'}
                     </button>
                   )}
                 </div>
-              </div>
+              </article>
             );
           })}
           {/* Invisible sentinel for seamless infinite scroll */}

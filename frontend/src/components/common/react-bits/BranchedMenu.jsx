@@ -247,7 +247,7 @@ export function BranchedCommentBranch({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
               <span>
-                {isOpen ? 'Branch' : 'Show branch'} ({replies.length} {replies.length === 1 ? 'reply' : 'replies'})
+                {isOpen ? 'Replies' : 'Show replies'} ({replies.length} {replies.length === 1 ? 'reply' : 'replies'})
               </span>
             </button>
           </div>

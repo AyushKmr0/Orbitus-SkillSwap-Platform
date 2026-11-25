@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ActivityService } from '../services/activityService.js';
+import { ActivityService, getNextLoginStreak } from '../services/activityService.js';
 import UserActivity from '../models/UserActivity.js';
 import User from '../models/User.js';
 import Leaderboard from '../models/Leaderboard.js';
@@ -15,6 +15,68 @@ describe('Activity & Scoreboard Mechanics Full Regression Tests', () => {
   });
 
   describe('1. Daily Login Points Flow & Idempotency', () => {
+    it('increments streak only for consecutive local calendar days', () => {
+      expect(getNextLoginStreak(
+        new Date('2026-10-11T18:35:00.000Z'),
+        4,
+        '2026-10-13',
+        'Asia/Kolkata'
+      )).toBe(5);
+      expect(getNextLoginStreak(
+        new Date('2026-10-12T08:00:00.000Z'),
+        4,
+        '2026-10-12',
+        'Asia/Kolkata'
+      )).toBe(4);
+      expect(getNextLoginStreak(
+        new Date('2026-10-10T08:00:00.000Z'),
+        4,
+        '2026-10-12',
+        'Asia/Kolkata'
+      )).toBe(1);
+    });
+
+    it('updates the stored streak and returns it with the daily reward', async () => {
+      const userId = 'user_login_streak';
+      const yesterday = new Date('2026-10-11T08:00:00.000Z');
+      const now = new Date('2026-10-12T08:00:00.000Z');
+      vi.spyOn(UserActivity, 'create').mockResolvedValue({});
+      vi.spyOn(User, 'findById').mockReturnValue({
+        select: vi.fn().mockResolvedValue({
+          points: 90,
+          dailyLoginTracker: yesterday,
+          streak: 3
+        })
+      });
+      vi.spyOn(User, 'findByIdAndUpdate').mockResolvedValue({
+        points: 100,
+        dailyLoginTracker: now,
+        streak: 4
+      });
+      vi.spyOn(Leaderboard, 'findOneAndUpdate').mockResolvedValue({});
+
+      const result = await activityService.recordDailyLogin({
+        userId,
+        timeZone: 'Asia/Kolkata',
+        now
+      });
+
+      expect(result).toMatchObject({
+        awarded: true,
+        pointsAwarded: 10,
+        totalPoints: 100,
+        streak: 4
+      });
+      expect(User.findByIdAndUpdate).toHaveBeenCalledWith(
+        userId,
+        expect.objectContaining({
+          $set: { dailyLoginTracker: now, streak: 4 }
+        }),
+        expect.anything()
+      );
+      vi.restoreAllMocks();
+    });
+
     it('awards exactly 10 points on the first successful login of the day', async () => {
       const mockUserId = 'user_login_1';
       const now = new Date('2026-10-12T08:00:00.000Z');
@@ -49,7 +111,7 @@ describe('Activity & Scoreboard Mechanics Full Regression Tests', () => {
         mockUserId,
         expect.objectContaining({
           $inc: { points: 10 },
-          $set: { dailyLoginTracker: now }
+          $set: { dailyLoginTracker: now, streak: 1 }
         }),
         expect.anything()
       );

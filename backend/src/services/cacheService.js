@@ -41,6 +41,7 @@ export const invalidateAdminStats = async () => {
   try {
     await Promise.allSettled([
       delCache('dashboard:admin:stats'),
+      delCache('dashboard:admin:stats:v2'),
       delCache('dashboard:stats:overview')
     ]);
     return true;

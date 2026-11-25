@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import apiClient from '../../services/apiClient.js';
+import ReportContentButton from '../../components/common/ReportContentButton.jsx';
 import { useSocket } from '../../context/SocketContext.jsx';
 import { setCurrentRoom, upsertActiveChat } from '../../features/chatSlice.js';
 import {
@@ -95,22 +96,25 @@ const GroupDetail = () => {
   const [addingUserId, setAddingUserId] = useState(null);
   const [addedUserIds, setAddedUserIds] = useState(new Set());
   const [openMemberMenuId, setOpenMemberMenuId] = useState('');
-  const closeMemberMenuTimerRef = useRef(null);
+  useEffect(() => {
+    if (!openMemberMenuId) return undefined;
 
-  const handleMemberMenuMouseEnter = (id) => {
-    if (closeMemberMenuTimerRef.current) {
-      clearTimeout(closeMemberMenuTimerRef.current);
-      closeMemberMenuTimerRef.current = null;
-    }
-    setOpenMemberMenuId(id);
-  };
-
-  const handleMemberMenuMouseLeave = () => {
-    if (closeMemberMenuTimerRef.current) clearTimeout(closeMemberMenuTimerRef.current);
-    closeMemberMenuTimerRef.current = setTimeout(() => {
+    const closeOnOutsideClick = (event) => {
+      if (event.target instanceof Element && event.target.closest('[data-member-menu]')) return;
       setOpenMemberMenuId('');
-    }, 200);
-  };
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setOpenMemberMenuId('');
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [openMemberMenuId]);
+
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
     title: '',
@@ -312,6 +316,17 @@ const GroupDetail = () => {
       fetchMessages();
     }
   }, [group?._id, group?.isMember, fetchMessages]);
+
+  useEffect(() => {
+    if (!showGroupInfo) return undefined;
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') setShowGroupInfo(false);
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [showGroupInfo]);
 
   const [hiddenDeletedMsgIds, setHiddenDeletedMsgIds] = useState(() => {
     try {
@@ -729,7 +744,7 @@ const GroupDetail = () => {
   // ── Loading / not found states ──────────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center h-screen page-shell text-app gap-3">
+      <div className="flex h-full min-h-0 flex-1 flex-col items-center justify-center gap-3 page-shell text-app">
         <div className="w-10 h-10 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
         <span className="text-sm text-muted font-medium">Loading group…</span>
       </div>
@@ -738,7 +753,7 @@ const GroupDetail = () => {
 
   if (!group) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center h-screen page-shell text-app gap-3 p-4 text-center">
+      <div className="flex h-full min-h-0 flex-1 flex-col items-center justify-center gap-3 page-shell p-4 text-center text-app">
         <Users size={40} className="text-muted" />
         <p className="font-bold text-base">{groupError || "Group not found or has been deleted."}</p>
         <div className="flex items-center gap-3 pt-1">
@@ -766,7 +781,7 @@ const GroupDetail = () => {
   // ── Non-member gate ──────────────────────────────────────────────────────
   if (!isMember) {
     return (
-      <div className="flex-1 flex items-center justify-center min-h-screen page-shell p-6">
+      <div className="flex h-full min-h-0 flex-1 items-center justify-center page-shell p-6">
         <div className="w-full max-w-md bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-700 rounded-3xl p-8 text-center shadow-xl space-y-5">
           <img src={group.image} alt={group.name} className="w-24 h-24 rounded-full mx-auto object-cover border-4 border-slate-100 dark:border-slate-800 shadow" />
           <div>
@@ -808,9 +823,13 @@ const GroupDetail = () => {
   const mediaMessages = messages.filter((m) => m.fileUrl && !m.deletedAt);
 
 
-  const filteredSidebarGroups = joinedGroups.filter((g) =>
-    !sidebarSearch.trim() || g.name.toLowerCase().includes(sidebarSearch.toLowerCase())
-  );
+  const filteredSidebarGroups = joinedGroups.filter((g) => {
+    const searchTerm = sidebarSearch.trim().toLowerCase();
+    const matchesSearch = !searchTerm ||
+      `${g.name || ''} ${g.category || ''}`.toLowerCase().includes(searchTerm);
+    const matchesFilter = sidebarFilter === 'all' || g.privacy === 'private';
+    return matchesSearch && matchesFilter;
+  });
 
   const adminIds = new Set([
     ...(group?.admins || []).map((a) => (a?._id || a)?.toString()),
@@ -825,42 +844,47 @@ const GroupDetail = () => {
 
   // ── RENDER ───────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-full w-full min-h-0 overflow-hidden bg-white dark:bg-[#1a1c22] text-app animate-fade-in">
+    <div className="flex h-full w-full min-h-0 overflow-hidden bg-white text-app animate-fade-in dark:bg-[#111318]">
 
       {/* ═══════════════════════════════════════════════════════════════════
           LEFT COLUMN — Groups list sidebar
       ═══════════════════════════════════════════════════════════════════ */}
-      <div className="hidden md:flex flex-col w-80 lg:w-[22rem] shrink-0 bg-white dark:bg-[#22242a] border-r border-slate-200 dark:border-slate-800">
+      <div className="hidden w-80 shrink-0 flex-col border-r border-slate-200/80 bg-[#fbfcfe] dark:border-slate-800 dark:bg-[#15171d] xl:flex xl:w-[22rem]">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
-          <h2 className="font-bold text-base text-app">Chats</h2>
+        <div className="flex items-center justify-between border-b border-slate-200/80 px-5 py-4 dark:border-slate-800">
+          <div>
+            <h2 className="font-semibold tracking-tight text-app">Study groups</h2>
+            <p className="mt-1 text-xs text-muted">Your learning communities</p>
+          </div>
           <div className="flex items-center gap-1">
-            <Link to="/groups" title="Browse groups" className="p-1.5 rounded-lg text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <Link to="/groups" title="Browse groups" className="rounded-xl p-2 text-muted transition-colors hover:bg-slate-100 hover:text-app dark:hover:bg-slate-800">
               <Plus size={18} />
             </Link>
           </div>
         </div>
 
         {/* Search */}
-        <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800">
+        <div className="border-b border-slate-200/80 px-4 py-3 dark:border-slate-800">
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input
               type="text"
-              placeholder="Search groups…"
+              placeholder="Search groups"
               value={sidebarSearch}
               onChange={(e) => setSidebarSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs text-app placeholder:text-muted outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-xs text-app outline-none transition placeholder:text-muted focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-[#1b1e26]"
             />
           </div>
-          <div className="flex gap-1.5 mt-2">
-            {['all', 'unread'].map((f) => (
+          <div className="mt-3 flex gap-1.5">
+            {['all', 'private'].map((f) => (
               <button
                 key={f}
                 onClick={() => setSidebarFilter(f)}
                 className={`px-3 py-1 rounded-full text-xs font-semibold transition-all capitalize ${
-                  sidebarFilter === f ? 'bg-indigo-600 text-white' : 'text-muted hover:text-app'
+                  sidebarFilter === f
+                    ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300'
+                    : 'text-muted hover:bg-slate-100 hover:text-app dark:hover:bg-slate-800'
                 }`}
               >{f}</button>
             ))}
@@ -878,10 +902,10 @@ const GroupDetail = () => {
                 <Link
                   key={g._id}
                   to={`/groups/${g._id}`}
-                  className={`flex items-center gap-3 px-3 py-2.5 border-l-2 transition-colors ${
+                  className={`flex items-center gap-3 border-l-2 px-4 py-3 transition-colors ${
                     active
                       ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30'
-                      : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                      : 'border-transparent hover:bg-white dark:hover:bg-[#1b1e26]'
                   }`}
                 >
                   {g.image ? (
@@ -917,10 +941,10 @@ const GroupDetail = () => {
       {/* ═══════════════════════════════════════════════════════════════════
           CENTER COLUMN — Chat area
       ═══════════════════════════════════════════════════════════════════ */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden bg-slate-50 dark:bg-[#1a1c22]">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f7f8fb] dark:bg-[#111318]">
 
         {/* Chat Header */}
-        <div className="flex items-center justify-between px-2 sm:px-4 h-14 sm:h-16 bg-white dark:bg-[#22242a] border-b border-slate-200 dark:border-slate-800 shrink-0 z-20">
+        <div className="z-20 flex h-14 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-2 dark:border-slate-800 dark:bg-[#15171d] sm:h-16 sm:px-5">
           <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1 mr-2">
             <Link
               to="/groups"
@@ -952,6 +976,9 @@ const GroupDetail = () => {
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
+            {String(group.creator?._id || group.creator || '') !== String(user?._id || '') && (
+              <ReportContentButton targetType="group" targetId={group._id} />
+            )}
             {group.meetingLink ? (
               <a href={group.meetingLink} target="_blank" rel="noreferrer"
                 className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all"
@@ -1008,7 +1035,7 @@ const GroupDetail = () => {
         )}
 
         {/* Messages */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 pt-5 sm:p-4 space-y-2">
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain bg-[#f7f8fb] p-4 pt-6 dark:bg-[#111318] sm:p-6">
           {displayedMessages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted gap-2 py-16">
               <Users size={36} className="opacity-40" />
@@ -1107,7 +1134,7 @@ const GroupDetail = () => {
                       toggleSelectMessage(msg._id);
                     }
                   }}
-                  className={`flex items-end gap-2 group relative ${isMe ? 'justify-end' : 'justify-start'} ${
+                  className={`flex items-end gap-2 group group/message relative ${isMe ? 'justify-end' : 'justify-start'} ${
                     menuOpen || activeReactionMsgId === msg._id ? 'z-50 relative' : 'relative z-0'
                   } ${selectedMsgIds.includes(msg._id) ? 'bg-indigo-50/60 dark:bg-indigo-950/30 rounded-xl' : ''} ${
                     msg.reactions?.length > 0 ? 'mb-2.5' : ''
@@ -1171,7 +1198,7 @@ const GroupDetail = () => {
                               : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-black/10 dark:hover:bg-white/10'
                           } ${
                             isMe ? 'border-white/40' : 'border-slate-200 dark:border-slate-700'
-                          } ${menuOpen ? 'opacity-100' : 'opacity-90 sm:opacity-0 sm:group-hover:opacity-100'}`}
+                          } ${menuOpen ? 'opacity-100' : 'opacity-90 sm:opacity-0 sm:group-hover/message:opacity-100 focus-visible:opacity-100'}`}
                           title="Message actions"
                           aria-label="Message actions"
                         >
@@ -1445,7 +1472,7 @@ const GroupDetail = () => {
         )}
 
         {/* Input bar */}
-        <div className="px-2.5 sm:px-5 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:py-3.5 bg-white dark:bg-[#22242a] border-t border-slate-200 dark:border-slate-800 shrink-0 relative z-20">
+        <div className="relative z-20 shrink-0 border-t border-slate-200/80 bg-white px-2.5 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] dark:border-slate-800 dark:bg-[#15171d] sm:px-5 sm:py-3.5">
           {/* Attach popup */}
           {showAttachMenu && (
             <div className="absolute bottom-14 left-2 sm:left-4 z-20 w-44 sm:w-48 bg-white dark:bg-[#2a2c34] border border-slate-200 dark:border-slate-700 rounded-2xl p-1.5 sm:p-2 shadow-xl space-y-1">
@@ -1514,34 +1541,41 @@ const GroupDetail = () => {
             className="fixed inset-0 top-16 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
             onClick={() => setShowGroupInfo(false)}
           />
-          <div className="fixed top-16 bottom-0 right-0 lg:top-0 lg:inset-y-0 z-40 w-full sm:w-[400px] lg:w-[45%] lg:min-w-[340px] lg:max-w-[560px] bg-white dark:bg-[#22242a] border-l border-slate-200 dark:border-slate-800 flex flex-col shadow-2xl">
+          <div role="dialog" aria-labelledby="group-info-title" className="fixed top-16 bottom-0 right-0 z-40 flex w-full flex-col border-l border-slate-200 bg-slate-50 shadow-2xl dark:border-slate-800 dark:bg-[#10131a] sm:w-[400px] lg:w-[45%] lg:min-w-[340px] lg:max-w-[560px]">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 h-14 border-b border-slate-200 dark:border-slate-800 shrink-0 bg-white dark:bg-[#22242a]">
-              <div className="flex items-center gap-3">
-                <button onClick={() => setShowGroupInfo(false)} className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800">
-                  <ChevronLeft size={20} />
-                </button>
-                <h3 className="font-bold text-base text-app">Group info</h3>
+            <div className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 backdrop-blur dark:border-slate-800 dark:bg-[#171a22]/95">
+              <div className="min-w-0">
+                <h3 id="group-info-title" className="font-bold text-base text-app">Group info</h3>
+                <p className="text-[11px] text-muted">Members, details & settings</p>
               </div>
-              <button onClick={() => setShowGroupInfo(false)} className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowGroupInfo(false)}
+                aria-label="Close group info panel"
+                title="Close group info"
+                className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
                 <X size={20} />
+                <span>Close</span>
               </button>
             </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
 
             {/* Group avatar + name */}
-            <div className="p-6 text-center space-y-2 border-b border-slate-200 dark:border-slate-800">
+            <div className="relative isolate overflow-hidden rounded-3xl border border-indigo-400/20 bg-gradient-to-br from-slate-950 via-indigo-950 to-indigo-800 p-6 text-center text-white shadow-lg">
+              <div aria-hidden="true" className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-indigo-400/20 blur-3xl" />
+              <div className="relative space-y-3">
               <div className="relative inline-block">
                 {group.image ? (
                   <img
                     src={group.image}
                     alt={group.name}
-                    className="w-28 h-28 rounded-full object-cover border-4 border-slate-100 dark:border-slate-800 shadow-lg mx-auto"
+                    className="mx-auto h-24 w-24 rounded-3xl border-4 border-white/20 object-cover shadow-xl sm:h-28 sm:w-28"
                   />
                 ) : (
-                  <div className="w-28 h-28 rounded-full flex items-center justify-center font-bold text-white bg-gradient-to-tr from-indigo-600 to-violet-500 uppercase select-none text-4xl border-4 border-slate-100 dark:border-slate-800 shadow-lg mx-auto">
+                  <div className="mx-auto flex h-24 w-24 select-none items-center justify-center rounded-3xl border-4 border-white/20 bg-white/10 text-4xl font-bold uppercase text-white shadow-xl sm:h-28 sm:w-28">
                     {group.name?.trim()?.[0]?.toUpperCase() || 'G'}
                   </div>
                 )}
@@ -1550,91 +1584,116 @@ const GroupDetail = () => {
                     onClick={() => groupImgFileInputRef.current?.click()}
                     disabled={uploadingGroupImg}
                     title="Change group photo"
-                    className="absolute bottom-1 right-1 p-2 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg transition-transform active:scale-95 disabled:opacity-75"
+                    className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-xl border-2 border-indigo-950 bg-white text-indigo-700 shadow-lg transition-transform hover:scale-105 active:scale-95 disabled:opacity-75"
                   >
                     {uploadingGroupImg ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
                   </button>
                 )}
               </div>
               <div>
-                <div className="flex items-center justify-center gap-2">
-                  <h2 className="text-lg font-bold text-app">{group.name}</h2>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <h2 className="text-lg font-bold text-white">{group.name}</h2>
                   {isAdmin && (
-                    <button onClick={() => setShowSettingsModal(true)} className="text-muted hover:text-indigo-600 transition-colors">
-                      <Pencil size={14} />
+                    <button
+                      type="button"
+                      onClick={() => setShowSettingsModal(true)}
+                      aria-label="Edit group details"
+                      title="Edit group details"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white transition-colors hover:bg-white/20"
+                    >
+                      <Pencil size={15} />
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-muted">
-                  Group · {group.members?.length || 0} members ·
-                  <span className="ml-1 capitalize">{group.privacy}</span>
+                <p className="mt-1 text-xs text-indigo-100/80">
+                  {group.members?.length || 0} members · {group.privacy || 'public'} group
                 </p>
               </div>
 
               {/* Action buttons */}
-              <div className="flex items-center justify-center gap-6 pt-2">
-                <button onClick={() => setShowAddMemberModal(true)} className="flex flex-col items-center gap-1 group">
-                  <div className="w-11 h-11 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950/30 transition-colors border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-center gap-8 pt-2">
+                <button type="button" onClick={() => setShowAddMemberModal(true)} className="group flex flex-col items-center gap-1.5">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white transition-colors group-hover:bg-white/20">
                     <UserPlus size={19} />
                   </div>
-                  <span className="text-[11px] text-muted">Add</span>
+                  <span className="text-[11px] font-medium text-indigo-100">Add member</span>
                 </button>
-                <button onClick={() => { setShowGroupInfo(false); setShowInChatSearch(true); }} className="flex flex-col items-center gap-1 group">
-                  <div className="w-11 h-11 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950/30 transition-colors border border-slate-200 dark:border-slate-700">
+                <button type="button" onClick={() => { setShowGroupInfo(false); setShowInChatSearch(true); }} className="group flex flex-col items-center gap-1.5">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white transition-colors group-hover:bg-white/20">
                     <Search size={19} />
                   </div>
-                  <span className="text-[11px] text-muted">Search</span>
+                  <span className="text-[11px] font-medium text-indigo-100">Search chat</span>
                 </button>
+              </div>
               </div>
             </div>
 
             {/* Description */}
             {group.description && (
-              <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
-                <p className="text-xs text-muted leading-relaxed">{group.description}</p>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#171a22]">
+                <div className="mb-2 flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-300">
+                    <Info size={15} />
+                  </div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted">About this group</h4>
+                </div>
+                <p className="text-sm leading-relaxed text-app">{group.description}</p>
                 {group.category && (
-                  <span className="inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">{group.category}</span>
+                  <span className="mt-3 inline-flex rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-[10px] font-semibold text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300">{group.category}</span>
                 )}
               </div>
             )}
 
             {/* Meeting link */}
-            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#171a22]">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-muted uppercase tracking-wider">Meeting Link</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300">
+                    <Video size={15} />
+                  </div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-app">Meeting link</span>
+                </div>
                 {isAdmin && (
-                  <button onClick={() => setShowMeetingModal(true)} className="text-muted hover:text-indigo-600 transition-colors"><Pencil size={14} /></button>
+                  <button type="button" onClick={() => setShowMeetingModal(true)} aria-label="Edit meeting link" className="flex h-8 w-8 items-center justify-center rounded-xl text-muted transition-colors hover:bg-slate-100 hover:text-indigo-600 dark:hover:bg-slate-800"><Pencil size={14} /></button>
                 )}
               </div>
               {group.meetingLink ? (
                 <div className="mt-2.5 flex items-center justify-between">
                   <a href={group.meetingLink} target="_blank" rel="noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition-all">
+                    className="mt-2 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-indigo-700">
                     <Video size={14} /> Join Group Call
                   </a>
                 </div>
               ) : (
-                <p className="text-xs text-muted mt-1">{isAdmin ? 'Tap pencil to add a meeting link.' : 'No meeting link set yet.'}</p>
+                <p className="mt-2 text-xs leading-relaxed text-muted">{isAdmin ? 'Add a video call link so members can meet here.' : 'No meeting link has been added yet.'}</p>
               )}
             </div>
 
             {/* Copy Group Invite Link */}
-            <div className="border-b border-slate-200 dark:border-slate-800">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#171a22]">
               <button onClick={copyInviteLink}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left">
+                className="flex w-full items-center justify-between px-4 py-4 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
                 <div className="flex items-center gap-3">
-                  <Link2 size={16} className="text-muted" />
-                  <span className="text-sm font-medium text-app">{copiedInviteLink ? 'Link copied!' : 'Copy Group Invite Link'}</span>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    <Link2 size={16} />
+                  </div>
+                  <div>
+                    <span className="block text-sm font-semibold text-app">{copiedInviteLink ? 'Invite link copied' : 'Invite people'}</span>
+                    <span className="mt-0.5 block text-[11px] text-muted">Share a link to this group</span>
+                  </div>
                 </div>
-                {copiedInviteLink ? <Check size={14} className="text-emerald-500" /> : <Share2 size={14} className="text-muted" />}
+                {copiedInviteLink ? <Check size={16} className="text-emerald-500" /> : <Share2 size={16} className="text-muted" />}
               </button>
             </div>
 
             {/* Media section */}
-            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#171a22]">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-muted uppercase tracking-wider">Media, links & docs</span>
-                <span className="text-xs text-indigo-600 dark:text-indigo-400 font-bold">{mediaMessages.length}</span>
+                <div>
+                  <h4 className="text-sm font-semibold text-app">Shared media</h4>
+                  <p className="mt-0.5 text-[11px] text-muted">Photos and files from this chat</p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{mediaMessages.length}</span>
               </div>
               <div className="flex gap-1.5 mb-2">
                 {['all','images','docs'].map((t) => (
@@ -1660,12 +1719,17 @@ const GroupDetail = () => {
 
             {/* Group permissions (admin only) */}
             {isAdmin && (
-              <div className="border-b border-slate-200 dark:border-slate-800">
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#171a22]">
                 <button onClick={() => setShowSettingsModal(true)}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left">
+                  className="flex w-full items-center justify-between px-4 py-4 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
                   <div className="flex items-center gap-3">
-                    <Settings size={16} className="text-muted" />
-                    <span className="text-sm text-app">Group permissions</span>
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300">
+                      <Settings size={16} />
+                    </div>
+                    <div>
+                      <span className="block text-sm font-semibold text-app">Group settings</span>
+                      <span className="mt-0.5 block text-[11px] text-muted">Privacy, category and group details</span>
+                    </div>
                   </div>
                   <ChevronRight size={15} className="text-muted" />
                 </button>
@@ -1673,9 +1737,13 @@ const GroupDetail = () => {
             )}
 
             {/* Members list */}
-            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#171a22]">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-muted uppercase tracking-wider">{group.members?.length || 0} Members</span>
+                <div>
+                  <h4 className="text-sm font-semibold text-app">Members</h4>
+                  <p className="mt-0.5 text-[11px] text-muted">{group.members?.length || 0} people in this group</p>
+                </div>
+                <Users size={16} className="text-muted" />
               </div>
               <div className="relative mb-2">
                 <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
@@ -1727,32 +1795,24 @@ const GroupDetail = () => {
                         </div>
                       </button>
 
-                      <div
-                        className="relative shrink-0"
-                        onMouseEnter={() => handleMemberMenuMouseEnter(memberId)}
-                        onMouseLeave={handleMemberMenuMouseLeave}
-                      >
+                      <div className="relative shrink-0" data-member-menu>
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (closeMemberMenuTimerRef.current) clearTimeout(closeMemberMenuTimerRef.current);
                             setOpenMemberMenuId(openMemberMenuId === memberId ? '' : memberId);
                           }}
                           className="group/dots p-1.5 rounded-lg text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 bg-slate-200/50 hover:bg-blue-50/80 dark:bg-slate-800/60 dark:hover:bg-blue-950/40 active:scale-95 transition-all duration-200"
                           title="Member options"
+                          aria-label="Member options"
+                          aria-expanded={openMemberMenuId === memberId}
                         >
-                          <MoreVertical
-                            size={16}
-                            className="transition-transform duration-200 group-hover/dots:scale-110"
-                          />
+                          <MoreVertical size={16} />
                         </button>
 
                         {openMemberMenuId === memberId && (
                           <div
                             className="absolute right-0 top-full mt-1 z-50 w-48 bg-white dark:bg-[#2a2c34] border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 text-xs divide-y divide-slate-100 dark:divide-slate-800 animate-in fade-in zoom-in-95 duration-150"
-                            onMouseEnter={() => handleMemberMenuMouseEnter(memberId)}
-                            onMouseLeave={handleMemberMenuMouseLeave}
                           >
                             <div className="py-0.5">
                               <button
@@ -1860,7 +1920,7 @@ const GroupDetail = () => {
 
             {/* Pending requests (admin only) */}
             {isAdmin && (group.pendingRequests || []).length > 0 && (
-              <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/60 dark:bg-amber-950/20">
                 <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2">Join Requests ({group.pendingRequests.length})</p>
                 <div className="space-y-2">
                   {group.pendingRequests.map((req) => {
@@ -1883,7 +1943,7 @@ const GroupDetail = () => {
             )}
 
             {/* Leave / Clear / Delete */}
-            <div className="px-4 py-3 space-y-1">
+            <div className="space-y-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-[#171a22]">
               <button
                 type="button"
                 onClick={handleLeaveGroup}
@@ -1915,7 +1975,7 @@ const GroupDetail = () => {
             </div>
 
             {/* Created at */}
-            <p className="text-center text-[11px] text-muted py-4">
+            <p className="pb-3 pt-1 text-center text-[11px] text-muted">
               Created {new Date(group.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}
             </p>
           </div>
@@ -1929,11 +1989,14 @@ const GroupDetail = () => {
 
       {/* Settings Modal */}
       {showSettingsModal && (
-        <div role="dialog" data-modal="true" className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden">
+        <div role="dialog" aria-modal="true" aria-labelledby="group-details-title" data-modal="true" className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md max-h-[90dvh] overflow-y-auto bg-white dark:bg-[#22242a] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="font-bold text-base text-app">Group Settings</h3>
-              <button onClick={() => setShowSettingsModal(false)} className="p-1 rounded-lg text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800"><X size={18} /></button>
+              <div>
+                <h3 id="group-details-title" className="font-bold text-base text-app">Edit group details</h3>
+                <p className="mt-1 text-xs text-muted">Update the information members see.</p>
+              </div>
+              <button type="button" aria-label="Close group details" onClick={() => setShowSettingsModal(false)} className="p-2 rounded-lg text-muted hover:text-app hover:bg-slate-100 dark:hover:bg-slate-800"><X size={18} /></button>
             </div>
             <form onSubmit={handleSaveSettings} className="p-5 space-y-4 text-sm">
               <div className="space-y-1.5">
@@ -2017,7 +2080,10 @@ const GroupDetail = () => {
                   {savingSettings ? 'Saving…' : 'Save Changes'}
                 </button>
                 <button type="button" onClick={() => setShowSettingsModal(false)}
-                  className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-muted hover:text-app rounded-xl font-bold text-sm">Cancel</button>
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-bold text-muted transition-colors hover:bg-slate-200 hover:text-app dark:bg-slate-800 dark:hover:bg-slate-700">
+                  <X size={15} />
+                  Cancel
+                </button>
               </div>
             </form>
           </div>

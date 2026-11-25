@@ -48,6 +48,47 @@ const userSchema = new mongoose.Schema({
     enum: ['User', 'Admin'],
     default: 'User'
   },
+  adminAccessLevel: {
+    type: String,
+    enum: ['full', 'moderator', 'support', 'analyst', 'custom'],
+    default: 'full'
+  },
+  adminPermissions: [{
+    type: String,
+    enum: [
+      'dashboard.read',
+      'users.read',
+      'users.manage',
+      'content.read',
+      'content.manage',
+      'moderation.manage',
+      'feedback.manage',
+      'system.manage',
+      'audit.read',
+      'permissions.manage',
+      'feature_flags.manage',
+      'health.read'
+    ]
+  }],
+  suspendedAt: {
+    type: Date,
+    default: null
+  },
+  suspendedUntil: {
+    type: Date,
+    default: null
+  },
+  suspensionReason: {
+    type: String,
+    trim: true,
+    maxlength: 500,
+    default: ''
+  },
+  suspendedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
   profileImage: {
     type: String,
     default: ''
@@ -142,6 +183,11 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  streak: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
   isVerified: {
     type: Boolean,
     default: false
@@ -149,6 +195,14 @@ const userSchema = new mongoose.Schema({
   otp: {
     code: { type: String, default: '' },
     expiresAt: { type: Date }
+  },
+  emailChange: {
+    pendingEmail: { type: String, lowercase: true, trim: true, default: '' },
+    currentOtpHash: { type: String, default: '' },
+    currentOtpExpiresAt: { type: Date, default: null },
+    newOtpHash: { type: String, default: '' },
+    newOtpExpiresAt: { type: Date, default: null },
+    currentVerifiedAt: { type: Date, default: null }
   },
   refreshToken: {
     type: String,

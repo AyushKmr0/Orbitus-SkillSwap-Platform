@@ -32,8 +32,7 @@ import {
   Pencil,
   Share2,
   Check,
-  X,
-  GitBranch
+  X
 } from 'lucide-react';
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
@@ -428,13 +427,6 @@ export const PostCommentsModal = ({
                   </DialogDescription>
                 </div>
               </div>
-
-              {comments.length > 0 && (
-                <div className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-1 rounded-xl">
-                  <GitBranch size={13} />
-                  <span>Interactive Branches</span>
-                </div>
-              )}
             </div>
 
           </DialogHeader>
@@ -479,8 +471,8 @@ export const PostCommentsModal = ({
               <div className="flex items-center gap-1.5">
                 {replyTarget ? (
                   <>
-                    <GitBranch size={13} className="text-indigo-500" />
-                    <span>Branching reply to <strong>@{replyTarget.username}</strong></span>
+                    <Reply size={13} className="text-indigo-500" />
+                    <span>Replying to <strong>@{replyTarget.username}</strong></span>
                   </>
                 ) : (
                   <>
@@ -519,12 +511,10 @@ export const PostCommentsModal = ({
               >
                 {submitting ? (
                   <Loader2 size={14} className="animate-spin" />
-                ) : replyTarget ? (
-                  <GitBranch size={14} />
                 ) : (
                   <Send size={14} />
                 )}
-                <span>{editingTarget ? 'Save' : replyTarget ? 'Branch Reply' : 'Post'}</span>
+                <span>{editingTarget ? 'Save' : replyTarget ? 'Reply' : 'Post'}</span>
               </button>
             </div>
           </form>

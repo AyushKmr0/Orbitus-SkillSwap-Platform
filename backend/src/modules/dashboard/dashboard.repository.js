@@ -8,6 +8,8 @@ import Post from '../../models/Post.js';
 import Certificate from '../../models/Certificate.js';
 import Group from '../../models/Group.js';
 import Notification from '../../models/Notification.js';
+import ModerationReport from '../../models/ModerationReport.js';
+import AdminAuditLog from '../../models/AdminAuditLog.js';
 
 export class DashboardRepository {
   async findUserById(userId) {
@@ -114,13 +116,61 @@ export class DashboardRepository {
 
   async findAdminUsers(query, { skip = 0, limit = 20 } = {}) {
     return Promise.all([
-      User.find(query).select('name username email role points createdAt').sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      User.find(query)
+        .select('name username email role adminAccessLevel adminPermissions points createdAt suspendedAt suspendedUntil suspensionReason')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
       User.countDocuments(query)
     ]);
   }
 
   async updateUserRole(id, role) {
-    return User.findByIdAndUpdate(id, { role }, { new: true }).select('name email role');
+    return User.findByIdAndUpdate(
+      id,
+      {
+        role,
+        adminAccessLevel: 'full',
+        adminPermissions: []
+      },
+      { new: true }
+    ).select('name email role adminAccessLevel adminPermissions');
+  }
+
+  async updateAdminUserAccess(id, accessLevel, permissions = []) {
+    return User.findOneAndUpdate(
+      { _id: id, role: 'Admin' },
+      { adminAccessLevel: accessLevel, adminPermissions: permissions },
+      { new: true }
+    ).select('name email role adminAccessLevel adminPermissions');
+  }
+
+  async suspendUser(id, { reason, expiresAt, suspendedBy }) {
+    return User.findOneAndUpdate(
+      { _id: id, role: 'User' },
+      {
+        suspendedAt: new Date(),
+        suspendedUntil: expiresAt || null,
+        suspensionReason: reason,
+        suspendedBy,
+        refreshToken: ''
+      },
+      { new: true }
+    ).select('name email role suspendedAt suspendedUntil suspensionReason');
+  }
+
+  async restoreUser(id) {
+    return User.findOneAndUpdate(
+      { _id: id, role: 'User' },
+      {
+        suspendedAt: null,
+        suspendedUntil: null,
+        suspensionReason: '',
+        suspendedBy: null
+      },
+      { new: true }
+    ).select('name email role suspendedAt suspendedUntil suspensionReason');
   }
 
   async deleteUser(id) {
@@ -155,6 +205,34 @@ export class DashboardRepository {
 
   async insertNotifications(notifications) {
     return Notification.insertMany(notifications);
+  }
+
+  async getAdminOperationalMetrics(sinceDate, now) {
+    const [newUsers, recentPosts, pendingReports, suspendedUsers] = await Promise.all([
+      User.countDocuments({ createdAt: { $gte: sinceDate } }),
+      Post.countDocuments({ createdAt: { $gte: sinceDate } }),
+      ModerationReport.countDocuments({ status: 'pending' }),
+      User.countDocuments({
+        suspendedAt: { $ne: null },
+        $or: [{ suspendedUntil: null }, { suspendedUntil: { $gt: now } }]
+      })
+    ]);
+
+    return { newUsers, recentPosts, pendingReports, suspendedUsers };
+  }
+
+  async findAdminAuditLogs({ page = 1, limit = 20, action = '' } = {}) {
+    const safeAction = action.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const query = safeAction ? { action: { $regex: safeAction, $options: 'i' } } : {};
+    return Promise.all([
+      AdminAuditLog.find(query)
+        .populate('actor', 'name username email')
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      AdminAuditLog.countDocuments(query)
+    ]);
   }
 }
 

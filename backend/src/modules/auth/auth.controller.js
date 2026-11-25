@@ -16,7 +16,7 @@ import {
 } from '../../services/oauthService.js';
 import User from '../../models/User.js';
 import { buildUsernameFromName } from './auth.service.js';
-import { activityService } from '../../services/activityService.js';
+import { getFeatureFlag } from '../../config/featureFlags.js';
 
 export class AuthController {
   constructor(service = authService) {
@@ -79,6 +79,34 @@ export class AuthController {
     const updatedUser = await this.service.updatePasswordWithOtp(req.user, req.body);
     return res.status(200).json(
       new ApiResponse(200, { user: updatedUser }, "Password updated successfully!")
+    );
+  });
+
+  requestEmailChange = asyncHandler(async (req, res) => {
+    const result = await this.service.requestEmailChange(req.user, req.body);
+    return res.status(200).json(
+      new ApiResponse(200, result, 'Verification code sent to your current email.')
+    );
+  });
+
+  verifyCurrentEmailChange = asyncHandler(async (req, res) => {
+    const result = await this.service.verifyCurrentEmailChange(req.user, req.body);
+    return res.status(200).json(
+      new ApiResponse(200, result, 'Current email verified. A code was sent to your new email.')
+    );
+  });
+
+  resendEmailChangeCode = asyncHandler(async (req, res) => {
+    const result = await this.service.resendEmailChangeCode(req.user);
+    return res.status(200).json(
+      new ApiResponse(200, result, 'Verification code resent.')
+    );
+  });
+
+  verifyNewEmailChange = asyncHandler(async (req, res) => {
+    const user = await this.service.verifyNewEmailChange(req.user, req.body);
+    return res.status(200).json(
+      new ApiResponse(200, { user }, 'Account email updated successfully.')
     );
   });
 
@@ -196,6 +224,10 @@ export class AuthController {
     }).populate('skillsTeach.skill skillsLearn.skill');
 
     if (!user) {
+      if (!(await getFeatureFlag('userRegistration'))) {
+        return res.redirect(`${targetFrontendUrl}/register?error=registration_disabled`);
+      }
+
       user = await User.create({
         name: profile.name,
         email: profile.email,
@@ -222,21 +254,15 @@ export class AuthController {
       await user.save();
     }
 
-    const userTimezone = user.timezone || 'Asia/Kolkata';
-    const loginReward = await activityService.recordDailyLogin({
-      userId: user._id,
-      timeZone: userTimezone
+    const { accessToken, dailyReward } = await this.service.issueSession(res, user);
+    const callbackParams = new URLSearchParams({
+      accessToken,
+      user: JSON.stringify(publicUserPayload(user, user._id)),
+      dailyRewardAwarded: String(dailyReward.awarded),
+      dailyRewardPoints: String(dailyReward.pointsAwarded)
     });
-    if (loginReward.totalPoints !== undefined && loginReward.totalPoints !== null) {
-      user.points = loginReward.totalPoints;
-    }
-    if (loginReward.awarded) {
-      user.dailyLoginTracker = new Date();
-    }
-
-    const { accessToken } = await this.service.issueSession(res, user);
     return res.redirect(
-      `${targetFrontendUrl}/auth/callback?accessToken=${encodeURIComponent(accessToken)}&user=${encodeURIComponent(JSON.stringify(publicUserPayload(user, user._id)))}`
+      `${targetFrontendUrl}/auth/callback?${callbackParams.toString()}`
     );
   });
 
@@ -249,10 +275,12 @@ export class AuthController {
       token: result.token,
       accessToken: result.token,
       user: result.user,
+      dailyReward: result.dailyReward,
       data: {
         token: result.token,
         accessToken: result.token,
-        user: result.user
+        user: result.user,
+        dailyReward: result.dailyReward
       }
     });
   });
@@ -272,5 +300,9 @@ export const {
   verifyAdminKeyAndLogin,
   sendPasswordOtp,
   updatePasswordWithOtp,
+  requestEmailChange,
+  verifyCurrentEmailChange,
+  resendEmailChangeCode,
+  verifyNewEmailChange,
   adminChangeSecretKey
 } = authController;
