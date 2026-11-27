@@ -128,13 +128,28 @@ export class UsersRepository {
   async findFollowers(userId) {
     return User.findById(userId)
       .select('followers')
-      .populate('followers', 'name username profileImage experienceLevel followers');
+      .populate('followers', 'name username profileImage experienceLevel');
   }
 
   async findFollowing(userId) {
     return User.findById(userId)
       .select('following')
-      .populate('following', 'name username profileImage experienceLevel followers');
+      .populate('following', 'name username profileImage experienceLevel');
+  }
+
+  async findFollowedUserIds(currentUserId, targetUserIds) {
+    if (targetUserIds.length === 0) {
+      return new Set();
+    }
+
+    const users = await User.find({
+      _id: { $in: targetUserIds },
+      followers: currentUserId
+    })
+      .select('_id')
+      .lean();
+
+    return new Set(users.map((user) => user._id.toString()));
   }
 
   async deleteFullAccountData(userId) {

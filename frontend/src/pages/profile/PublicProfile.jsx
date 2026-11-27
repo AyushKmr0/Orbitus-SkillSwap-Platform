@@ -55,6 +55,7 @@ import PostLikersDialog from '../../components/common/PostLikersDialog.jsx';
 import PostCommentsModal from '../../components/common/PostCommentsModal.jsx';
 import { PulseHeart } from '../../components/common/react-bits/PulseHeart.jsx';
 import { optimizeCloudinaryUrl } from '../../lib/utils.js';
+import { useToast } from '../../components/ui/use-toast.js';
 
 
 const PublicProfile = () => {
@@ -62,6 +63,7 @@ const PublicProfile = () => {
   const { user: currentUser, token } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   // Resolve target identifier: if no id or 'me', use currentUser._id or 'me'
   const targetUserId = !id || id === 'me' ? (currentUser?._id || 'me') : id;
@@ -93,6 +95,7 @@ const PublicProfile = () => {
   const [drawerType, setDrawerType] = useState(null); // null | 'followers' | 'following'
   const [drawerUsers, setDrawerUsers] = useState([]);
   const [drawerLoading, setDrawerLoading] = useState(false);
+  const [drawerFollowBusyIds, setDrawerFollowBusyIds] = useState(() => new Set());
 
   // Booking Form State (Only for other users)
   const [bookTopic, setBookTopic] = useState('');
@@ -424,15 +427,80 @@ const PublicProfile = () => {
   };
 
   const handleFollowToggle = async () => {
-    if (!profileUser || isOwnProfile) return;
+    if (!profileUser || isOwnProfile || followBusy) return;
+    const wasFollowing = Boolean(profileUser.isFollowing);
+    const previousFollowersCount = profileUser.followersCount || 0;
+    const nextFollowing = !wasFollowing;
+    const nextFollowersCount = Math.max(0, previousFollowersCount + (nextFollowing ? 1 : -1));
+
+    setProfileUser((current) => ({
+      ...current,
+      isFollowing: nextFollowing,
+      followersCount: nextFollowersCount
+    }));
     setFollowBusy(true);
     try {
       const res = await apiClient.post(`/api/users/${profileUser._id}/follow`, {});
-      setProfileUser(res.data.user);
+      setProfileUser((current) => ({
+        ...current,
+        isFollowing: res.data.following ?? nextFollowing,
+        followersCount: res.data.user?.followersCount ?? current.followersCount
+      }));
     } catch (err) {
       console.error('Error updating follow:', err);
+      setProfileUser((current) => ({
+        ...current,
+        isFollowing: wasFollowing,
+        followersCount: previousFollowersCount
+      }));
+      toast({
+        title: 'Follow update failed',
+        description: 'Please try again.'
+      });
     } finally {
       setFollowBusy(false);
+    }
+  };
+
+  const handleDrawerFollowToggle = async (targetUser) => {
+    const targetUserId = targetUser._id;
+    if (drawerFollowBusyIds.has(targetUserId)) return;
+
+    const wasFollowing = Boolean(targetUser.isFollowing);
+    const nextFollowing = !wasFollowing;
+    setDrawerFollowBusyIds((current) => new Set(current).add(targetUserId));
+    setDrawerUsers((current) =>
+      current.map((user) =>
+        user._id === targetUserId ? { ...user, isFollowing: nextFollowing } : user
+      )
+    );
+
+    try {
+      const res = await apiClient.post(`/api/users/${targetUserId}/follow`, {});
+      setDrawerUsers((current) =>
+        current.map((user) =>
+          user._id === targetUserId
+            ? { ...user, isFollowing: res.data.user?.isFollowing ?? res.data.following ?? nextFollowing }
+            : user
+        )
+      );
+    } catch (err) {
+      console.error('Error updating follow from list:', err);
+      setDrawerUsers((current) =>
+        current.map((user) =>
+          user._id === targetUserId ? { ...user, isFollowing: wasFollowing } : user
+        )
+      );
+      toast({
+        title: 'Follow update failed',
+        description: 'Please try again.'
+      });
+    } finally {
+      setDrawerFollowBusyIds((current) => {
+        const next = new Set(current);
+        next.delete(targetUserId);
+        return next;
+      });
     }
   };
 
@@ -1572,21 +1640,13 @@ const PublicProfile = () => {
                         {!isSelf && (
                           <button
                             type="button"
-                            onClick={async () => {
-                              try {
-                                const res = await apiClient.post(`/api/users/${u._id}/follow`, {});
-                                setDrawerUsers(prev => prev.map(x =>
-                                  x._id === u._id ? { ...x, isFollowing: res.data.user?.isFollowing } : x
-                                ));
-                              } catch (err) {
-                                console.warn('Follow update notice:', err);
-                              }
-                            }}
+                            onClick={() => handleDrawerFollowToggle(u)}
+                            disabled={drawerFollowBusyIds.has(u._id)}
                             className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors shrink-0 ${
                               u.isFollowing
                                 ? 'bg-slate-100 dark:bg-slate-800 text-muted hover:bg-slate-200'
                                 : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-                            }`}
+                            } ${drawerFollowBusyIds.has(u._id) ? 'opacity-60 cursor-wait' : ''}`}
                           >
                             {u.isFollowing ? 'Following' : 'Follow'}
                           </button>

@@ -262,16 +262,19 @@ export class UsersService {
       throw new AppError('User not found', 404);
     }
 
-    const list = (user.followers || []).map((u) => ({
+    const followers = user.followers || [];
+    const followedUserIds = currentUserId
+      ? await this.repo.findFollowedUserIds(currentUserId, followers.map((follower) => follower._id))
+      : new Set();
+
+    return followers.map((u) => ({
       _id: u._id,
       name: u.name,
       username: u.username,
       profileImage: u.profileImage,
       experienceLevel: u.experienceLevel,
-      isFollowing: currentUserId ? (u.followers || []).some((f) => f.toString() === currentUserId) : false
+      isFollowing: followedUserIds.has(u._id.toString())
     }));
-
-    return list;
   }
 
   async getFollowingList(userId, currentUserId) {
@@ -280,16 +283,19 @@ export class UsersService {
       throw new AppError('User not found', 404);
     }
 
-    const list = (user.following || []).map((u) => ({
+    const following = user.following || [];
+    const followedUserIds = currentUserId
+      ? await this.repo.findFollowedUserIds(currentUserId, following.map((followedUser) => followedUser._id))
+      : new Set();
+
+    return following.map((u) => ({
       _id: u._id,
       name: u.name,
       username: u.username,
       profileImage: u.profileImage,
       experienceLevel: u.experienceLevel,
-      isFollowing: currentUserId ? (u.followers || []).some((f) => f.toString() === currentUserId) : false
+      isFollowing: followedUserIds.has(u._id.toString())
     }));
-
-    return list;
   }
 
   async updateUserProfile(userId, data) {
